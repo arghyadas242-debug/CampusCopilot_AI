@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+
+<html class="scroll-smooth" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>CampusCopilot AI - Your intelligent campus companion</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;600&amp;family=Hanken+Grotesk:wght@400;600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary-container": "#006f66",
+                        "on-tertiary-fixed-variant": "#5a00c6",
+                        "inverse-on-surface": "#eff1f3",
+                        "on-tertiary-fixed": "#25005a",
+                        "secondary": "#006a61",
+                        "outline": "#757682",
+                        "surface-tint": "#4059aa",
+                        "primary-container": "#1e3a8a",
+                        "surface-container-highest": "#e0e3e5",
+                        "tertiary-fixed-dim": "#d2bbff",
+                        "surface-dim": "#d8dadc",
+                        "on-background": "#191c1e",
+                        "surface-container-low": "#f2f4f6",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-container": "#5200b5",
+                        "on-tertiary": "#ffffff",
+                        "on-error": "#ffffff",
+                        "secondary-container": "#86f2e4",
+                        "error": "#ba1a1a",
+                        "on-primary-fixed-variant": "#264191",
+                        "on-secondary": "#ffffff",
+                        "primary-fixed-dim": "#b6c4ff",
+                        "on-error-container": "#93000a",
+                        "on-secondary-fixed": "#00201d",
+                        "primary-fixed": "#dce1ff",
+                        "secondary-fixed": "#89f5e7",
+                        "on-secondary-fixed-variant": "#005049",
+                        "surface-container-high": "#e6e8ea",
+                        "surface-bright": "#f7f9fb",
+                        "on-primary-container": "#90a8ff",
+                        "on-primary-fixed": "#00164e",
+                        "inverse-primary": "#b6c4ff",
+                        "primary": "#00236f",
+                        "error-container": "#ffdad6",
+                        "surface-variant": "#e0e3e5",
+                        "on-surface": "#191c1e",
+                        "inverse-surface": "#2d3133",
+                        "on-surface-variant": "#444651",
+                        "tertiary": "#37007e",
+                        "background": "#f7f9fb",
+                        "surface-container": "#eceef0",
+                        "tertiary-fixed": "#eaddff",
+                        "on-primary": "#ffffff",
+                        "on-tertiary-container": "#bc9bff",
+                        "outline-variant": "#c5c5d3",
+                        "secondary-fixed-dim": "#6bd8cb",
+                        "surface": "#f7f9fb"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "xs": "8px",
+                        "sm": "16px",
+                        "md": "24px",
+                        "margin-mobile": "16px",
+                        "xl": "64px",
+                        "gutter": "16px",
+                        "margin-desktop": "32px",
+                        "base": "4px",
+                        "lg": "40px"
+                    },
+                    "fontFamily": {
+                        "body-sm": ["Inter"],
+                        "display-lg": ["Hanken Grotesk"],
+                        "title-md": ["Inter"],
+                        "headline-lg": ["Hanken Grotesk"],
+                        "headline-lg-mobile": ["Hanken Grotesk"],
+                        "body-md": ["Inter"],
+                        "label-caps": ["Geist"],
+                        "mono-sm": ["Geist"]
+                    },
+                    "fontSize": {
+                        "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "display-lg": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "title-md": ["18px", { "lineHeight": "24px", "fontWeight": "600" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "mono-sm": ["13px", { "lineHeight": "18px", "fontWeight": "400" }]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        /* Custom utilities */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+        }
+        
+        .ai-gradient-text {
+            background: linear-gradient(135deg, #006a61 0%, #5200b5 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .ai-glow {
+            box-shadow: 0 0 40px rgba(82, 0, 181, 0.15);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md antialiased overflow-x-hidden selection:bg-primary-container selection:text-on-primary-container">
+<!-- Top Navigation (TopAppBar JSON semantics applied to public site context) -->
+<nav class="sticky top-0 w-full z-40 bg-background/80 backdrop-blur-md border-b border-surface-container-high transition-all duration-300" id="main-nav">
+<div class="max-w-[1440px] mx-auto flex justify-between items-center px-margin-mobile md:px-margin-desktop py-sm w-full">
+<!-- Brand -->
+<div class="flex items-center gap-xs">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+<span class="font-headline-lg-mobile text-headline-lg-mobile md:font-headline-lg md:text-headline-lg font-bold text-primary">CampusCopilot AI</span>
+</div>
+<!-- Desktop Links -->
+<div class="hidden md:flex items-center gap-lg">
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" href="#features">Features</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" href="#how-it-works">How it works</a>
+<div class="flex items-center gap-sm ml-sm">
+<button class="px-md py-xs rounded-full font-title-md text-title-md text-secondary border border-secondary hover:bg-secondary-container hover:text-on-secondary-container transition-all">Login</button>
+<button class="px-md py-xs rounded-full font-title-md text-title-md bg-gradient-to-r from-secondary to-tertiary text-on-primary hover:shadow-lg hover:-translate-y-0.5 transition-all">Get Started</button>
+</div>
+</div>
+<!-- Mobile Menu Toggle -->
+<button class="md:hidden p-xs text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">menu</span>
+</button>
+</div>
+</nav>
+<main>
+<!-- Hero Section -->
+<section class="relative pt-[120px] pb-[160px] px-margin-mobile md:px-margin-desktop overflow-hidden flex flex-col items-center text-center">
+<!-- Background Decorative Elements -->
+<div class="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-tertiary-fixed-dim rounded-full mix-blend-multiply filter blur-[100px] opacity-40 animate-pulse"></div>
+<div class="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-secondary-container rounded-full mix-blend-multiply filter blur-[80px] opacity-30"></div>
+<div class="relative z-10 max-w-4xl mx-auto flex flex-col items-center gap-md">
+<div class="inline-flex items-center gap-xs px-sm py-1 rounded-full bg-surface-container-high border border-outline-variant font-label-caps text-label-caps text-on-surface-variant mb-sm">
+<span class="material-symbols-outlined text-[16px] text-tertiary">auto_awesome</span>
+<span>MEET YOUR ACADEMIC PARTNER</span>
+</div>
+<h1 class="font-display-lg text-display-lg text-on-background tracking-tight max-w-3xl">
+                    Your intelligent <br class="hidden md:block"/>
+<span class="ai-gradient-text">campus companion</span>
+</h1>
+<p class="font-body-md text-body-md text-on-surface-variant max-w-2xl mt-sm">
+                    CampusCopilot AI organizes your schedule, tracks assignments, summarizes long notices, and keeps you on top of attendance—all while learning your habits to proactively assist you.
+                </p>
+<div class="flex flex-col sm:flex-row items-center gap-sm mt-lg w-full justify-center">
+<button class="w-full sm:w-auto px-xl py-sm rounded-full font-title-md text-title-md bg-primary text-on-primary hover:bg-primary-container hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center justify-center gap-xs">
+                        Get Started Free
+                        <span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+</button>
+<button class="w-full sm:w-auto px-xl py-sm rounded-full font-title-md text-title-md bg-surface border border-outline-variant text-on-surface hover:bg-surface-container-high transition-all">
+                        Login to Campus
+                    </button>
+</div>
+</div>
+<!-- Hero Image/Demo Placeholder (Bento-style preview) -->
+<div class="relative w-full max-w-6xl mx-auto mt-[80px] z-20 perspective-[1000px]">
+<div class="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent z-10"></div>
+<div class="glass-panel rounded-2xl p-sm md:p-md ai-glow transform rotate-x-[5deg] scale-95 origin-bottom">
+<img alt="CampusCopilot Dashboard Preview" class="w-full h-auto rounded-xl shadow-sm border border-surface-container-high object-cover aspect-[16/9]" data-alt="A highly detailed, modern software interface mockup showing a dashboard with bento grid layout. The UI is minimalist, using a light slate background, pure white cards, deep indigo primary buttons, and teal accents. It shows schedule modules, a circular attendance ring chart in teal, and a floating glassmorphic AI chat widget with subtle violet glowing edges. The overall aesthetic is clean, corporate yet futuristic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDPT2fVV_HDOukEy3Zzr8vd8KzZfO1WXGSb_y4P3U2n9OF55Ze0Uy1inCuQuDBwrcLc6Bnl9cRy6k0KPnwfU75msG91vJROID3WdMiCwLKpqSrOgNdrWrAMJXjdUaHKp9LVHPjDC_r7p75rpDSlPDFBcnWvf6CLiTNiZy4uykKmDUqEIyMN9W1pbgxciFcjZ9JIZNd2mHzIF4A4stA1WGzoxYtb6W48Y_1PCYgsw2f5fNPzxxHLreRz"/>
+</div>
+</div>
+</section>
+<!-- Features Section (Bento Grid) -->
+<section class="py-[120px] px-margin-mobile md:px-margin-desktop bg-surface-container-lowest" id="features">
+<div class="max-w-[1440px] mx-auto">
+<div class="text-center mb-[80px]">
+<h2 class="font-headline-lg text-headline-lg text-on-background font-bold mb-sm">Everything you need to excel</h2>
+<p class="font-body-md text-body-md text-on-surface-variant max-w-2xl mx-auto">Designed for clarity and focus. Let AI handle the administrative overhead while you concentrate on learning.</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-md md:gap-lg auto-rows-[minmax(250px,auto)]">
+<!-- Feature 1: Attendance -->
+<div class="col-span-1 md:col-span-2 bg-surface rounded-2xl p-lg border border-surface-container-high hover:border-primary-fixed-dim transition-colors flex flex-col justify-between group">
+<div>
+<div class="w-12 h-12 rounded-xl bg-secondary-container/50 flex items-center justify-center mb-md group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-secondary text-[28px]">analytics</span>
+</div>
+<h3 class="font-title-md text-title-md text-on-surface mb-xs">Attendance Intelligence</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant max-w-md">Real-time tracking with predictive insights. Know exactly how many classes you can miss before dropping below the required 75% threshold, visualized in clear, color-coded rings.</p>
+</div>
+<div class="mt-lg h-32 rounded-lg bg-surface-container-lowest border border-surface-container-highest flex items-center justify-center overflow-hidden relative">
+<!-- Abstract rep of attendance ring -->
+<div class="absolute w-24 h-24 rounded-full border-[4px] border-surface-container-highest border-t-secondary border-r-secondary border-b-secondary animate-[spin_3s_linear_infinite]"></div>
+<span class="font-title-md text-title-md text-secondary absolute">85%</span>
+</div>
+</div>
+<!-- Feature 2: Smart Timetable -->
+<div class="col-span-1 bg-surface rounded-2xl p-lg border border-surface-container-high hover:border-primary-fixed-dim transition-colors flex flex-col group">
+<div class="w-12 h-12 rounded-xl bg-primary-container/20 flex items-center justify-center mb-md group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-primary text-[28px]">calendar_month</span>
+</div>
+<h3 class="font-title-md text-title-md text-on-surface mb-xs">Smart Timetable</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant flex-grow">Dynamic scheduling that adapts to room changes, cancellations, and highlights upcoming exams. High-density information styled with precision.</p>
+</div>
+<!-- Feature 3: AI Assistant -->
+<div class="col-span-1 md:col-span-1 bg-surface-container-low rounded-2xl p-lg border border-outline-variant relative overflow-hidden group">
+<div class="absolute inset-0 bg-gradient-to-br from-tertiary-fixed-dim/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="relative z-10">
+<div class="w-12 h-12 rounded-xl bg-tertiary-container flex items-center justify-center mb-md group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-on-tertiary text-[28px]">smart_toy</span>
+</div>
+<h3 class="font-title-md text-title-md text-on-surface mb-xs">AI Campus Assistant</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Ask natural language questions about your schedule, deadlines, or faculty office hours. Powered by context-aware AI.</p>
+</div>
+</div>
+<!-- Feature 4: Notice Summaries -->
+<div class="col-span-1 md:col-span-1 bg-surface rounded-2xl p-lg border border-surface-container-high hover:border-primary-fixed-dim transition-colors flex flex-col group">
+<div class="w-12 h-12 rounded-xl bg-surface-variant flex items-center justify-center mb-md group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-on-surface-variant text-[28px]">campaign</span>
+</div>
+<h3 class="font-title-md text-title-md text-on-surface mb-xs">College Notice Summaries</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant">AI-generated bullet points from long, verbose official PDFs and emails. Get the 'TL;DR' instantly.</p>
+</div>
+<!-- Feature 5: Assignments -->
+<div class="col-span-1 md:col-span-1 bg-surface rounded-2xl p-lg border border-surface-container-high hover:border-primary-fixed-dim transition-colors flex flex-col group">
+<div class="w-12 h-12 rounded-xl bg-error-container/50 flex items-center justify-center mb-md group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-error text-[28px]">assignment</span>
+</div>
+<h3 class="font-title-md text-title-md text-on-surface mb-xs">Assignment Tracking</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Never miss a deadline. Unified view of all tasks across subjects with priority flagging.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- How it Works Section -->
+<section class="py-[120px] px-margin-mobile md:px-margin-desktop" id="how-it-works">
+<div class="max-w-[1024px] mx-auto">
+<div class="text-center mb-[80px]">
+<h2 class="font-headline-lg text-headline-lg text-on-background font-bold mb-sm">How it works</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">A seamless integration into your academic life.</p>
+</div>
+<div class="flex flex-col gap-xl relative">
+<!-- Connecting line -->
+<div class="absolute left-[24px] md:left-1/2 top-0 bottom-0 w-[2px] bg-surface-container-high -translate-x-1/2 hidden md:block"></div>
+<!-- Step 1 -->
+<div class="flex flex-col md:flex-row items-center gap-lg relative z-10">
+<div class="w-full md:w-1/2 flex justify-start md:justify-end">
+<div class="glass-panel p-md rounded-2xl max-w-sm shadow-sm border border-outline-variant">
+<span class="font-label-caps text-label-caps text-primary tracking-widest block mb-xs">STEP 01</span>
+<h4 class="font-title-md text-title-md text-on-surface mb-xs">Connect your ID</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Log in with your existing university credentials. CampusCopilot securely syncs your official data.</p>
+</div>
+</div>
+<div class="w-12 h-12 rounded-full bg-primary flex flex-shrink-0 items-center justify-center border-4 border-background absolute left-0 md:left-1/2 -translate-x-1/2 md:translate-x-[-50%] shadow-md hidden md:flex">
+<span class="material-symbols-outlined text-on-primary">login</span>
+</div>
+<div class="w-full md:w-1/2"></div>
+</div>
+<!-- Step 2 -->
+<div class="flex flex-col md:flex-row-reverse items-center gap-lg relative z-10">
+<div class="w-full md:w-1/2 flex justify-start">
+<div class="glass-panel p-md rounded-2xl max-w-sm shadow-sm border border-outline-variant relative overflow-hidden">
+<div class="absolute right-0 top-0 w-24 h-24 bg-tertiary/10 rounded-bl-full blur-xl"></div>
+<span class="font-label-caps text-label-caps text-tertiary tracking-widest block mb-xs">STEP 02</span>
+<h4 class="font-title-md text-title-md text-on-surface mb-xs">AI Contextualizes Data</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant">The Copilot engine analyzes your timetable, parses notice PDFs, and calculates attendance buffers in the background.</p>
+</div>
+</div>
+<div class="w-12 h-12 rounded-full bg-tertiary flex flex-shrink-0 items-center justify-center border-4 border-background absolute left-0 md:left-1/2 -translate-x-1/2 md:translate-x-[-50%] shadow-md hidden md:flex">
+<span class="material-symbols-outlined text-on-tertiary">memory</span>
+</div>
+<div class="w-full md:w-1/2"></div>
+</div>
+<!-- Step 3 -->
+<div class="flex flex-col md:flex-row items-center gap-lg relative z-10">
+<div class="w-full md:w-1/2 flex justify-start md:justify-end">
+<div class="glass-panel p-md rounded-2xl max-w-sm shadow-sm border border-outline-variant">
+<span class="font-label-caps text-label-caps text-secondary tracking-widest block mb-xs">STEP 03</span>
+<h4 class="font-title-md text-title-md text-on-surface mb-xs">Engage &amp; Excel</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Open the app to see a clear daily briefing, or chat with Copilot for specific answers. Everything is organized and accessible.</p>
+</div>
+</div>
+<div class="w-12 h-12 rounded-full bg-secondary flex flex-shrink-0 items-center justify-center border-4 border-background absolute left-0 md:left-1/2 -translate-x-1/2 md:translate-x-[-50%] shadow-md hidden md:flex">
+<span class="material-symbols-outlined text-on-secondary">rocket_launch</span>
+</div>
+<div class="w-full md:w-1/2"></div>
+</div>
+</div>
+</div>
+</section>
+<!-- CTA Section -->
+<section class="py-[120px] px-margin-mobile md:px-margin-desktop bg-surface-container-highest border-t border-outline-variant text-center relative overflow-hidden">
+<div class="absolute inset-0 bg-gradient-to-br from-primary-fixed-dim/20 to-transparent mix-blend-multiply"></div>
+<div class="relative z-10 max-w-2xl mx-auto flex flex-col items-center">
+<span class="material-symbols-outlined text-primary text-[48px] mb-md" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+<h2 class="font-headline-lg text-headline-lg text-on-background font-bold mb-sm">Ready to elevate your campus experience?</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mb-lg">Join thousands of students using CampusCopilot AI to stay organized and informed.</p>
+<button class="px-xl py-md rounded-full font-title-md text-title-md bg-gradient-to-r from-primary to-tertiary text-on-primary hover:shadow-[0_8px_30px_rgba(55,0,126,0.3)] hover:-translate-y-1 transition-all duration-300">
+                    Get Started Free
+                </button>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="bg-inverse-surface text-inverse-on-surface py-lg px-margin-mobile md:px-margin-desktop">
+<div class="max-w-[1440px] mx-auto grid grid-cols-1 md:grid-cols-4 gap-lg mb-xl">
+<div class="col-span-1 md:col-span-2">
+<div class="flex items-center gap-xs mb-sm">
+<span class="material-symbols-outlined text-primary-fixed-dim" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+<span class="font-headline-lg-mobile text-headline-lg-mobile font-bold text-primary-fixed-dim">CampusCopilot AI</span>
+</div>
+<p class="font-body-sm text-body-sm text-outline-variant max-w-sm">
+                    Your intelligent campus companion. Built to organize, summarize, and assist modern academic life.
+                </p>
+</div>
+<div>
+<h4 class="font-title-md text-title-md mb-sm text-surface">Product</h4>
+<ul class="space-y-xs font-body-sm text-body-sm text-outline-variant">
+<li><a class="hover:text-primary-fixed-dim transition-colors" href="#">Features</a></li>
+<li><a class="hover:text-primary-fixed-dim transition-colors" href="#">Pricing</a></li>
+<li><a class="hover:text-primary-fixed-dim transition-colors" href="#">Security</a></li>
+</ul>
+</div>
+<div>
+<h4 class="font-title-md text-title-md mb-sm text-surface">Legal</h4>
+<ul class="space-y-xs font-body-sm text-body-sm text-outline-variant">
+<li><a class="hover:text-primary-fixed-dim transition-colors" href="#">Privacy Policy</a></li>
+<li><a class="hover:text-primary-fixed-dim transition-colors" href="#">Terms of Service</a></li>
+<li><a class="hover:text-primary-fixed-dim transition-colors" href="#">Contact Support</a></li>
+</ul>
+</div>
+</div>
+<div class="max-w-[1440px] mx-auto pt-sm border-t border-outline-variant/30 flex flex-col md:flex-row justify-between items-center font-mono-sm text-mono-sm text-outline-variant">
+<p>© 2024 CampusCopilot AI. All rights reserved.</p>
+<div class="flex gap-sm mt-sm md:mt-0">
+<a class="hover:text-surface transition-colors" href="#">Twitter</a>
+<a class="hover:text-surface transition-colors" href="#">LinkedIn</a>
+</div>
+</div>
+</footer>
+<script>
+        // Simple nav scroll effect
+        window.addEventListener('scroll', () => {
+            const nav = document.getElementById('main-nav');
+            if (window.scrollY > 20) {
+                nav.classList.add('shadow-md');
+            } else {
+                nav.classList.remove('shadow-md');
+            }
+        });
+    </script>
+</body></html>

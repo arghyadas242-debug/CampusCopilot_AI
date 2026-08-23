@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Profile Page</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@600;700&amp;family=Inter:wght@400;600&amp;family=Geist:wght@400;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary-container": "#006f66",
+                        "on-tertiary-fixed-variant": "#5a00c6",
+                        "inverse-on-surface": "#eff1f3",
+                        "on-tertiary-fixed": "#25005a",
+                        "secondary": "#006a61",
+                        "outline": "#757682",
+                        "surface-tint": "#4059aa",
+                        "primary-container": "#1e3a8a",
+                        "surface-container-highest": "#e0e3e5",
+                        "tertiary-fixed-dim": "#d2bbff",
+                        "surface-dim": "#d8dadc",
+                        "on-background": "#191c1e",
+                        "surface-container-low": "#f2f4f6",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-container": "#5200b5",
+                        "on-tertiary": "#ffffff",
+                        "on-error": "#ffffff",
+                        "secondary-container": "#86f2e4",
+                        "error": "#ba1a1a",
+                        "on-primary-fixed-variant": "#264191",
+                        "on-secondary": "#ffffff",
+                        "primary-fixed-dim": "#b6c4ff",
+                        "on-error-container": "#93000a",
+                        "on-secondary-fixed": "#00201d",
+                        "primary-fixed": "#dce1ff",
+                        "secondary-fixed": "#89f5e7",
+                        "on-secondary-fixed-variant": "#005049",
+                        "surface-container-high": "#e6e8ea",
+                        "surface-bright": "#f7f9fb",
+                        "on-primary-container": "#90a8ff",
+                        "on-primary-fixed": "#00164e",
+                        "inverse-primary": "#b6c4ff",
+                        "primary": "#00236f",
+                        "error-container": "#ffdad6",
+                        "surface-variant": "#e0e3e5",
+                        "on-surface": "#191c1e",
+                        "inverse-surface": "#2d3133",
+                        "on-surface-variant": "#444651",
+                        "tertiary": "#37007e",
+                        "background": "#f7f9fb",
+                        "surface-container": "#eceef0",
+                        "tertiary-fixed": "#eaddff",
+                        "on-primary": "#ffffff",
+                        "on-tertiary-container": "#bc9bff",
+                        "outline-variant": "#c5c5d3",
+                        "secondary-fixed-dim": "#6bd8cb",
+                        "surface": "#f7f9fb"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "xs": "8px",
+                        "sm": "16px",
+                        "md": "24px",
+                        "margin-mobile": "16px",
+                        "xl": "64px",
+                        "gutter": "16px",
+                        "margin-desktop": "32px",
+                        "base": "4px",
+                        "lg": "40px"
+                    },
+                    "fontFamily": {
+                        "body-sm": ["Inter"],
+                        "display-lg": ["Hanken Grotesk"],
+                        "title-md": ["Inter"],
+                        "headline-lg": ["Hanken Grotesk"],
+                        "headline-lg-mobile": ["Hanken Grotesk"],
+                        "body-md": ["Inter"],
+                        "label-caps": ["Geist"],
+                        "mono-sm": ["Geist"]
+                    },
+                    "fontSize": {
+                        "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "display-lg": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "title-md": ["18px", { "lineHeight": "24px", "fontWeight": "600" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "mono-sm": ["13px", { "lineHeight": "18px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-background text-on-background min-h-screen pb-[64px] font-body-md md:pb-0">
+<!-- TopAppBar (Desktop / Web) -->
+<header class="sticky top-0 w-full z-40 bg-background hidden md:flex justify-between items-center px-margin-desktop py-md w-full border-b border-surface-variant shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)]">
+<div class="flex items-center gap-sm">
+<div class="h-10 w-10 rounded-full overflow-hidden border border-outline-variant">
+<img class="w-full h-full object-cover" data-alt="A professional close-up headshot of a young male student in a bright, modern academic setting. The lighting is soft and even, highlighting a calm, focused expression. The color palette features neutral slate tones with a hint of deep indigo in the background, matching the Modern Corporate AI identity." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCcKhWBLc4niL3qIF_eWC3kM9Jh_B1sWmQ8BpDmct6PTIOJEZ5TJIKCX9AW8vEE4sihaGzUM2Fo5ochIaSduIubsJ-2BIfhYUZXDNIkpEp0hs1WPIDExkjp_9OXGDFUNlCKh8uFH7ExZbB-S7ikgatdrbCNkIS_FHQ2xSLpGDmzuzT6V_aAbvy2qpxVOhCtiXEcACFvDy3Tswe7TiUIs-qMHMVREDofReeCQQfetgj-KiCwB4KYp9SW"/>
+</div>
+<span class="font-headline-lg text-headline-lg font-bold text-primary">CampusCopilot</span>
+</div>
+<nav class="flex gap-lg">
+<a class="text-on-surface-variant hover:opacity-80 transition-opacity duration-200 flex flex-col items-center group" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-label-caps text-label-caps mt-1 group-hover:text-primary transition-colors">Home</span>
+</a>
+<a class="text-on-surface-variant hover:opacity-80 transition-opacity duration-200 flex flex-col items-center group" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span class="font-label-caps text-label-caps mt-1 group-hover:text-primary transition-colors">Attendance</span>
+</a>
+<a class="text-on-surface-variant hover:opacity-80 transition-opacity duration-200 flex flex-col items-center group" href="#">
+<span class="material-symbols-outlined" data-icon="smart_toy">smart_toy</span>
+<span class="font-label-caps text-label-caps mt-1 group-hover:text-primary transition-colors">Copilot</span>
+</a>
+<a class="text-on-surface-variant hover:opacity-80 transition-opacity duration-200 flex flex-col items-center group" href="#">
+<span class="material-symbols-outlined" data-icon="assignment">assignment</span>
+<span class="font-label-caps text-label-caps mt-1 group-hover:text-primary transition-colors">Tasks</span>
+</a>
+<a class="text-primary hover:opacity-80 transition-opacity duration-200 flex flex-col items-center relative after:content-[''] after:w-1 after:h-1 after:bg-primary after:rounded-full after:mt-1 group" href="#">
+<span class="material-symbols-outlined" data-icon="menu" style="font-variation-settings: 'FILL' 1;">menu</span>
+<span class="font-label-caps text-label-caps mt-1 group-hover:text-primary transition-colors">More</span>
+</a>
+</nav>
+<button class="text-on-surface-variant hover:opacity-80 transition-opacity duration-200 p-2 rounded-full hover:bg-surface-container-high">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+</header>
+<!-- TopAppBar (Mobile) -->
+<header class="sticky top-0 w-full z-40 bg-background md:hidden flex justify-between items-center px-margin-mobile py-sm w-full flat no shadows shadow-[0_4px_6px_-1px_rgba(0,0,0,0.02)]">
+<div class="flex items-center gap-sm">
+<div class="h-8 w-8 rounded-full overflow-hidden border border-outline-variant">
+<img class="w-full h-full object-cover" data-alt="A smaller, mobile-optimized professional headshot of a young male student in a bright, modern academic setting. Soft, even lighting, calm expression. Neutral slate and deep indigo tones, adhering to a clean, modern aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCG22Om8rJSPDm6HsIm1xe0j-v3MPkQqQ4G1uWHGOW1cR32D8lcM5Hlt2P8d2eRcNTzGgQTHLa287CJddy9exb7kyDnOIa9Fy_YpE-ExPPz9_avM-NcHzuivW78jE29joX_ymRowhC4R8dShINXS4nmtNWHhXAlx7FGBvyLkWrENTpw0VTsDyGWrX1X-WzOPrYZlDR1P66VA8tItAT3EvQw3jcB3TwAKWceMtWcsTLIZUwvAowXxJzu"/>
+</div>
+<span class="font-headline-lg-mobile text-headline-lg-mobile font-bold text-primary">CampusCopilot</span>
+</div>
+<button class="text-on-surface-variant hover:opacity-80 transition-opacity duration-200 p-2 rounded-full hover:bg-surface-container-high">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+</header>
+<main class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin-desktop py-md md:py-lg grid grid-cols-1 md:grid-cols-12 gap-md items-start">
+<!-- Left Column: Profile Overview (Bento Grid Style) -->
+<div class="md:col-span-4 flex flex-col gap-sm">
+<!-- Main ID Card -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex flex-col items-center text-center relative overflow-hidden group hover:shadow-[0_8px_24px_-4px_rgba(0,35,111,0.08)] transition-shadow duration-300">
+<!-- Decorative Top Edge -->
+<div class="absolute top-0 left-0 w-full h-1 bg-primary"></div>
+<div class="w-24 h-24 rounded-full overflow-hidden border-2 border-surface-container mb-sm relative">
+<img class="w-full h-full object-cover" data-alt="A high-quality, professional headshot of Ratul K, a male student. The lighting is soft and studio-quality, casting a gentle glow. The background is a subtle, out-of-focus modern library setting. The color palette is composed of crisp whites, soft greys, and a touch of deep academic blue." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCra3DM5gH5Ob01Ln591iZRYv9ODeYcdebCIJxJDjhECHEm_c3bvjsnr9C4qzvS6EGjtgBBrtFcSdPVL5Q8V3w-3RV-EQOxrJ6acSbW_C3kcPX-wF3f_xxVVTlW2LVmtlzaJgbDTAnLA_wG_Wx6qfApTvTgcCzeJIOOMfIBYErv0G_kKJbEWqtmVnKhqa_Qz5B-CI-J4f5QwbDTIbKJdyVm3kppNElt2qRU5KHO1TD0eyJUp7AGhu7W"/>
+<!-- Glassmorphic edit badge -->
+<button class="absolute bottom-0 right-0 bg-white/80 backdrop-blur-md p-1 rounded-full border border-outline-variant shadow-sm text-primary hover:bg-primary hover:text-white transition-colors">
+<span class="material-symbols-outlined text-[16px]" data-icon="edit">edit</span>
+</button>
+</div>
+<h1 class="font-title-md text-title-md text-on-surface mb-1">Ratul K</h1>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-4">B.Tech Computer Science</p>
+<div class="flex gap-xs flex-wrap justify-center mb-md">
+<span class="px-3 py-1 bg-surface-container rounded-full font-label-caps text-label-caps text-on-surface-variant border border-outline-variant/50">Semester 5</span>
+<span class="px-3 py-1 bg-surface-container rounded-full font-label-caps text-label-caps text-on-surface-variant border border-outline-variant/50">Section A</span>
+</div>
+<button class="w-full py-2 px-4 bg-primary text-white font-title-md text-title-md rounded-lg flex items-center justify-center gap-2 hover:opacity-90 transition-opacity active:scale-[0.98]">
+<span class="material-symbols-outlined text-[20px]" data-icon="edit_document">edit_document</span>
+                    Edit Profile
+                </button>
+</div>
+<!-- Quick Details Card -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-sm flex flex-col gap-3">
+<div class="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-container transition-colors">
+<div class="p-2 bg-primary-container/10 rounded-full text-primary">
+<span class="material-symbols-outlined" data-icon="mail">mail</span>
+</div>
+<div class="flex flex-col flex-1">
+<span class="font-label-caps text-label-caps text-on-surface-variant">Email</span>
+<span class="font-body-sm text-body-sm text-on-surface">ratul@example.com</span>
+</div>
+</div>
+<div class="h-[1px] w-full bg-outline-variant/30"></div>
+<div class="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-container transition-colors">
+<div class="p-2 bg-primary-container/10 rounded-full text-primary">
+<span class="material-symbols-outlined" data-icon="badge">badge</span>
+</div>
+<div class="flex flex-col flex-1">
+<span class="font-label-caps text-label-caps text-on-surface-variant">Student ID</span>
+<span class="font-mono-sm text-mono-sm text-on-surface">CSEXXXX</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Column: Settings & Preferences -->
+<div class="md:col-span-8 flex flex-col gap-md">
+<h2 class="font-title-md text-title-md text-on-background pb-xs border-b border-outline-variant/30">App Preferences</h2>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-sm">
+<!-- Setting Toggle: Dark Mode -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex items-center justify-between group hover:border-primary/50 transition-colors cursor-pointer">
+<div class="flex items-center gap-sm">
+<div class="p-3 bg-surface-variant rounded-lg text-on-surface-variant group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="dark_mode">dark_mode</span>
+</div>
+<div class="flex flex-col">
+<span class="font-title-md text-title-md text-on-surface text-[16px]">Dark Mode</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Switch to dark theme</span>
+</div>
+</div>
+<!-- Toggle Switch -->
+<div class="w-12 h-6 bg-surface-variant rounded-full relative transition-colors duration-300 shadow-inner">
+<div class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-300"></div>
+</div>
+</div>
+<!-- Setting Toggle: Notifications -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex items-center justify-between group hover:border-primary/50 transition-colors cursor-pointer">
+<div class="flex items-center gap-sm">
+<div class="p-3 bg-primary/10 rounded-lg text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="notifications_active">notifications_active</span>
+</div>
+<div class="flex flex-col">
+<span class="font-title-md text-title-md text-on-surface text-[16px]">Notifications</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Manage alerts</span>
+</div>
+</div>
+<!-- Toggle Switch (Active State) -->
+<div class="w-12 h-6 bg-primary rounded-full relative transition-colors duration-300 shadow-inner">
+<div class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-300 translate-x-6"></div>
+</div>
+</div>
+</div>
+<h2 class="font-title-md text-title-md text-on-background pb-xs border-b border-outline-variant/30 mt-sm">Account Actions</h2>
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-sm">
+<button class="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-error/10 text-error transition-colors group text-left">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform" data-icon="logout">logout</span>
+<div class="flex flex-col">
+<span class="font-title-md text-title-md text-[16px]">Logout</span>
+<span class="font-body-sm text-body-sm opacity-80">Sign out of CampusCopilot</span>
+</div>
+</button>
+</div>
+</div>
+</main>
+<!-- BottomNavBar (Mobile) -->
+<nav class="bg-surface dark:bg-inverse-surface fixed bottom-0 w-full z-50 h-[64px] bg-surface dark:bg-inverse-surface shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] flex justify-around items-center px-margin-mobile w-full md:hidden shadow-lg border-t-0">
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant font-body-sm text-body-sm hover:text-primary dark:hover:text-primary-fixed-dim transition-colors active:scale-95 transition-transform duration-200 w-16 h-full" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="text-[10px] mt-1">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant font-body-sm text-body-sm hover:text-primary dark:hover:text-primary-fixed-dim transition-colors active:scale-95 transition-transform duration-200 w-16 h-full" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span class="text-[10px] mt-1">Attendance</span>
+</a>
+<!-- Copilot FAB/Center Action -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant font-body-sm text-body-sm hover:text-primary dark:hover:text-primary-fixed-dim transition-colors active:scale-95 transition-transform duration-200 w-16 h-full relative -top-3" href="#">
+<div class="bg-gradient-to-tr from-secondary to-tertiary p-3 rounded-full shadow-lg text-white mb-1 backdrop-blur-md">
+<span class="material-symbols-outlined" data-icon="smart_toy">smart_toy</span>
+</div>
+<span class="text-[10px]">Copilot</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant font-body-sm text-body-sm hover:text-primary dark:hover:text-primary-fixed-dim transition-colors active:scale-95 transition-transform duration-200 w-16 h-full" href="#">
+<span class="material-symbols-outlined" data-icon="assignment">assignment</span>
+<span class="text-[10px] mt-1">Tasks</span>
+</a>
+<!-- Active Tab: More -->
+<a class="flex flex-col items-center justify-center text-primary dark:text-primary-fixed-dim relative after:content-[''] after:w-1 after:h-1 after:bg-primary after:rounded-full after:mt-1 font-body-sm text-body-sm hover:text-primary dark:hover:text-primary-fixed-dim transition-colors active:scale-95 transition-transform duration-200 w-16 h-full" href="#">
+<span class="material-symbols-outlined" data-icon="menu" style="font-variation-settings: 'FILL' 1;">menu</span>
+<span class="text-[10px] mt-1 font-semibold">More</span>
+</a>
+</nav>
+</body></html>
