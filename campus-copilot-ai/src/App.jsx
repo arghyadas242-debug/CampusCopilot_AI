@@ -20,14 +20,14 @@ import UpdateStudent from "./pages/admin/UpdateStudent";
 
 function App() {
   return (
-    <div className="app-shell">
+    <div className="min-h-screen bg-background text-on-background">
       <Routes>
         {/* Public */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
 
-        {/* Student */}
+        {/* Student Portal */}
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/ai-chat" element={<AIChatPage />} />
         <Route path="/campus" element={<CampusPage />} />
@@ -41,7 +41,7 @@ function App() {
         <Route path="/resources" element={<ResourceHubPage />} />
         <Route path="/student-id" element={<StudentIDPage />} />
 
-        {/* Admin */}
+        {/* Admin Portal */}
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/attendance" element={<UpdateAttendance />} />
         <Route path="/admin/students" element={<UpdateStudent />} />

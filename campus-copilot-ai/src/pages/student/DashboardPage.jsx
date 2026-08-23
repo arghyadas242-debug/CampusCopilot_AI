@@ -1,0 +1,378 @@
+import { useState } from "react";
+import { Link, useNavigate } from "react-router";
+
+export default function DashboardPage() {
+  const navigate = useNavigate();
+  const [aiQuery, setAiQuery] = useState("");
+
+  const handleAISubmit = (e) => {
+    e.preventDefault();
+    if (aiQuery.trim()) {
+      navigate(`/ai-chat?q=${encodeURIComponent(aiQuery)}`);
+    } else {
+      navigate("/ai-chat");
+    }
+  };
+
+  return (
+    <div className="bg-background text-on-background font-body-md antialiased min-h-screen flex flex-col">
+      {/* TopAppBar (Mobile) */}
+      <header className="sticky top-0 w-full z-40 bg-background border-b border-surface-container-high flex justify-between items-center px-margin-mobile py-sm md:hidden">
+        <div className="flex items-center gap-sm">
+          <Link to="/profile" className="w-10 h-10 rounded-full overflow-hidden border border-outline-variant bg-primary-container text-on-primary-container flex items-center justify-center font-bold">
+            R
+          </Link>
+          <span className="font-headline-lg-mobile font-bold text-primary">CampusCopilot</span>
+        </div>
+        <Link to="/campus" className="text-on-surface-variant hover:opacity-80">
+          <span className="material-symbols-outlined">notifications</span>
+        </Link>
+      </header>
+
+      {/* Main Content Layout (Desktop Grid / Mobile Stack) */}
+      <div className="flex-1 flex flex-col md:flex-row max-w-[1440px] mx-auto w-full">
+        {/* NavigationDrawer (Desktop) */}
+        <nav className="hidden md:flex flex-col py-md bg-surface border-r border-outline-variant h-[calc(100vh-64px)] w-[280px] rounded-r-xl shadow-xl sticky top-0">
+          <div className="px-md mb-xl flex items-center gap-sm">
+            <span className="font-headline-lg font-bold text-primary">CampusCopilot</span>
+          </div>
+
+          <Link to="/profile" className="px-md mb-lg block hover:opacity-80 transition-opacity">
+            <div className="flex items-center gap-sm">
+              <div className="w-12 h-12 rounded-full overflow-hidden border border-outline-variant bg-primary-container text-on-primary-container flex items-center justify-center font-bold text-lg">
+                RD
+              </div>
+              <div>
+                <div className="font-title-md text-on-surface">Ratul Das</div>
+                <div className="font-body-sm text-on-surface-variant">Computer Science Dept.</div>
+                <div className="font-label-caps text-outline">ID: 2026-001</div>
+              </div>
+            </div>
+          </Link>
+
+          <div className="flex flex-col gap-xs flex-1 overflow-y-auto">
+            <Link
+              to="/dashboard"
+              className="bg-secondary-container text-on-secondary-container rounded-full mx-2 font-bold px-4 py-2 flex items-center gap-sm transition-all"
+            >
+              <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
+                dashboard
+              </span>
+              <span className="font-body-md">Home</span>
+            </Link>
+            <Link
+              to="/timetable"
+              className="text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-full flex items-center gap-sm transition-all"
+            >
+              <span className="material-symbols-outlined">calendar_month</span>
+              <span className="font-body-md">Timetable</span>
+            </Link>
+            <Link
+              to="/attendance"
+              className="text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-full flex items-center gap-sm transition-all"
+            >
+              <span className="material-symbols-outlined">analytics</span>
+              <span className="font-body-md">Attendance</span>
+            </Link>
+            <Link
+              to="/assignments"
+              className="text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-full flex items-center gap-sm transition-all"
+            >
+              <span className="material-symbols-outlined">assignment</span>
+              <span className="font-body-md">Assignments</span>
+            </Link>
+            <Link
+              to="/exams"
+              className="text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-full flex items-center gap-sm transition-all"
+            >
+              <span className="material-symbols-outlined">description</span>
+              <span className="font-body-md">Exams</span>
+            </Link>
+            <Link
+              to="/campus"
+              className="text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-full flex items-center gap-sm transition-all"
+            >
+              <span className="material-symbols-outlined">campaign</span>
+              <span className="font-body-md">Notices</span>
+            </Link>
+            <Link
+              to="/ai-analytics"
+              className="text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-full flex items-center gap-sm transition-all"
+            >
+              <span className="material-symbols-outlined">insights</span>
+              <span className="font-body-md">AI Analytics</span>
+            </Link>
+            <Link
+              to="/resources"
+              className="text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-full flex items-center gap-sm transition-all"
+            >
+              <span className="material-symbols-outlined">folder_open</span>
+              <span className="font-body-md">Resources</span>
+            </Link>
+            <Link
+              to="/student-id"
+              className="text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-full flex items-center gap-sm transition-all"
+            >
+              <span className="material-symbols-outlined">badge</span>
+              <span className="font-body-md">Digital ID</span>
+            </Link>
+            <Link
+              to="/profile"
+              className="text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-full flex items-center gap-sm transition-all mt-auto"
+            >
+              <span className="material-symbols-outlined">account_circle</span>
+              <span className="font-body-md">Profile</span>
+            </Link>
+            <button
+              onClick={() => navigate("/login")}
+              className="text-error mx-2 px-4 py-2 hover:bg-error-container/20 rounded-full flex items-center gap-sm transition-all cursor-pointer text-left"
+            >
+              <span className="material-symbols-outlined">logout</span>
+              <span className="font-body-md">Logout</span>
+            </button>
+          </div>
+        </nav>
+
+        {/* Main Canvas */}
+        <main className="flex-1 p-margin-mobile md:p-margin-desktop overflow-y-auto pb-[90px] md:pb-margin-desktop">
+          {/* Header */}
+          <div className="mb-lg hidden md:block">
+            <h1 className="font-display-lg text-on-background">Good Morning, Ratul</h1>
+            <p className="font-body-md text-on-surface-variant mt-1">Here is your academic overview for today.</p>
+          </div>
+          <div className="mb-md md:hidden">
+            <h1 className="font-headline-lg-mobile text-on-background">Good Morning, Ratul</h1>
+            <p className="font-body-sm text-on-surface-variant">Here is your academic overview for today.</p>
+          </div>
+
+          {/* Bento Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-md">
+            {/* Quick Stats Row */}
+            <div className="col-span-1 md:col-span-12 grid grid-cols-2 md:grid-cols-4 gap-sm">
+              <Link to="/attendance" className="bg-surface-container-lowest border border-[#E2E8F0] rounded-xl p-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between mb-sm">
+                  <span className="font-label-caps text-outline">ATTENDANCE</span>
+                  <span className="material-symbols-outlined text-secondary">analytics</span>
+                </div>
+                <div className="flex items-end gap-2">
+                  <span className="font-headline-lg text-on-surface font-bold">81%</span>
+                  <span className="font-body-sm text-secondary mb-1">Good standing</span>
+                </div>
+              </Link>
+
+              <Link to="/assignments" className="bg-surface-container-lowest border border-[#E2E8F0] rounded-xl p-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between mb-sm">
+                  <span className="font-label-caps text-outline">ASSIGNMENTS</span>
+                  <span className="material-symbols-outlined text-tertiary">assignment</span>
+                </div>
+                <div className="flex items-end gap-2">
+                  <span className="font-headline-lg text-on-surface font-bold">3</span>
+                  <span className="font-body-sm text-error mb-1">Due soon</span>
+                </div>
+              </Link>
+
+              <Link to="/exams" className="bg-surface-container-lowest border border-[#E2E8F0] rounded-xl p-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between mb-sm">
+                  <span className="font-label-caps text-outline">UPCOMING EXAMS</span>
+                  <span className="material-symbols-outlined text-primary">description</span>
+                </div>
+                <div className="flex items-end gap-2">
+                  <span className="font-headline-lg text-on-surface font-bold">2</span>
+                  <span className="font-body-sm text-on-surface-variant mb-1">This month</span>
+                </div>
+              </Link>
+
+              <Link to="/timetable" className="bg-surface-container-lowest border border-[#E2E8F0] rounded-xl p-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between mb-sm">
+                  <span className="font-label-caps text-outline">CLASSES TODAY</span>
+                  <span className="material-symbols-outlined text-secondary">school</span>
+                </div>
+                <div className="flex items-end gap-2">
+                  <span className="font-headline-lg text-on-surface font-bold">4</span>
+                  <span className="font-body-sm text-on-surface-variant mb-1">Remaining</span>
+                </div>
+              </Link>
+            </div>
+
+            {/* Left Column */}
+            <div className="col-span-1 md:col-span-7 flex flex-col gap-md">
+              {/* Today's Classes */}
+              <div className="bg-surface-container-lowest border border-[#E2E8F0] rounded-xl p-md shadow-sm">
+                <div className="flex justify-between items-center mb-sm">
+                  <h2 className="font-title-md text-on-surface font-bold">Today's Classes</h2>
+                  <Link to="/timetable" className="font-label-caps text-primary hover:underline">
+                    VIEW TIMETABLE
+                  </Link>
+                </div>
+                <div className="flex flex-col gap-sm">
+                  <div className="relative overflow-hidden border border-[#E2E8F0] rounded-lg p-sm bg-surface">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-primary"></div>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="font-title-md text-on-surface">Database Management Systems</div>
+                        <div className="font-body-sm text-on-surface-variant flex items-center gap-1 mt-1">
+                          <span className="material-symbols-outlined text-[16px]">location_on</span> Room 302
+                        </div>
+                      </div>
+                      <div className="bg-primary-container text-on-primary-container px-3 py-1 rounded-full font-label-caps font-semibold">
+                        10:00 AM
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="relative overflow-hidden border border-[#E2E8F0] rounded-lg p-sm bg-surface">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-secondary"></div>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="font-title-md text-on-surface">Computer Networks</div>
+                        <div className="font-body-sm text-on-surface-variant flex items-center gap-1 mt-1">
+                          <span className="material-symbols-outlined text-[16px]">location_on</span> Room 405
+                        </div>
+                      </div>
+                      <div className="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full font-label-caps font-semibold">
+                        11:00 AM
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Recent Notices */}
+              <div className="bg-surface-container-lowest border border-[#E2E8F0] rounded-xl p-md shadow-sm">
+                <div className="flex justify-between items-center mb-sm">
+                  <h2 className="font-title-md text-on-surface font-bold">Recent Notices</h2>
+                  <Link to="/campus" className="font-label-caps text-primary hover:underline">
+                    ALL NOTICES
+                  </Link>
+                </div>
+                <ul className="flex flex-col gap-sm divide-y divide-surface-variant">
+                  <li className="pt-sm first:pt-0 flex items-start gap-sm">
+                    <div className="w-8 h-8 rounded-full bg-error-container text-on-error-container flex items-center justify-center shrink-0">
+                      <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                        warning
+                      </span>
+                    </div>
+                    <div>
+                      <div className="font-body-md font-semibold text-on-surface">Semester Examination Schedule Released</div>
+                      <div className="font-body-sm text-outline mt-0.5">2 hours ago • Exam Cell</div>
+                    </div>
+                  </li>
+                  <li className="pt-sm flex items-start gap-sm">
+                    <div className="w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center shrink-0">
+                      <span className="material-symbols-outlined text-[18px]">campaign</span>
+                    </div>
+                    <div>
+                      <div className="font-body-md text-on-surface">Holiday Notice: Campus Sports Day</div>
+                      <div className="font-body-sm text-outline mt-0.5">Yesterday • Dean Office</div>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Right Column */}
+            <div className="col-span-1 md:col-span-5 flex flex-col gap-md">
+              {/* Upcoming Assignments */}
+              <div className="bg-surface-container-lowest border border-[#E2E8F0] rounded-xl p-md shadow-sm">
+                <div className="flex items-center justify-between mb-sm">
+                  <h2 className="font-title-md text-on-surface font-bold">Upcoming Assignments</h2>
+                  <Link to="/assignments" className="font-label-caps text-primary hover:underline">
+                    VIEW ALL
+                  </Link>
+                </div>
+                <div className="flex flex-col gap-xs">
+                  <div className="group flex items-center justify-between p-sm border border-transparent hover:border-outline-variant rounded-lg transition-colors bg-surface-bright">
+                    <div>
+                      <div className="font-body-md font-semibold text-on-surface">DBMS Normalization Problem Set</div>
+                      <div className="font-body-sm text-error mt-0.5 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px]">schedule</span> Due Tomorrow, 11:59 PM
+                      </div>
+                    </div>
+                    <Link to="/assignments" className="w-8 h-8 rounded-full border border-outline flex items-center justify-center text-outline group-hover:bg-primary group-hover:text-on-primary group-hover:border-primary transition-colors">
+                      <span className="material-symbols-outlined text-[18px]">upload</span>
+                    </Link>
+                  </div>
+                  <div className="group flex items-center justify-between p-sm border border-transparent hover:border-outline-variant rounded-lg transition-colors bg-surface-bright">
+                    <div>
+                      <div className="font-body-md font-semibold text-on-surface">Computer Networks Lab Report</div>
+                      <div className="font-body-sm text-on-surface-variant mt-0.5 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px]">schedule</span> Due in 3 days
+                      </div>
+                    </div>
+                    <Link to="/assignments" className="w-8 h-8 rounded-full border border-outline flex items-center justify-center text-outline group-hover:bg-primary group-hover:text-on-primary group-hover:border-primary transition-colors">
+                      <span className="material-symbols-outlined text-[18px]">upload</span>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+
+              {/* AI Copilot Suggestion Area */}
+              <div className="ai-layer rounded-xl p-md relative overflow-hidden flex-1 min-h-[180px] shadow-sm">
+                <h3 className="font-title-md mb-2 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-tertiary">smart_toy</span>
+                  <span className="ai-gradient-text font-bold">Copilot Insights</span>
+                </h3>
+                <p className="font-body-sm text-on-surface-variant relative z-10">
+                  Based on your upcoming schedule, I recommend starting the <strong className="text-on-surface">DBMS Assignment</strong> tonight. It usually takes students about 3 hours to complete.
+                </p>
+                <div className="mt-3">
+                  <Link to="/ai-chat" className="inline-flex items-center gap-1 text-xs font-semibold text-tertiary hover:underline">
+                    Ask Copilot for study plan <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* AI Entry Point bar */}
+          <div className="fixed md:sticky bottom-[70px] md:bottom-margin-desktop left-0 w-full px-margin-mobile md:px-0 mt-xl z-30 flex justify-center">
+            <form onSubmit={handleAISubmit} className="w-full max-w-2xl bg-surface-container-lowest glass-panel rounded-full shadow-lg border border-[#E2E8F0] p-1.5 flex items-center group focus-within:border-primary transition-all">
+              <span className="material-symbols-outlined text-outline ml-3 mr-1">smart_toy</span>
+              <input
+                className="flex-1 bg-transparent border-none focus:outline-none font-body-md text-on-surface placeholder:text-outline-variant py-2 px-2"
+                placeholder="Ask CampusCopilot about your classes, attendance, assignments..."
+                type="text"
+                value={aiQuery}
+                onChange={(e) => setAiQuery(e.target.value)}
+              />
+              <button
+                type="submit"
+                className="bg-gradient-to-r from-secondary to-tertiary text-on-primary rounded-full p-2 mr-1 shadow-md hover:opacity-90 transition-opacity cursor-pointer flex items-center justify-center"
+              >
+                <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  arrow_upward
+                </span>
+              </button>
+            </form>
+          </div>
+        </main>
+      </div>
+
+      {/* BottomNavBar (Mobile Only) */}
+      <nav className="bg-surface fixed bottom-0 w-full z-50 h-[64px] flex justify-around items-center px-margin-mobile md:hidden shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] border-t border-surface-container-high">
+        <Link to="/dashboard" className="flex flex-col items-center justify-center text-primary relative active:scale-95 transition-transform">
+          <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
+            dashboard
+          </span>
+          <span className="text-[11px] font-semibold">Home</span>
+        </Link>
+        <Link to="/attendance" className="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors active:scale-95">
+          <span className="material-symbols-outlined">analytics</span>
+          <span className="text-[11px]">Attendance</span>
+        </Link>
+        <Link to="/ai-chat" className="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors active:scale-95">
+          <span className="material-symbols-outlined">smart_toy</span>
+          <span className="text-[11px]">Copilot</span>
+        </Link>
+        <Link to="/assignments" className="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors active:scale-95">
+          <span className="material-symbols-outlined">assignment</span>
+          <span className="text-[11px]">Tasks</span>
+        </Link>
+        <Link to="/profile" className="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors active:scale-95">
+          <span className="material-symbols-outlined">account_circle</span>
+          <span className="text-[11px]">Profile</span>
+        </Link>
+      </nav>
+    </div>
+  );
+}
