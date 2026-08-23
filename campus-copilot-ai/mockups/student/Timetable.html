@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>CampusCopilot - Timetable</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&amp;family=Inter:wght@400;500;600&amp;family=Geist:wght@400;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary-container": "#006f66",
+                        "on-tertiary-fixed-variant": "#5a00c6",
+                        "inverse-on-surface": "#eff1f3",
+                        "on-tertiary-fixed": "#25005a",
+                        "secondary": "#006a61",
+                        "outline": "#757682",
+                        "surface-tint": "#4059aa",
+                        "primary-container": "#1e3a8a",
+                        "surface-container-highest": "#e0e3e5",
+                        "tertiary-fixed-dim": "#d2bbff",
+                        "surface-dim": "#d8dadc",
+                        "on-background": "#191c1e",
+                        "surface-container-low": "#f2f4f6",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-container": "#5200b5",
+                        "on-tertiary": "#ffffff",
+                        "on-error": "#ffffff",
+                        "secondary-container": "#86f2e4",
+                        "error": "#ba1a1a",
+                        "on-primary-fixed-variant": "#264191",
+                        "on-secondary": "#ffffff",
+                        "primary-fixed-dim": "#b6c4ff",
+                        "on-error-container": "#93000a",
+                        "on-secondary-fixed": "#00201d",
+                        "primary-fixed": "#dce1ff",
+                        "secondary-fixed": "#89f5e7",
+                        "on-secondary-fixed-variant": "#005049",
+                        "surface-container-high": "#e6e8ea",
+                        "surface-bright": "#f7f9fb",
+                        "on-primary-container": "#90a8ff",
+                        "on-primary-fixed": "#00164e",
+                        "inverse-primary": "#b6c4ff",
+                        "primary": "#00236f",
+                        "error-container": "#ffdad6",
+                        "surface-variant": "#e0e3e5",
+                        "on-surface": "#191c1e",
+                        "inverse-surface": "#2d3133",
+                        "on-surface-variant": "#444651",
+                        "tertiary": "#37007e",
+                        "background": "#f7f9fb",
+                        "surface-container": "#eceef0",
+                        "tertiary-fixed": "#eaddff",
+                        "on-primary": "#ffffff",
+                        "on-tertiary-container": "#bc9bff",
+                        "outline-variant": "#c5c5d3",
+                        "secondary-fixed-dim": "#6bd8cb",
+                        "surface": "#f7f9fb"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "xs": "8px",
+                        "sm": "16px",
+                        "md": "24px",
+                        "margin-mobile": "16px",
+                        "xl": "64px",
+                        "gutter": "16px",
+                        "margin-desktop": "32px",
+                        "base": "4px",
+                        "lg": "40px"
+                    },
+                    "fontFamily": {
+                        "body-sm": ["Inter"],
+                        "display-lg": ["Hanken Grotesk"],
+                        "title-md": ["Inter"],
+                        "headline-lg": ["Hanken Grotesk"],
+                        "headline-lg-mobile": ["Hanken Grotesk"],
+                        "body-md": ["Inter"],
+                        "label-caps": ["Geist"],
+                        "mono-sm": ["Geist"]
+                    },
+                    "fontSize": {
+                        "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "display-lg": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "title-md": ["18px", { "lineHeight": "24px", "fontWeight": "600" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "mono-sm": ["13px", { "lineHeight": "18px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-sm min-h-screen flex flex-col md:hidden">
+<!-- TopAppBar (from JSON) -->
+<header class="sticky top-0 w-full z-40 bg-background dark:bg-on-background">
+<div class="flex justify-between items-center px-margin-mobile py-sm w-full">
+<div class="flex items-center gap-xs cursor-pointer transition-opacity duration-200 hover:opacity-80" onclick="toggleDrawer()">
+<div class="w-8 h-8 rounded-full overflow-hidden bg-surface-variant flex-shrink-0">
+<img alt="User profile photo" class="w-full h-full object-cover" data-alt="A small, circular avatar portrait of a modern university student, shot against a clean, light-mode background with soft, natural lighting. The student appears friendly and professional, fitting the aesthetic of a premium corporate academic tool." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCCPyyvk7k7HCi0ES-YHpCllFXx9TA59OYxn96AIxd9WFgLkwmXG6cRhs_GlIaBOum-13Fd9FtVcmO-rbniEUwtyVeObKJ_3FRhYZu44cFJKzlvRoNXBzikqaxuswetWaCtoqqwvYKAGV4pqcDCEoEfIm9HXcLJd0FW-OseVoW4zGD0Ze71_ktxw6gCQl11KA3AW6i3Rdxe8clgyc36YAwtKf17xFvLqXQWFsGToUtoaN6QVWrRmIDc"/>
+</div>
+</div>
+<div class="font-headline-lg-mobile text-headline-lg-mobile font-bold text-primary dark:text-primary-fixed-dim">CampusCopilot</div>
+<button class="text-on-surface-variant hover:opacity-80 transition-opacity duration-200">
+<span class="material-symbols-outlined" data-icon="notifications" style="font-variation-settings: 'FILL' 0;">notifications</span>
+</button>
+</div>
+</header>
+<!-- Navigation Drawer (Hidden by default, for mobile interaction) -->
+<div class="fixed inset-0 z-50 pointer-events-none transition-opacity duration-300 opacity-0" id="navDrawer">
+<div class="absolute inset-0 bg-black/20" onclick="toggleDrawer()"></div>
+<nav class="absolute top-0 left-0 h-full w-[280px] rounded-r-xl bg-surface dark:bg-inverse-surface border-r border-outline-variant shadow-xl transform -translate-x-full transition-transform duration-300 ease-in-out flex flex-col py-md pointer-events-auto">
+<div class="px-md pb-md mb-md border-b border-surface-variant flex items-center gap-sm left_align">
+<div class="w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
+<img alt="Ratul" class="w-full h-full object-cover" data-alt="A detailed headshot portrait of a student named Ratul, styled for a modern app avatar. Clean background, soft lighting, professional yet approachable demeanor, fitting a high-end academic digital environment." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBacRtbLsS6CPpQoGsdVFFD1iGp-7imBM5bcYyTm8pjMRT-91WrYBGkXgyzYMXL7xNIQpsSiVyp0_axHI1_aYdq3kEqG4HayAypoBNomDkuhoRgwNx_wy22n3N-JMAE6T14l6lcS-Dy1qx7mCTDzMz3oGZnSALHGa7P6EB0LtoWJFfk_j3dYC8NUCVwJ1sJp5Vf7GiaEKEbolte5NR-0S1p92I649eDgA8LHAMkTKih7CAB0QeeEkew"/>
+</div>
+<div>
+<h2 class="font-title-md text-title-md text-primary dark:text-primary-fixed-dim">Ratul</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Computer Science Dept.</p>
+<p class="font-label-caps text-label-caps text-outline">ID: 2024-001</p>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto">
+<a class="flex items-center gap-sm py-2 mx-2 bg-secondary-container text-on-secondary-container rounded-full font-bold mb-1" href="#">
+<span class="material-symbols-outlined ml-4" data-icon="calendar_month">calendar_month</span>
+<span class="font-body-md text-body-md">Timetable</span>
+</a>
+<a class="flex items-center gap-sm py-2 mx-2 px-4 text-on-surface-variant dark:text-outline-variant hover:bg-surface-container-high dark:hover:bg-surface-variant rounded-full mb-1 transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="campaign">campaign</span>
+<span class="font-body-md text-body-md">Notices</span>
+</a>
+<a class="flex items-center gap-sm py-2 mx-2 px-4 text-on-surface-variant dark:text-outline-variant hover:bg-surface-container-high dark:hover:bg-surface-variant rounded-full mb-1 transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+<span class="font-body-md text-body-md">Exams</span>
+</a>
+<a class="flex items-center gap-sm py-2 mx-2 px-4 text-on-surface-variant dark:text-outline-variant hover:bg-surface-container-high dark:hover:bg-surface-variant rounded-full mb-1 transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-body-md text-body-md">Settings</span>
+</a>
+</div>
+<div class="mt-auto px-2">
+<a class="flex items-center gap-sm py-2 px-4 text-error hover:bg-error-container rounded-full transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span class="font-body-md text-body-md">Logout</span>
+</a>
+</div>
+</nav>
+</div>
+<!-- Main Content Canvas -->
+<main class="flex-1 overflow-y-auto pb-[80px] px-margin-mobile">
+<!-- Day Navigation -->
+<div class="sticky top-0 z-30 bg-background/80 backdrop-blur-md pt-sm pb-xs -mx-margin-mobile px-margin-mobile">
+<div class="flex gap-sm overflow-x-auto no-scrollbar snap-x">
+<button class="snap-start whitespace-nowrap px-4 py-1.5 rounded-full bg-primary text-on-primary font-body-sm text-body-sm transition-colors">Monday</button>
+<button class="snap-start whitespace-nowrap px-4 py-1.5 rounded-full bg-surface-container text-on-surface-variant font-body-sm text-body-sm hover:bg-surface-container-high transition-colors">Tuesday</button>
+<button class="snap-start whitespace-nowrap px-4 py-1.5 rounded-full bg-surface-container text-on-surface-variant font-body-sm text-body-sm hover:bg-surface-container-high transition-colors">Wednesday</button>
+<button class="snap-start whitespace-nowrap px-4 py-1.5 rounded-full bg-surface-container text-on-surface-variant font-body-sm text-body-sm hover:bg-surface-container-high transition-colors">Thursday</button>
+<button class="snap-start whitespace-nowrap px-4 py-1.5 rounded-full bg-surface-container text-on-surface-variant font-body-sm text-body-sm hover:bg-surface-container-high transition-colors">Friday</button>
+</div>
+</div>
+<div class="mt-md space-y-sm relative before:absolute before:inset-y-0 before:left-[45px] before:w-[2px] before:bg-surface-variant">
+<!-- Class Slot 1 -->
+<div class="relative flex items-start gap-md">
+<div class="w-[30px] flex flex-col items-end pt-1 relative z-10 bg-background">
+<span class="font-label-caps text-label-caps text-on-surface-variant">10:00</span>
+</div>
+<div class="absolute left-[41px] top-3 w-[10px] h-[10px] rounded-full bg-primary z-10 outline outline-4 outline-background"></div>
+<div class="flex-1 bg-surface-container-lowest border border-surface-variant rounded-xl p-sm shadow-sm relative overflow-hidden">
+<div class="absolute top-0 left-0 w-full h-1 bg-secondary"></div>
+<div class="flex justify-between items-start mb-xs">
+<h3 class="font-title-md text-title-md text-on-surface">DBMS</h3>
+<span class="bg-secondary-container text-on-secondary-container px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Lecture</span>
+</div>
+<div class="grid grid-cols-2 gap-xs">
+<div class="flex items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px]" data-icon="location_on">location_on</span>
+<span class="font-body-sm text-body-sm">Room 302</span>
+</div>
+<div class="flex items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px]" data-icon="person">person</span>
+<span class="font-body-sm text-body-sm">Prof. ABC</span>
+</div>
+<div class="flex items-center gap-1 text-on-surface-variant col-span-2">
+<span class="material-symbols-outlined text-[16px]" data-icon="schedule">schedule</span>
+<span class="font-body-sm text-body-sm">10:00 - 11:00</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Class Slot 2 -->
+<div class="relative flex items-start gap-md">
+<div class="w-[30px] flex flex-col items-end pt-1 relative z-10 bg-background">
+<span class="font-label-caps text-label-caps text-on-surface-variant">11:00</span>
+</div>
+<div class="absolute left-[41px] top-3 w-[10px] h-[10px] rounded-full bg-surface-variant z-10 outline outline-4 outline-background"></div>
+<div class="flex-1 bg-surface-container-lowest border border-surface-variant rounded-xl p-sm shadow-sm relative overflow-hidden">
+<div class="absolute top-0 left-0 w-full h-1 bg-tertiary"></div>
+<div class="flex justify-between items-start mb-xs">
+<h3 class="font-title-md text-title-md text-on-surface">Computer Networks</h3>
+<span class="bg-tertiary-container text-on-tertiary-container px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Lab</span>
+</div>
+<div class="grid grid-cols-2 gap-xs">
+<div class="flex items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px]" data-icon="location_on">location_on</span>
+<span class="font-body-sm text-body-sm">Room 405</span>
+</div>
+<div class="flex items-center gap-1 text-on-surface-variant col-span-2">
+<span class="material-symbols-outlined text-[16px]" data-icon="schedule">schedule</span>
+<span class="font-body-sm text-body-sm">11:00 - 12:00</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Break -->
+<div class="relative flex items-start gap-md">
+<div class="w-[30px] flex flex-col items-end pt-1 relative z-10 bg-background">
+<span class="font-label-caps text-label-caps text-outline-variant">12:00</span>
+</div>
+<div class="flex-1 py-xs border-t border-dashed border-surface-variant mt-2 flex justify-center">
+<span class="font-label-caps text-label-caps text-outline bg-background px-2">Lunch Break</span>
+</div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar (from JSON) -->
+<nav class="fixed bottom-0 w-full z-50 h-[64px] bg-surface dark:bg-inverse-surface shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] shadow-lg flex justify-around items-center px-margin-mobile w-full">
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors active:scale-95 transition-transform duration-200 w-16">
+<span class="material-symbols-outlined mb-1" data-icon="dashboard">dashboard</span>
+<span class="font-body-sm text-[10px] leading-tight">Home</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors active:scale-95 transition-transform duration-200 w-16">
+<span class="material-symbols-outlined mb-1" data-icon="analytics">analytics</span>
+<span class="font-body-sm text-[10px] leading-tight">Attendance</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors active:scale-95 transition-transform duration-200 w-16">
+<span class="material-symbols-outlined mb-1" data-icon="smart_toy">smart_toy</span>
+<span class="font-body-sm text-[10px] leading-tight">Copilot</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors active:scale-95 transition-transform duration-200 w-16">
+<span class="material-symbols-outlined mb-1" data-icon="assignment">assignment</span>
+<span class="font-body-sm text-[10px] leading-tight">Tasks</span>
+</button>
+<button class="flex flex-col items-center justify-center text-primary dark:text-primary-fixed-dim relative after:content-[''] after:w-1 after:h-1 after:bg-primary after:rounded-full after:mt-1 hover:text-primary dark:hover:text-primary-fixed-dim transition-colors active:scale-95 transition-transform duration-200 w-16" onclick="toggleDrawer()">
+<span class="material-symbols-outlined mb-1" data-icon="menu" style="font-variation-settings: 'FILL' 1;">menu</span>
+<span class="font-body-sm text-[10px] leading-tight font-medium">More</span>
+</button>
+</nav>
+<script>
+        function toggleDrawer() {
+            const drawerContainer = document.getElementById('navDrawer');
+            const navElement = drawerContainer.querySelector('nav');
+            
+            if (drawerContainer.classList.contains('pointer-events-none')) {
+                // Open
+                drawerContainer.classList.remove('pointer-events-none', 'opacity-0');
+                drawerContainer.classList.add('opacity-100');
+                navElement.classList.remove('-translate-x-full');
+            } else {
+                // Close
+                navElement.classList.add('-translate-x-full');
+                drawerContainer.classList.remove('opacity-100');
+                drawerContainer.classList.add('opacity-0');
+                setTimeout(() => {
+                    drawerContainer.classList.add('pointer-events-none');
+                }, 300); // match transition duration
+            }
+        }
+    </script>
+</body></html>

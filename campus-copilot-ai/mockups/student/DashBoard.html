@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>CampusCopilot - Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&amp;family=Inter:wght@400;600&amp;family=Geist:wght@400;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary-container": "#006f66",
+                        "on-tertiary-fixed-variant": "#5a00c6",
+                        "inverse-on-surface": "#eff1f3",
+                        "on-tertiary-fixed": "#25005a",
+                        "secondary": "#006a61",
+                        "outline": "#757682",
+                        "surface-tint": "#4059aa",
+                        "primary-container": "#1e3a8a",
+                        "surface-container-highest": "#e0e3e5",
+                        "tertiary-fixed-dim": "#d2bbff",
+                        "surface-dim": "#d8dadc",
+                        "on-background": "#191c1e",
+                        "surface-container-low": "#f2f4f6",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-container": "#5200b5",
+                        "on-tertiary": "#ffffff",
+                        "on-error": "#ffffff",
+                        "secondary-container": "#86f2e4",
+                        "error": "#ba1a1a",
+                        "on-primary-fixed-variant": "#264191",
+                        "on-secondary": "#ffffff",
+                        "primary-fixed-dim": "#b6c4ff",
+                        "on-error-container": "#93000a",
+                        "on-secondary-fixed": "#00201d",
+                        "primary-fixed": "#dce1ff",
+                        "secondary-fixed": "#89f5e7",
+                        "on-secondary-fixed-variant": "#005049",
+                        "surface-container-high": "#e6e8ea",
+                        "surface-bright": "#f7f9fb",
+                        "on-primary-container": "#90a8ff",
+                        "on-primary-fixed": "#00164e",
+                        "inverse-primary": "#b6c4ff",
+                        "primary": "#00236f",
+                        "error-container": "#ffdad6",
+                        "surface-variant": "#e0e3e5",
+                        "on-surface": "#191c1e",
+                        "inverse-surface": "#2d3133",
+                        "on-surface-variant": "#444651",
+                        "tertiary": "#37007e",
+                        "background": "#f7f9fb",
+                        "surface-container": "#eceef0",
+                        "tertiary-fixed": "#eaddff",
+                        "on-primary": "#ffffff",
+                        "on-tertiary-container": "#bc9bff",
+                        "outline-variant": "#c5c5d3",
+                        "secondary-fixed-dim": "#6bd8cb",
+                        "surface": "#f7f9fb"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "xs": "8px",
+                        "sm": "16px",
+                        "md": "24px",
+                        "margin-mobile": "16px",
+                        "xl": "64px",
+                        "gutter": "16px",
+                        "margin-desktop": "32px",
+                        "base": "4px",
+                        "lg": "40px"
+                    },
+                    "fontFamily": {
+                        "body-sm": ["Inter"],
+                        "display-lg": ["Hanken Grotesk"],
+                        "title-md": ["Inter"],
+                        "headline-lg": ["Hanken Grotesk"],
+                        "headline-lg-mobile": ["Hanken Grotesk"],
+                        "body-md": ["Inter"],
+                        "label-caps": ["Geist"],
+                        "mono-sm": ["Geist"]
+                    },
+                    "fontSize": {
+                        "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "display-lg": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "title-md": ["18px", { "lineHeight": "24px", "fontWeight": "600" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "mono-sm": ["13px", { "lineHeight": "18px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            background-color: #F8FAFC; /* Neutral Slate */
+        }
+        .glassmorphism {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .ai-layer {
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            box-shadow: 0 4px 30px rgba(124, 58, 237, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: linear-gradient(135deg, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.4) 100%);
+        }
+        .ai-gradient-text {
+            background: linear-gradient(90deg, #006a61, #37007e);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        /* Custom scrollbar for web */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #e0e3e5;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #c5c5d3;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md antialiased min-h-screen flex flex-col">
+<!-- TopAppBar -->
+<header class="sticky top-0 w-full z-40 bg-background dark:bg-on-background flex justify-between items-center px-margin-mobile py-sm md:hidden">
+<div class="flex items-center gap-sm">
+<div class="w-10 h-10 rounded-full overflow-hidden border border-outline-variant">
+<img alt="User profile photo" class="w-full h-full object-cover" data-alt="A professional headshot of a young male student, named Ratul, looking confident and approachable. The lighting is bright and modern, set against a neutral, minimal corporate background. The student is wearing a neat, casual button-down shirt. The aesthetic aligns with a reliable, AI-driven academic assistant, emphasizing clarity and focus." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBOocqoYqFBERneZ8h_poEQd0lFSwj1yHhHRbTI15-ok7JM-VQpDmxn6x_5jM0ZIbBxSc-RHwpyvZYx0LdM1GGqQ4VKmMBkUnzDcrniAoG31wWUgpOJbA4ZV3ZtEWauKnkDJtoBztTBNWOI7WTELGQxsVft1N-nm56vAPGswpkCeZKhwwy553ak2ynCE1nLfLPWOWC9WYIiZFnYC50VgyTuVSIKJyddl4Q0UxZ3KYMata0GK0FU7A6l"/>
+</div>
+<span class="font-headline-lg-mobile text-headline-lg-mobile font-bold text-primary dark:text-primary-fixed-dim">CampusCopilot</span>
+</div>
+<button class="text-on-surface-variant hover:opacity-80 transition-opacity duration-200">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">notifications</span>
+</button>
+</header>
+<!-- Main Content Layout (Desktop Grid / Mobile Stack) -->
+<div class="flex-1 flex flex-col md:flex-row max-w-[1440px] mx-auto w-full">
+<!-- NavigationDrawer (Hidden on Mobile) -->
+<nav class="hidden md:flex flex-col py-md bg-surface dark:bg-inverse-surface border-r border-outline-variant h-[calc(100vh-64px)] w-[280px] rounded-r-xl shadow-xl sticky top-0">
+<div class="px-md mb-xl flex items-center gap-sm">
+<span class="font-headline-lg text-headline-lg font-bold text-primary">CampusCopilot</span>
+</div>
+<div class="px-md mb-lg">
+<div class="flex items-center gap-sm">
+<div class="w-12 h-12 rounded-full overflow-hidden border border-outline-variant">
+<img alt="Ratul" class="w-full h-full object-cover" data-alt="A professional headshot of a young male student, named Ratul, looking confident and approachable. The lighting is bright and modern, set against a neutral, minimal corporate background. The student is wearing a neat, casual button-down shirt. The aesthetic aligns with a reliable, AI-driven academic assistant, emphasizing clarity and focus." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC5eHKdDsT9uKTYwoQARFLzHUJhB3ePh-9uxzPailOmzJx5trXzfCgN4Ueuo3RSHUaXaMVYAaVErT-Ui5LbTsAttDdXd5ySXzKtwhWeAmSl5G1BYTSVL9XCRX2KttcGVKjaulYscvB2-uz2zWL7cjdzfW_aTVfVrT3H-Bz-cUTSLtzaU4ftoHBXWSWe0w3SF-RgMSk7pDTvGxSBc7Ts0IpXdzxlf3az22RodjsJ-ocljwmM4q_U-Kdq"/>
+</div>
+<div>
+<div class="font-title-md text-title-md text-on-surface">Ratul</div>
+<div class="font-body-sm text-body-sm text-on-surface-variant">Computer Science Dept.</div>
+<div class="font-label-caps text-label-caps text-outline">ID: 2024-001</div>
+</div>
+</div>
+</div>
+<div class="flex flex-col gap-xs flex-1 overflow-y-auto">
+<a class="bg-secondary-container text-on-secondary-container rounded-full mx-2 font-bold px-4 py-2 flex items-center gap-sm transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+<span class="font-body-md text-body-md">Home</span>
+</a>
+<a class="text-on-surface-variant dark:text-outline-variant mx-2 px-4 py-2 hover:bg-surface-container-high dark:hover:bg-surface-variant rounded-full flex items-center gap-sm transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">calendar_month</span>
+<span class="font-body-md text-body-md">Timetable</span>
+</a>
+<a class="text-on-surface-variant dark:text-outline-variant mx-2 px-4 py-2 hover:bg-surface-container-high dark:hover:bg-surface-variant rounded-full flex items-center gap-sm transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">campaign</span>
+<span class="font-body-md text-body-md">Notices</span>
+</a>
+<a class="text-on-surface-variant dark:text-outline-variant mx-2 px-4 py-2 hover:bg-surface-container-high dark:hover:bg-surface-variant rounded-full flex items-center gap-sm transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">description</span>
+<span class="font-body-md text-body-md">Exams</span>
+</a>
+<a class="text-on-surface-variant dark:text-outline-variant mx-2 px-4 py-2 hover:bg-surface-container-high dark:hover:bg-surface-variant rounded-full flex items-center gap-sm transition-all duration-300 ease-in-out mt-auto" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">settings</span>
+<span class="font-body-md text-body-md">Settings</span>
+</a>
+<a class="text-on-surface-variant dark:text-outline-variant mx-2 px-4 py-2 hover:bg-surface-container-high dark:hover:bg-surface-variant rounded-full flex items-center gap-sm transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">logout</span>
+<span class="font-body-md text-body-md">Logout</span>
+</a>
+</div>
+</nav>
+<!-- Main Canvas -->
+<main class="flex-1 p-margin-mobile md:p-margin-desktop overflow-y-auto pb-[80px] md:pb-margin-desktop">
+<!-- Header -->
+<div class="mb-lg hidden md:block">
+<h1 class="font-display-lg text-display-lg text-on-background">Good Morning, Ratul</h1>
+<p class="font-body-md text-body-md text-on-surface-variant mt-2">Here is your academic overview for today.</p>
+</div>
+<div class="mb-md md:hidden">
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile text-on-background">Good Morning, Ratul</h1>
+</div>
+<!-- Bento Grid -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-md">
+<!-- Quick Stats Row (Spans full width on mobile, top row on desktop) -->
+<div class="col-span-1 md:col-span-12 grid grid-cols-2 md:grid-cols-4 gap-sm">
+<!-- Attendance -->
+<div class="bg-surface-container-lowest border border-[#E2E8F0] rounded-xl p-sm flex flex-col justify-between hover:shadow-[0_12px_24px_-12px_rgba(30,58,138,0.08)] transition-shadow">
+<div class="flex items-center justify-between mb-sm">
+<span class="font-label-caps text-label-caps text-outline">ATTENDANCE</span>
+<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 0;">analytics</span>
+</div>
+<div class="flex items-end gap-2">
+<span class="font-headline-lg text-headline-lg text-on-surface">81%</span>
+<span class="font-body-sm text-body-sm text-secondary mb-1">Good standing</span>
+</div>
+</div>
+<!-- Assignments -->
+<div class="bg-surface-container-lowest border border-[#E2E8F0] rounded-xl p-sm flex flex-col justify-between hover:shadow-[0_12px_24px_-12px_rgba(30,58,138,0.08)] transition-shadow">
+<div class="flex items-center justify-between mb-sm">
+<span class="font-label-caps text-label-caps text-outline">ASSIGNMENTS</span>
+<span class="material-symbols-outlined text-tertiary" style="font-variation-settings: 'FILL' 0;">assignment</span>
+</div>
+<div class="flex items-end gap-2">
+<span class="font-headline-lg text-headline-lg text-on-surface">3</span>
+<span class="font-body-sm text-body-sm text-error mb-1">Due soon</span>
+</div>
+</div>
+<!-- Exams -->
+<div class="bg-surface-container-lowest border border-[#E2E8F0] rounded-xl p-sm flex flex-col justify-between hover:shadow-[0_12px_24px_-12px_rgba(30,58,138,0.08)] transition-shadow">
+<div class="flex items-center justify-between mb-sm">
+<span class="font-label-caps text-label-caps text-outline">UPCOMING EXAMS</span>
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 0;">description</span>
+</div>
+<div class="flex items-end gap-2">
+<span class="font-headline-lg text-headline-lg text-on-surface">2</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant mb-1">This month</span>
+</div>
+</div>
+<!-- Classes Today -->
+<div class="bg-surface-container-lowest border border-[#E2E8F0] rounded-xl p-sm flex flex-col justify-between hover:shadow-[0_12px_24px_-12px_rgba(30,58,138,0.08)] transition-shadow">
+<div class="flex items-center justify-between mb-sm">
+<span class="font-label-caps text-label-caps text-outline">CLASSES TODAY</span>
+<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 0;">school</span>
+</div>
+<div class="flex items-end gap-2">
+<span class="font-headline-lg text-headline-lg text-on-surface">4</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant mb-1">Remaining</span>
+</div>
+</div>
+</div>
+<!-- Left Column (Desktop) / Next Stack (Mobile) -->
+<div class="col-span-1 md:col-span-7 flex flex-col gap-md">
+<!-- Today's Classes -->
+<div class="bg-surface-container-lowest border border-[#E2E8F0] rounded-xl p-md">
+<h2 class="font-title-md text-title-md text-on-surface mb-sm">Today's Classes</h2>
+<div class="flex flex-col gap-sm">
+<!-- Class Card -->
+<div class="relative overflow-hidden border border-[#E2E8F0] rounded-lg p-sm bg-surface">
+<div class="absolute top-0 left-0 w-full h-1 bg-primary"></div>
+<div class="flex justify-between items-start">
+<div>
+<div class="font-title-md text-title-md text-on-surface">Database Management Systems</div>
+<div class="font-body-sm text-body-sm text-on-surface-variant flex items-center gap-1 mt-1">
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 0;">location_on</span> Room 302
+                                        </div>
+</div>
+<div class="bg-primary-container text-on-primary-container px-3 py-1 rounded-full font-label-caps text-label-caps">
+                                        10:00 AM
+                                    </div>
+</div>
+</div>
+<!-- Class Card -->
+<div class="relative overflow-hidden border border-[#E2E8F0] rounded-lg p-sm bg-surface">
+<div class="absolute top-0 left-0 w-full h-1 bg-secondary"></div>
+<div class="flex justify-between items-start">
+<div>
+<div class="font-title-md text-title-md text-on-surface">Computer Networks</div>
+<div class="font-body-sm text-body-sm text-on-surface-variant flex items-center gap-1 mt-1">
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 0;">location_on</span> Room 405
+                                        </div>
+</div>
+<div class="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full font-label-caps text-label-caps">
+                                        11:00 AM
+                                    </div>
+</div>
+</div>
+</div>
+</div>
+<!-- Recent Notices -->
+<div class="bg-surface-container-lowest border border-[#E2E8F0] rounded-xl p-md">
+<h2 class="font-title-md text-title-md text-on-surface mb-sm">Recent Notices</h2>
+<ul class="flex flex-col gap-sm divide-y divide-surface-variant">
+<li class="pt-sm first:pt-0 flex items-start gap-sm">
+<div class="w-8 h-8 rounded-full bg-error-container text-on-error-container flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">warning</span>
+</div>
+<div>
+<div class="font-body-md text-body-md font-semibold text-on-surface">Semester Examination Schedule Released</div>
+<div class="font-body-sm text-body-sm text-outline mt-1">2 hours ago</div>
+</div>
+</li>
+<li class="pt-sm flex items-start gap-sm">
+<div class="w-8 h-8 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 0;">campaign</span>
+</div>
+<div>
+<div class="font-body-md text-body-md text-on-surface">Holiday Notice: Independence Day</div>
+<div class="font-body-sm text-body-sm text-outline mt-1">Yesterday</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<!-- Right Column (Desktop) / Next Stack (Mobile) -->
+<div class="col-span-1 md:col-span-5 flex flex-col gap-md">
+<!-- Upcoming Assignments -->
+<div class="bg-surface-container-lowest border border-[#E2E8F0] rounded-xl p-md">
+<div class="flex items-center justify-between mb-sm">
+<h2 class="font-title-md text-title-md text-on-surface">Upcoming Assignments</h2>
+<button class="font-label-caps text-label-caps text-primary hover:underline">VIEW ALL</button>
+</div>
+<div class="flex flex-col gap-xs">
+<div class="group flex items-center justify-between p-sm border border-transparent hover:border-outline-variant rounded-lg transition-colors bg-surface-bright">
+<div>
+<div class="font-body-md text-body-md font-semibold text-on-surface">DBMS Assignment</div>
+<div class="font-body-sm text-body-sm text-error mt-1 flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">schedule</span> Due Tomorrow
+                                    </div>
+</div>
+<button class="w-8 h-8 rounded-full border border-outline flex items-center justify-center text-outline group-hover:bg-primary group-hover:text-on-primary group-hover:border-primary transition-colors">
+<span class="material-symbols-outlined text-[18px]">upload</span>
+</button>
+</div>
+<div class="group flex items-center justify-between p-sm border border-transparent hover:border-outline-variant rounded-lg transition-colors bg-surface-bright">
+<div>
+<div class="font-body-md text-body-md font-semibold text-on-surface">Computer Networks Lab</div>
+<div class="font-body-sm text-body-sm text-on-surface-variant mt-1 flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">schedule</span> Due Aug 27
+                                    </div>
+</div>
+<button class="w-8 h-8 rounded-full border border-outline flex items-center justify-center text-outline group-hover:bg-primary group-hover:text-on-primary group-hover:border-primary transition-colors">
+<span class="material-symbols-outlined text-[18px]">upload</span>
+</button>
+</div>
+</div>
+</div>
+<!-- AI Copilot Suggestion Area -->
+<div class="ai-layer rounded-xl p-md relative overflow-hidden flex-1 min-h-[200px]">
+<div class="absolute inset-0 opacity-20 pointer-events-none" style="background-image: radial-gradient(circle at top right, #37007e 0%, transparent 60%);"></div>
+<h3 class="font-title-md text-title-md mb-2 flex items-center gap-2">
+<span class="material-symbols-outlined text-tertiary">smart_toy</span>
+<span class="ai-gradient-text font-bold">Copilot Insights</span>
+</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant relative z-10">
+                            Based on your upcoming schedule, I recommend starting the <strong class="text-on-surface">DBMS Assignment</strong> tonight. It usually takes students about 3 hours to complete.
+                        </p>
+</div>
+</div>
+</div>
+<!-- AI Entry Point (Sticky near bottom of main content) -->
+<div class="fixed md:sticky bottom-[80px] md:bottom-margin-desktop left-0 w-full px-margin-mobile md:px-0 mt-xl z-30 pointer-events-none flex justify-center">
+<div class="pointer-events-auto w-full max-w-2xl bg-surface-container-lowest glassmorphism rounded-full shadow-lg border border-[#E2E8F0] p-1 flex items-center group focus-within:border-primary transition-colors focus-within:shadow-[0_0_0_2px_rgba(30,58,138,0.2)]">
+<span class="material-symbols-outlined text-outline ml-sm mr-xs group-focus-within:text-primary transition-colors">arrow_back_ios_new</span>
+<input class="flex-1 bg-transparent border-none focus:ring-0 font-body-md text-body-md text-on-surface placeholder:text-outline-variant py-sm" placeholder="Ask CampusCopilot about your classes, assignments..." type="text"/>
+<button class="bg-gradient-to-r from-secondary to-tertiary text-on-primary rounded-full p-2 mr-1 shadow-md hover:opacity-90 transition-opacity">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">arrow_upward</span>
+</button>
+</div>
+</div>
+</main>
+</div>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="bg-surface dark:bg-inverse-surface fixed bottom-0 w-full z-50 h-[64px] flex justify-around items-center px-margin-mobile md:hidden shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+<a class="flex flex-col items-center justify-center text-primary dark:text-primary-fixed-dim relative after:content-[''] after:w-1 after:h-1 after:bg-primary after:rounded-full after:mt-1 active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+<span class="font-body-sm text-body-sm mt-1 font-semibold">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors active:scale-95 duration-200" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">analytics</span>
+<span class="font-body-sm text-body-sm mt-1">Attendance</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors active:scale-95 duration-200" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">smart_toy</span>
+<span class="font-body-sm text-body-sm mt-1">Copilot</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors active:scale-95 duration-200" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">assignment</span>
+<span class="font-body-sm text-body-sm mt-1">Tasks</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant hover:text-primary dark:hover:text-primary-fixed-dim transition-colors active:scale-95 duration-200" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">menu</span>
+<span class="font-body-sm text-body-sm mt-1">More</span>
+</a>
+</nav>
+</body></html>
