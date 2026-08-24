@@ -1,221 +1,118 @@
+import { useState, useEffect } from "react";
 import { Link } from "react-router";
+import { attendanceService, authService } from "../../services/api";
 
 export default function AttendancePage() {
-  const subjects = [
-    {
-      name: "Database Management Systems",
-      code: "CS-301",
-      faculty: "Prof. Alan Turing",
-      percentage: 83.3,
-      attended: 35,
-      total: 42,
-      isSafe: true,
-      insight: "You can miss 4 classes while staying above 75%.",
-    },
-    {
-      name: "Computer Networks",
-      code: "CS-302",
-      faculty: "Prof. Grace Hopper",
-      percentage: 70.7,
-      attended: 29,
-      total: 41,
-      isSafe: false,
-      insight: "Below required attendance. Attend next 7 classes to reach 75%.",
-    },
-    {
-      name: "Operating Systems",
-      code: "CS-303",
-      faculty: "Prof. Linus Torvalds",
-      percentage: 88.5,
-      attended: 46,
-      total: 52,
-      isSafe: true,
-      insight: "You can miss 7 classes safely.",
-    },
-    {
-      name: "Theory of Computation",
-      code: "CS-304",
-      faculty: "Prof. John von Neumann",
-      percentage: 82.0,
-      attended: 41,
-      total: 50,
-      isSafe: true,
-      insight: "You can miss 3 classes while staying above 75%.",
-    },
-  ];
+  const [attendanceData, setAttendanceData] = useState({
+    overallPercentage: 81,
+    subjects: [
+      { code: "CS301", name: "Database Management Systems", attended: 28, total: 32, percentage: 88 },
+      { code: "CS302", name: "Computer Networks", attended: 22, total: 28, percentage: 79 },
+      { code: "CS303", name: "Operating Systems", attended: 20, total: 24, percentage: 83 },
+      { code: "CS304", name: "Design & Analysis of Algorithms", attended: 16, total: 22, percentage: 73 },
+    ],
+  });
 
-  const weeklyTrend = [
-    { week: "W1", value: 85 },
-    { week: "W2", value: 90 },
-    { week: "W3", value: 82 },
-    { week: "W4", value: 70 },
-    { week: "W5", value: 88 },
-    { week: "W6", value: 81, current: true },
-  ];
+  const currentUser = authService.getCurrentUser();
+
+  useEffect(() => {
+    async function loadAttendance() {
+      const roll = currentUser?.rollNumber || "2026-CS-0042";
+      const data = await attendanceService.getAttendance(roll);
+      if (data && data.subjects?.length > 0) {
+        setAttendanceData(data);
+      }
+    }
+    loadAttendance();
+  }, []);
 
   return (
-    <div className="bg-background text-on-background font-body-sm antialiased min-h-screen flex flex-col">
+    <div className="bg-background text-on-background min-h-screen pb-[80px] md:pb-12 font-body-md">
       {/* TopAppBar */}
-      <header className="sticky top-0 w-full z-40 bg-background border-b border-surface-container-high flex justify-between items-center px-margin-mobile py-sm md:px-margin-desktop md:py-md">
-        <div className="flex items-center gap-sm">
-          <Link to="/profile" className="w-9 h-9 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold">
+      <header className="sticky top-0 w-full z-40 bg-surface border-b border-surface-container-high flex justify-between items-center px-4 py-3 md:px-8 md:py-4 shadow-xs">
+        <div className="flex items-center gap-3">
+          <Link to="/dashboard" className="w-8 h-8 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold text-xs">
             RD
           </Link>
           <span className="font-headline-lg-mobile md:font-headline-lg font-bold text-primary">CampusCopilot</span>
         </div>
-
-        {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center gap-md">
-          <Link to="/dashboard" className="font-body-md text-on-surface-variant hover:text-primary flex items-center gap-xs">
-            <span className="material-symbols-outlined text-[20px]">dashboard</span> Home
-          </Link>
-          <Link to="/attendance" className="font-body-md text-primary font-bold flex items-center gap-xs">
-            <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>analytics</span> Attendance
-          </Link>
-          <Link to="/ai-chat" className="font-body-md text-on-surface-variant hover:text-primary flex items-center gap-xs">
-            <span className="material-symbols-outlined text-[20px]">smart_toy</span> Copilot
-          </Link>
-          <Link to="/assignments" className="font-body-md text-on-surface-variant hover:text-primary flex items-center gap-xs">
-            <span className="material-symbols-outlined text-[20px]">assignment</span> Tasks
-          </Link>
-          <Link to="/timetable" className="font-body-md text-on-surface-variant hover:text-primary flex items-center gap-xs">
-            <span className="material-symbols-outlined text-[20px]">calendar_month</span> Timetable
-          </Link>
-        </nav>
-
-        <Link to="/campus" className="text-on-surface-variant hover:opacity-80 p-2 rounded-full hover:bg-surface-container">
-          <span className="material-symbols-outlined">notifications</span>
+        <Link to="/dashboard" className="text-xs font-semibold text-primary px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20">
+          Dashboard
         </Link>
       </header>
 
-      {/* Main Content Canvas */}
-      <main className="flex-1 w-full max-w-[1440px] mx-auto px-margin-mobile md:px-margin-desktop pt-md pb-[96px] md:pb-xl flex flex-col gap-md md:gap-lg">
-        {/* Header Section */}
+      {/* Main Content */}
+      <main className="max-w-[1440px] mx-auto px-4 md:px-8 pt-6 flex flex-col gap-6">
         <div>
-          <h1 className="font-headline-lg md:font-display-lg text-primary tracking-tight font-bold">Attendance Overview</h1>
-          <p className="font-body-md text-on-surface-variant mt-1">Track your academic presence and stay well above institutional requirements.</p>
+          <h1 className="font-headline-lg md:font-display-lg text-primary font-bold">Attendance Analytics</h1>
+          <p className="font-body-md text-on-surface-variant mt-1">Live subject-wise attendance tracking and safe bunk buffer calculator.</p>
         </div>
 
-        {/* Bento Grid: Overall & Chart */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-md">
-          {/* Overall Attendance Card */}
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex flex-col items-center justify-center relative overflow-hidden shadow-sm">
-            <h2 className="font-title-md text-on-surface w-full text-left mb-6 font-bold">Overall Attendance</h2>
-            <div className="relative w-40 h-40 flex items-center justify-center mb-4">
-              <svg className="absolute inset-0 w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                <circle className="text-surface-container" cx="50" cy="50" fill="none" r="42" stroke="currentColor" strokeWidth="8" />
-                <circle
-                  className="text-secondary transition-all duration-1000 ease-out"
-                  cx="50"
-                  cy="50"
-                  fill="none"
-                  r="42"
-                  stroke="currentColor"
-                  strokeDasharray="263.89"
-                  strokeDashoffset={263.89 * (1 - 0.81)}
-                  strokeLinecap="round"
-                  strokeWidth="8"
-                />
-              </svg>
-              <div className="flex flex-col items-center">
-                <span className="font-display-lg text-primary tracking-tighter font-bold">
-                  81<span className="text-xl text-primary-container">%</span>
-                </span>
-              </div>
+        {/* Overall Status Banner */}
+        <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/70 p-6 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-5">
+            <div className="w-20 h-20 rounded-full border-4 border-secondary flex items-center justify-center font-bold text-2xl text-primary bg-secondary/10 shadow-inner">
+              {attendanceData.overallPercentage}%
             </div>
-            <div className="flex items-center gap-1.5 bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full">
-              <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span>
-              <span className="font-label-caps tracking-wider uppercase font-semibold text-xs">Safe Zone (Threshold: 75%)</span>
+            <div>
+              <span className="text-xs font-bold uppercase tracking-wider text-secondary">Good Standing</span>
+              <h2 className="text-xl font-bold text-on-surface mt-0.5">Above Minimum 75% Requirement</h2>
+              <p className="text-xs text-on-surface-variant mt-1">You have a safe buffer of 3 classes across all subjects.</p>
             </div>
           </div>
 
-          {/* Attendance Trend Chart */}
-          <div className="md:col-span-2 bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex flex-col relative shadow-sm">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="font-title-md text-on-surface font-bold">Weekly Trend</h2>
-              <span className="font-label-caps text-outline uppercase tracking-wider text-xs">Last 6 Weeks</span>
-            </div>
-
-            <div className="flex-1 flex items-end justify-between gap-2 sm:gap-4 mt-auto pt-6 relative min-h-[140px]">
-              {weeklyTrend.map((item, idx) => (
-                <div key={idx} className="flex flex-col items-center gap-2 flex-1 z-10">
-                  <span className="text-xs font-semibold text-on-surface">{item.value}%</span>
-                  <div className="w-full max-w-[44px] bg-surface-container-high rounded-t-lg relative flex items-end justify-center h-[120px] overflow-hidden">
-                    <div
-                      className={`w-full rounded-t-lg transition-all duration-500 ${item.value >= 75 ? "bg-secondary" : "bg-error"}`}
-                      style={{ height: `${item.value}%` }}
-                    />
-                  </div>
-                  <span className={`font-mono-sm text-xs ${item.current ? "text-primary font-bold" : "text-on-surface-variant"}`}>
-                    {item.week}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
+          <Link
+            to="/ai-chat"
+            className="px-4 py-2.5 bg-primary text-on-primary rounded-xl text-xs font-semibold hover:bg-primary-container transition-all flex items-center gap-2 shadow-sm"
+          >
+            <span className="material-symbols-outlined text-[16px]">smart_toy</span>
+            Ask Copilot Attendance Advice
+          </Link>
         </div>
 
-        {/* Subject Breakdown List */}
-        <div className="flex flex-col gap-md">
-          <h2 className="font-headline-lg-mobile md:font-headline-lg text-on-background font-bold">Subject Breakdown</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-md">
-            {subjects.map((sub, idx) => (
+        {/* Subject Breakdown Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {attendanceData.subjects.map((sub, idx) => {
+            const isSafe = sub.percentage >= 75;
+            return (
               <div
                 key={idx}
-                className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col hover:shadow-md transition-all shadow-sm"
+                className="bg-surface-container-lowest rounded-xl border border-outline-variant/70 p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
               >
-                <div className={`h-1.5 w-full ${sub.isSafe ? "bg-secondary" : "bg-error"}`} />
-                <div className="p-md flex flex-col gap-sm">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-title-md text-on-surface font-semibold leading-tight">{sub.name}</h3>
-                      <p className="font-body-sm text-on-surface-variant mt-0.5">
-                        {sub.code} • {sub.faculty}
-                      </p>
-                    </div>
-                    <span className={`font-title-md font-bold text-lg ${sub.isSafe ? "text-secondary" : "text-error"}`}>
+                <div>
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="font-mono-sm text-xs text-outline font-bold">{sub.code}</span>
+                    <span
+                      className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                        isSafe
+                          ? "bg-secondary-container text-on-secondary-container"
+                          : "bg-error-container text-on-error-container"
+                      }`}
+                    >
                       {sub.percentage}%
                     </span>
                   </div>
-
-                  <div className="flex flex-col gap-1.5 mt-2">
-                    <div className="flex justify-between font-mono-sm text-outline text-xs">
-                      <span>Classes Attended</span>
-                      <span>
-                        {sub.attended} / {sub.total}
-                      </span>
-                    </div>
-                    <div className="w-full h-2.5 bg-surface-container-high rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${sub.isSafe ? "bg-secondary" : "bg-error"}`}
-                        style={{ width: `${sub.percentage}%` }}
-                      />
-                    </div>
-                  </div>
+                  <h3 className="font-title-md font-bold text-on-surface text-base mb-1">{sub.name}</h3>
+                  <p className="text-xs text-on-surface-variant">
+                    {sub.attended} / {sub.total} classes attended
+                  </p>
                 </div>
 
-                {/* AI Insight Footer */}
-                <div
-                  className={`px-md py-2.5 border-t flex items-center gap-2 text-xs ${
-                    sub.isSafe
-                      ? "bg-surface-bright border-outline-variant/60 text-on-surface-variant"
-                      : "bg-error-container/30 border-error/20 text-on-error-container font-medium"
-                  }`}
-                >
-                  <span className={`material-symbols-outlined text-[18px] ${sub.isSafe ? "text-secondary" : "text-error"}`}>
-                    {sub.isSafe ? "psychology" : "warning"}
+                <div className="mt-4 pt-3 border-t border-surface-variant flex justify-between items-center text-xs">
+                  <span className={isSafe ? "text-secondary font-semibold" : "text-error font-bold"}>
+                    {isSafe ? "✓ Safe Zone" : "⚠️ Needs Attention"}
                   </span>
-                  <p>{sub.insight}</p>
+                  <span className="text-outline">{isSafe ? "+2 Bunks Left" : "Attend next 3 classes"}</span>
                 </div>
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
       </main>
 
       {/* Bottom Nav Bar (Mobile) */}
       <nav className="fixed bottom-0 w-full z-50 h-[64px] bg-surface border-t border-surface-container-high shadow-lg md:hidden">
-        <div className="flex justify-around items-center px-margin-mobile w-full h-full">
+        <div className="flex justify-around items-center px-4 w-full h-full">
           <Link to="/dashboard" className="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary">
             <span className="material-symbols-outlined">dashboard</span>
             <span className="text-[10px] mt-1">Home</span>
@@ -243,4 +140,3 @@ export default function AttendancePage() {
     </div>
   );
 }
-

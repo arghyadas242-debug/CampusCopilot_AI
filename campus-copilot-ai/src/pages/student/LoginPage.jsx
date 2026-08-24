@@ -1,121 +1,123 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
+import { authService } from "../../services/api";
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Navigate to student dashboard
-    navigate("/dashboard");
+    setLoading(true);
+    setError("");
+
+    try {
+      const data = await authService.login(email, password);
+      if (data.user?.role === "admin") {
+        navigate("/admin");
+      } else {
+        navigate("/dashboard");
+      }
+    } catch (err) {
+      setError(err.message || "Failed to log in. Check credentials.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="bg-background text-on-background font-body-md min-h-screen flex items-center justify-center p-margin-mobile md:p-margin-desktop">
-      {/* Login Container */}
-      <main className="w-full max-w-md bg-surface-container-lowest border border-surface-container-high rounded-xl p-md md:p-lg flex flex-col gap-lg shadow-sm relative overflow-hidden">
-        {/* Header */}
-        <header className="flex flex-col items-center text-center gap-sm z-10">
-          <div className="h-12 w-12 bg-primary-container rounded-lg flex items-center justify-center text-on-primary-container mb-2">
-            <span className="material-symbols-outlined" style={{ fontSize: "28px", fontVariationSettings: "'FILL' 1" }}>
-              school
-            </span>
+    <div className="bg-background text-on-background min-h-screen flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-surface-container-lowest border border-outline-variant/60 rounded-2xl p-8 shadow-xl relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-primary via-secondary to-tertiary" />
+
+        <div className="flex flex-col items-center mb-8">
+          <div className="w-14 h-14 rounded-2xl bg-primary-container text-on-primary-container flex items-center justify-center font-bold text-2xl mb-3 shadow-md">
+            <span className="material-symbols-outlined text-[32px]">school</span>
           </div>
-          <h1 className="font-headline-lg-mobile md:font-headline-lg text-primary tracking-tight font-bold">
-            CampusCopilot
-          </h1>
-          <p className="font-body-sm text-on-surface-variant">Sign in to access your academic dashboard.</p>
-        </header>
+          <h1 className="font-headline-lg font-bold text-primary text-center">Welcome Back</h1>
+          <p className="font-body-sm text-on-surface-variant text-center mt-1">
+            Sign in to access your student copilot & academic hub
+          </p>
+        </div>
 
-        {/* Form Section */}
-        <section className="flex flex-col gap-md z-10 w-full">
-          <form onSubmit={handleSubmit} className="flex flex-col gap-md">
-            <div className="flex flex-col gap-xs">
-              <label className="font-label-caps text-on-surface uppercase tracking-wider" htmlFor="email">
-                Email Address
-              </label>
-              <div className="relative flex items-center">
-                <span className="material-symbols-outlined absolute left-3 text-outline" style={{ fontSize: "20px" }}>
-                  mail
-                </span>
-                <input
-                  className="w-full bg-surface-container-low border border-surface-container-high rounded-lg pl-10 pr-sm py-3 font-body-sm text-on-surface placeholder-outline focus:border-primary focus:ring-2 focus:ring-primary-container transition-all outline-none"
-                  id="email"
-                  name="email"
-                  placeholder="student@campus.edu"
-                  required
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-            </div>
+        {error && (
+          <div className="mb-4 p-3 bg-error-container text-on-error-container text-xs rounded-xl flex items-center gap-2">
+            <span className="material-symbols-outlined text-base">error</span>
+            {error}
+          </div>
+        )}
 
-            <div className="flex flex-col gap-xs">
-              <div className="flex justify-between items-center">
-                <label className="font-label-caps text-on-surface uppercase tracking-wider" htmlFor="password">
-                  Password
-                </label>
-                <a className="font-body-sm text-primary hover:text-primary-container transition-colors" href="#">
-                  Forgot password?
-                </a>
-              </div>
-              <div className="relative flex items-center">
-                <span className="material-symbols-outlined absolute left-3 text-outline" style={{ fontSize: "20px" }}>
-                  lock
-                </span>
-                <input
-                  className="w-full bg-surface-container-low border border-surface-container-high rounded-lg pl-10 pr-sm py-3 font-body-sm text-on-surface placeholder-outline focus:border-primary focus:ring-2 focus:ring-primary-container transition-all outline-none"
-                  id="password"
-                  name="password"
-                  placeholder="••••••••"
-                  required
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <button
-              className="w-full bg-primary text-on-primary font-title-md py-3 rounded-lg hover:bg-primary-container hover:text-on-primary-container transition-colors mt-2 flex justify-center items-center gap-sm cursor-pointer shadow-md"
-              type="submit"
-            >
-              Login
-              <span className="material-symbols-outlined" style={{ fontSize: "20px" }}>
-                arrow_forward
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div>
+            <label className="font-label-caps text-on-surface text-xs block mb-1 uppercase tracking-wider">
+              University Email
+            </label>
+            <div className="relative">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-lg">
+                mail
               </span>
-            </button>
-          </form>
-
-          {/* Secondary Actions */}
-          <div className="text-center mt-sm">
-            <p className="font-body-sm text-on-surface-variant">
-              Don't have an account?{" "}
-              <Link className="text-primary hover:underline font-title-md font-semibold" to="/register">
-                Create account
-              </Link>
-            </p>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="student@campus.edu or admin@campus.edu"
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-outline-variant bg-surface-container-low text-on-surface font-body-sm text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+              />
+            </div>
           </div>
-        </section>
 
-        {/* Footer / Trust Badges */}
-        <footer className="mt-4 pt-md border-t border-surface-container-high flex flex-col items-center justify-center gap-xs z-10 w-full text-center">
-          <div className="flex items-center gap-2 text-on-surface-variant">
-            <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>
-              shield
-            </span>
-            <span className="font-mono-sm text-outline">Secured by Firebase Authentication</span>
+          <div>
+            <label className="font-label-caps text-on-surface text-xs block mb-1 uppercase tracking-wider">
+              Password
+            </label>
+            <div className="relative">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-lg">
+                lock
+              </span>
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-outline-variant bg-surface-container-low text-on-surface font-body-sm text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+              />
+            </div>
           </div>
-        </footer>
 
-        {/* Decorative background elements */}
-        <div className="absolute -top-24 -right-24 w-64 h-64 bg-primary-container rounded-full opacity-5 blur-3xl pointer-events-none"></div>
-        <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-tertiary-container rounded-full opacity-5 blur-3xl pointer-events-none"></div>
-      </main>
+          <div className="flex items-center justify-between text-xs mt-1">
+            <label className="flex items-center gap-1.5 text-on-surface-variant cursor-pointer">
+              <input type="checkbox" className="rounded border-outline-variant text-primary" defaultChecked />
+              Remember me
+            </label>
+            <a href="#" className="text-primary font-semibold hover:underline">
+              Forgot password?
+            </a>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-3 mt-2 rounded-xl bg-primary text-on-primary font-semibold text-sm hover:bg-primary-container transition-all active:scale-[0.98] shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+          >
+            {loading ? "Signing in..." : "Sign In to CampusCopilot"}
+            <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+          </button>
+        </form>
+
+        <div className="mt-6 pt-6 border-t border-surface-variant text-center">
+          <p className="font-body-sm text-xs text-on-surface-variant">
+            Don't have an account?{" "}
+            <Link to="/register" className="text-primary font-bold hover:underline">
+              Create Student Account
+            </Link>
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
-

@@ -1,204 +1,199 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
+import { authService } from "../../services/api";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    fullName: "",
+    name: "",
     email: "",
     password: "",
-    department: "",
-    semester: "",
-    section: "",
+    rollNumber: "",
+    department: "Computer Science & Engineering",
+    semester: "5",
+    section: "A",
   });
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    navigate("/dashboard");
+    setLoading(true);
+    setError("");
+
+    try {
+      await authService.register(formData);
+      navigate("/dashboard");
+    } catch (err) {
+      setError(err.message || "Failed to create account.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="bg-background text-on-background min-h-screen flex items-center justify-center p-margin-mobile antialiased">
-      {/* Main Container: Focused Registration Form */}
-      <main className="w-full max-w-[420px] bg-surface rounded-xl border border-surface-container-high shadow-lg p-md overflow-hidden relative">
-        {/* Subtle AI Glassmorphic Glow Element in Background */}
-        <div className="absolute -top-20 -right-20 w-64 h-64 bg-tertiary/10 rounded-full blur-3xl pointer-events-none"></div>
+    <div className="bg-background text-on-background min-h-screen flex items-center justify-center p-4 py-8">
+      <div className="w-full max-w-lg bg-surface-container-lowest border border-outline-variant/60 rounded-2xl p-8 shadow-xl relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-secondary via-primary to-tertiary" />
 
-        {/* Header */}
-        <header className="text-center mb-lg relative z-10">
-          <h1 className="font-headline-lg-mobile font-bold text-primary tracking-tight">CampusCopilot</h1>
-          <h2 className="font-title-md text-on-surface mt-sm">Create an Account</h2>
-          <p className="font-body-sm text-on-surface-variant mt-xs">Provide your details to get started.</p>
-        </header>
+        <div className="flex flex-col items-center mb-6">
+          <div className="w-12 h-12 rounded-2xl bg-secondary-container text-on-secondary-container flex items-center justify-center font-bold text-xl mb-2 shadow-sm">
+            <span className="material-symbols-outlined text-[28px]">person_add</span>
+          </div>
+          <h1 className="font-headline-lg font-bold text-primary text-center">Student Registration</h1>
+          <p className="font-body-sm text-on-surface-variant text-center mt-0.5">
+            Create your account to unlock AI tutoring and track your semester progress
+          </p>
+        </div>
 
-        {/* Registration Form */}
-        <form onSubmit={handleSubmit} className="flex flex-col gap-sm relative z-10">
-          {/* Full Name */}
-          <div className="flex flex-col gap-1">
-            <label className="font-label-caps text-on-surface-variant uppercase" htmlFor="fullName">
+        {error && (
+          <div className="mb-4 p-3 bg-error-container text-on-error-container text-xs rounded-xl flex items-center gap-2">
+            <span className="material-symbols-outlined text-base">error</span>
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
+          <div>
+            <label className="font-label-caps text-on-surface text-xs block mb-1 uppercase tracking-wider">
               Full Name
             </label>
-            <div className="relative">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant" style={{ fontSize: "20px" }}>
-                person
-              </span>
-              <input
-                className="w-full pl-10 pr-sm py-2 border border-outline-variant rounded-lg bg-surface-container-lowest font-body-md text-on-surface placeholder:text-outline-variant focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                id="fullName"
-                name="fullName"
-                placeholder="Jane Doe"
-                required
-                type="text"
-                value={formData.fullName}
-                onChange={handleChange}
-              />
-            </div>
+            <input
+              name="name"
+              required
+              value={formData.name}
+              onChange={handleChange}
+              placeholder="e.g. Ratul Das"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant bg-surface-container-low text-on-surface font-body-sm text-sm focus:outline-none focus:border-primary"
+            />
           </div>
 
-          {/* Email */}
-          <div className="flex flex-col gap-1">
-            <label className="font-label-caps text-on-surface-variant uppercase" htmlFor="email">
-              Email
-            </label>
-            <div className="relative">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant" style={{ fontSize: "20px" }}>
-                mail
-              </span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="font-label-caps text-on-surface text-xs block mb-1 uppercase tracking-wider">
+                University Email
+              </label>
               <input
-                className="w-full pl-10 pr-sm py-2 border border-outline-variant rounded-lg bg-surface-container-lowest font-body-md text-on-surface placeholder:text-outline-variant focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                id="email"
                 name="email"
-                placeholder="student@university.edu"
-                required
                 type="email"
+                required
                 value={formData.email}
                 onChange={handleChange}
+                placeholder="student@campus.edu"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant bg-surface-container-low text-on-surface font-body-sm text-sm focus:outline-none focus:border-primary"
               />
             </div>
-          </div>
 
-          {/* Password */}
-          <div className="flex flex-col gap-1">
-            <label className="font-label-caps text-on-surface-variant uppercase" htmlFor="password">
-              Password
-            </label>
-            <div className="relative">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant" style={{ fontSize: "20px" }}>
-                lock
-              </span>
+            <div>
+              <label className="font-label-caps text-on-surface text-xs block mb-1 uppercase tracking-wider">
+                Roll / ID Number
+              </label>
               <input
-                className="w-full pl-10 pr-sm py-2 border border-outline-variant rounded-lg bg-surface-container-lowest font-body-md text-on-surface placeholder:text-outline-variant focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                id="password"
-                name="password"
-                placeholder="••••••••"
+                name="rollNumber"
                 required
-                type="password"
-                value={formData.password}
+                value={formData.rollNumber}
                 onChange={handleChange}
+                placeholder="e.g. 2026-CS-0042"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant bg-surface-container-low text-on-surface font-body-sm text-sm font-mono-sm focus:outline-none focus:border-primary"
               />
             </div>
           </div>
 
-          {/* Department Dropdown */}
-          <div className="flex flex-col gap-1">
-            <label className="font-label-caps text-on-surface-variant uppercase" htmlFor="department">
+          <div>
+            <label className="font-label-caps text-on-surface text-xs block mb-1 uppercase tracking-wider">
               Department
             </label>
             <select
-              className="w-full px-sm py-2 border border-outline-variant rounded-lg bg-surface-container-lowest font-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-              id="department"
               name="department"
-              required
               value={formData.department}
               onChange={handleChange}
+              className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant bg-surface-container-low text-on-surface font-body-sm text-sm focus:outline-none focus:border-primary font-semibold"
             >
-              <option disabled value="">
-                Select Department
-              </option>
-              <option value="cs">Computer Science</option>
-              <option value="ee">Electrical Engineering</option>
-              <option value="me">Mechanical Engineering</option>
-              <option value="ba">Business Administration</option>
+              <option>Computer Science & Engineering</option>
+              <option>Information Technology</option>
+              <option>Electrical & Electronics Eng.</option>
+              <option>Mechanical Engineering</option>
             </select>
           </div>
 
-          {/* Semester & Section Row */}
-          <div className="flex gap-sm w-full">
-            <div className="flex flex-col gap-1 flex-1">
-              <label className="font-label-caps text-on-surface-variant uppercase" htmlFor="semester">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="font-label-caps text-on-surface text-xs block mb-1 uppercase tracking-wider">
                 Semester
               </label>
               <select
-                className="w-full px-sm py-2 border border-outline-variant rounded-lg bg-surface-container-lowest font-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                id="semester"
                 name="semester"
-                required
                 value={formData.semester}
                 onChange={handleChange}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant bg-surface-container-low text-on-surface font-body-sm text-sm focus:outline-none focus:border-primary font-semibold"
               >
-                <option disabled value="">
-                  Select
-                </option>
-                <option value="1">1st Semester</option>
-                <option value="2">2nd Semester</option>
-                <option value="3">3rd Semester</option>
-                <option value="4">4th Semester</option>
-                <option value="5">5th Semester</option>
-                <option value="6">6th Semester</option>
-                <option value="7">7th Semester</option>
-                <option value="8">8th Semester</option>
+                <option value="1">Semester 1</option>
+                <option value="2">Semester 2</option>
+                <option value="3">Semester 3</option>
+                <option value="4">Semester 4</option>
+                <option value="5">Semester 5</option>
+                <option value="6">Semester 6</option>
+                <option value="7">Semester 7</option>
+                <option value="8">Semester 8</option>
               </select>
             </div>
-            <div className="flex flex-col gap-1 flex-1">
-              <label className="font-label-caps text-on-surface-variant uppercase" htmlFor="section">
+
+            <div>
+              <label className="font-label-caps text-on-surface text-xs block mb-1 uppercase tracking-wider">
                 Section
               </label>
               <select
-                className="w-full px-sm py-2 border border-outline-variant rounded-lg bg-surface-container-lowest font-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                id="section"
                 name="section"
-                required
                 value={formData.section}
                 onChange={handleChange}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant bg-surface-container-low text-on-surface font-body-sm text-sm focus:outline-none focus:border-primary font-semibold"
               >
-                <option disabled value="">
-                  Select
-                </option>
-                <option value="a">A</option>
-                <option value="b">B</option>
-                <option value="c">C</option>
-                <option value="d">D</option>
+                <option value="A">Section A</option>
+                <option value="B">Section B</option>
+                <option value="C">Section C</option>
               </select>
             </div>
           </div>
 
-          {/* Submit Button */}
+          <div>
+            <label className="font-label-caps text-on-surface text-xs block mb-1 uppercase tracking-wider">
+              Password
+            </label>
+            <input
+              name="password"
+              type="password"
+              required
+              value={formData.password}
+              onChange={handleChange}
+              placeholder="••••••••"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant bg-surface-container-low text-on-surface font-body-sm text-sm focus:outline-none focus:border-primary"
+            />
+          </div>
+
           <button
-            className="w-full mt-sm py-sm bg-primary text-on-primary rounded-lg font-title-md hover:bg-primary-container focus:outline-none focus:ring-4 focus:ring-primary/30 active:scale-[0.98] transition-all duration-200 flex justify-center items-center gap-xs cursor-pointer shadow-md"
             type="submit"
+            disabled={loading}
+            className="w-full py-3 mt-3 rounded-xl bg-primary text-on-primary font-semibold text-sm hover:bg-primary-container transition-all active:scale-[0.98] shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
-            Create Account
-            <span className="material-symbols-outlined" style={{ fontSize: "20px" }}>
-              arrow_forward
-            </span>
+            {loading ? "Creating Account..." : "Create Account & Go to Dashboard"}
+            <span className="material-symbols-outlined text-[18px]">check_circle</span>
           </button>
         </form>
 
-        {/* Footer Links */}
-        <div className="mt-md text-center border-t border-surface-container-high pt-sm">
-          <p className="font-body-sm text-on-surface-variant">
+        <div className="mt-6 pt-4 border-t border-surface-variant text-center">
+          <p className="font-body-sm text-xs text-on-surface-variant">
             Already have an account?{" "}
-            <Link className="text-primary font-semibold hover:underline" to="/login">
-              Log in here
+            <Link to="/login" className="text-primary font-bold hover:underline">
+              Sign In
             </Link>
           </p>
         </div>
-      </main>
+      </div>
     </div>
   );
 }
-
