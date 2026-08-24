@@ -1,110 +1,110 @@
 const express = require("express");
+const oracledb = require("oracledb");
 const getConnection = require("../db");
-const { authenticateToken, requireAdmin } = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
-// Get attendance for a student
-router.get("/:rollNumber", async (req, res) => {
-  const { rollNumber } = req.params;
-  let connection;
-  try {
-    connection = await getConnection();
 
-    const result = await connection.execute(
-      `SELECT subject_code, subject_name, attended_classes, total_classes, faculty_name
-       FROM ATTENDANCE
-       WHERE student_roll = :roll`,
-      [rollNumber],
-      { outFormat: require("oracledb").OUT_FORMAT_OBJECT }
-    );
+// GET all attendance records
+// URL: http://localhost:5000/api/attendance
+router.get("/", async (req, res) => {
+    let connection;
 
-    let totalAttended = 0;
-    let totalClasses = 0;
+    try {
+        connection = await getConnection();
 
-    const subjects = result.rows.map((row) => {
-      const att = Number(row.ATTENDED_CLASSES) || 0;
-      const tot = Number(row.TOTAL_CLASSES) || 0;
-      totalAttended += att;
-      totalClasses += tot;
-      const percentage = tot > 0 ? Math.round((att / tot) * 100) : 100;
-      return {
-        code: row.SUBJECT_CODE,
-        name: row.SUBJECT_NAME,
-        attended: att,
-        total: tot,
-        faculty: row.FACULTY_NAME,
-        percentage,
-      };
-    });
+        const result = await connection.execute(
+            `
+            SELECT
+                s.name,
+                s.student_roll,
+                sub.subject_code,
+                sub.subject_name,
+                a.attended_classes,
+                a.total_classes
+            FROM attendance a
+            JOIN students s
+                ON a.student_roll = s.student_roll
+            JOIN subjects sub
+                ON a.subject_code = sub.subject_code
+            ORDER BY s.student_roll, sub.subject_code
+            `,
+            [],
+            {
+                outFormat: oracledb.OUT_FORMAT_OBJECT
+            }
+        );
 
-    const overallPercentage = totalClasses > 0 ? Math.round((totalAttended / totalClasses) * 100) : 85;
+        res.json(result.rows);
 
-    res.json({
-      studentRoll: rollNumber,
-      overallPercentage,
-      totalAttended,
-      totalClasses,
-      subjects,
-    });
-  } catch (err) {
-    console.error("Fetch Attendance Error:", err);
-    res.status(500).json({ error: "Failed to fetch attendance. " + err.message });
-  } finally {
-    if (connection) {
-      try {
-        await connection.close();
-      } catch (e) {}
+    } catch (error) {
+        console.error("Attendance route error:", error);
+
+        res.status(500).json({
+            error: "Unable to load attendance",
+            details: error.message
+        });
+
+    } finally {
+        if (connection) {
+            await connection.close();
+        }
     }
-  }
 });
 
-// Admin: Batch Update Attendance
-router.post("/update", authenticateToken, requireAdmin, async (req, res) => {
-  const { records } = req.body; // Array of { studentRoll, subjectCode, status: 'present'|'absent' }
 
-  if (!Array.isArray(records) || records.length === 0) {
-    return res.status(400).json({ error: "Records array is required." });
-  }
+// GET attendance of one student
+// Example:
+// http://localhost:5000/api/attendance/CSE001
+router.get("/:studentRoll", async (req, res) => {
+    let connection;
 
-  let connection;
-  try {
-    connection = await getConnection();
+    try {
+        const studentRoll = req.params.studentRoll;
 
-    for (const rec of records) {
-      if (rec.status === "present") {
-        await connection.execute(
-          `UPDATE ATTENDANCE
-           SET attended_classes = attended_classes + 1, total_classes = total_classes + 1
-           WHERE student_roll = :roll AND subject_code = :code`,
-          [rec.studentRoll, rec.subjectCode],
-          { autoCommit: false }
+        connection = await getConnection();
+
+        const result = await connection.execute(
+            `
+            SELECT
+                s.name,
+                s.student_roll,
+                sub.subject_code,
+                sub.subject_name,
+                a.attended_classes,
+                a.total_classes
+            FROM attendance a
+            JOIN students s
+                ON a.student_roll = s.student_roll
+            JOIN subjects sub
+                ON a.subject_code = sub.subject_code
+            WHERE s.student_roll = :studentRoll
+            ORDER BY sub.subject_code
+            `,
+            {
+                studentRoll: studentRoll
+            },
+            {
+                outFormat: oracledb.OUT_FORMAT_OBJECT
+            }
         );
-      } else {
-        await connection.execute(
-          `UPDATE ATTENDANCE
-           SET total_classes = total_classes + 1
-           WHERE student_roll = :roll AND subject_code = :code`,
-          [rec.studentRoll, rec.subjectCode],
-          { autoCommit: false }
-        );
-      }
-    }
 
-    await connection.commit();
-    res.json({ message: "Attendance roster updated successfully!" });
-  } catch (err) {
-    if (connection) await connection.rollback();
-    console.error("Update Attendance Error:", err);
-    res.status(500).json({ error: "Failed to update attendance. " + err.message });
-  } finally {
-    if (connection) {
-      try {
-        await connection.close();
-      } catch (e) {}
+        res.json(result.rows);
+
+    } catch (error) {
+        console.error("Student attendance error:", error);
+
+        res.status(500).json({
+            error: "Unable to load student attendance",
+            details: error.message
+        });
+
+    } finally {
+        if (connection) {
+            await connection.close();
+        }
     }
-  }
 });
+
 
 module.exports = router;
-
