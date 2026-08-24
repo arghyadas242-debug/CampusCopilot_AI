@@ -59,16 +59,66 @@
   --font-hanken: "Hanken Grotesk", sans-serif;
   --font-inter: "Inter", sans-serif;
   --font-geist: "Geist", monospace, sans-serif;
-
-  --spacing-xs: 8px;
-  --spacing-sm: 16px;
-  --spacing-md: 24px;
-  --spacing-lg: 40px;
-  --spacing-xl: 64px;
-  --spacing-gutter: 16px;
-  --spacing-margin-mobile: 16px;
-  --spacing-margin-desktop: 32px;
 }
+
+/* Custom Spacing & Padding Helpers */
+.px-margin-mobile {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+.px-margin-desktop {
+  padding-left: 32px;
+  padding-right: 32px;
+}
+.py-margin-mobile {
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+.py-margin-desktop {
+  padding-top: 32px;
+  padding-bottom: 32px;
+}
+.p-margin-mobile {
+  padding: 16px;
+}
+.p-margin-desktop {
+  padding: 32px;
+}
+.p-xs { padding: 8px; }
+.p-sm { padding: 16px; }
+.p-md { padding: 24px; }
+.p-lg { padding: 40px; }
+.p-xl { padding: 64px; }
+
+.py-xs { padding-top: 8px; padding-bottom: 8px; }
+.py-sm { padding-top: 16px; padding-bottom: 16px; }
+.py-md { padding-top: 24px; padding-bottom: 24px; }
+.py-lg { padding-top: 40px; padding-bottom: 40px; }
+.py-xl { padding-top: 64px; padding-bottom: 64px; }
+
+.px-xs { padding-left: 8px; padding-right: 8px; }
+.px-sm { padding-left: 16px; padding-right: 16px; }
+.px-md { padding-left: 24px; padding-right: 24px; }
+.px-lg { padding-left: 40px; padding-right: 40px; }
+.px-xl { padding-left: 64px; padding-right: 64px; }
+
+.gap-xs { gap: 8px; }
+.gap-sm { gap: 16px; }
+.gap-md { gap: 24px; }
+.gap-lg { gap: 40px; }
+.gap-xl { gap: 64px; }
+
+.mb-xs { margin-bottom: 8px; }
+.mb-sm { margin-bottom: 16px; }
+.mb-md { margin-bottom: 24px; }
+.mb-lg { margin-bottom: 40px; }
+.mb-xl { margin-bottom: 64px; }
+
+.mt-xs { margin-top: 8px; }
+.mt-sm { margin-top: 16px; }
+.mt-md { margin-top: 24px; }
+.mt-lg { margin-top: 40px; }
+.mt-xl { margin-top: 64px; }
 
 /* Custom Typography Utility Classes */
 .font-display-lg {
