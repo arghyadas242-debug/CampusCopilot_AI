@@ -7,6 +7,7 @@ const initDatabase = require("./initDb");
 const authRoutes = require("./routes/authRoutes");
 const aiRoutes = require("./routes/aiRoutes");
 const attendanceRoutes = require("./routes/attendanceRoutes");
+const examRoutes = require("./routes/examRoutes");
 const timetableRoutes = require("./routes/timetableRoutes");
 const noticeRoutes = require("./routes/noticeRoutes");
 const studentRoutes = require("./routes/studentRoutes");
@@ -26,6 +27,7 @@ app.use("/api/attendance", attendanceRoutes);
 app.use("/api/notices", noticeRoutes);
 app.use("/api/students", studentRoutes);
 app.use("/api/assignments", assignmentRoutes);
+app.use("/api/exams", examRoutes);
 
 // Root Route
 app.get("/", (req, res) => {
