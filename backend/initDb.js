@@ -102,6 +102,22 @@ async function initDatabase() {
       console.log("✓ Default Admin account created (admin@campus.edu / Admin@123).");
     }
 
+    // Seed Arghya Das admin account
+    const arghyaCheck = await connection.execute(
+      `SELECT id FROM USERS WHERE email = :email`,
+      ["arghyadas245@gmail.com"]
+    );
+
+    if (arghyaCheck.rows.length === 0) {
+      const hashedArghyaPassword = await bcrypt.hash("712409", 10);
+      await connection.execute(
+        `INSERT INTO USERS (name, email, password_hash, role) VALUES (:name, :email, :password, :role)`,
+        ["Arghya Das", "arghyadas245@gmail.com", hashedArghyaPassword, "admin"],
+        { autoCommit: true }
+      );
+      console.log("✓ Admin account created (arghyadas245@gmail.com).");
+    }
+
     // Seed default notices if table is empty
     const noticeCheck = await connection.execute(`SELECT COUNT(*) AS count FROM NOTICES`, [], {
       outFormat: require("oracledb").OUT_FORMAT_OBJECT,

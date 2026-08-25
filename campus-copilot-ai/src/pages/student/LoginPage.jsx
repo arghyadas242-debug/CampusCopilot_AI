@@ -71,7 +71,7 @@ export default function LoginPage() {
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
-              onClick={() => handleQuickLogin("admin@campus.edu", "Admin@123")}
+              onClick={() => handleQuickLogin("arghyadas245@gmail.com", "712409")}
               className="py-1.5 px-2.5 rounded-lg border border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer"
             >
               <span className="material-symbols-outlined text-[14px]">shield_person</span> Admin Portal
