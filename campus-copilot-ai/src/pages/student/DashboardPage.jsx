@@ -24,11 +24,11 @@ export default function DashboardPage() {
   };
 
   const [dashboardData, setDashboardData] = useState({
-    attendancePercentage: 81,
+    attendancePercentage: null,
     attendanceStatus: "Safe (>75%)",
-    pendingAssignmentsCount: 2,
-    upcomingExamsCount: 2,
-    todayClassesCount: 2,
+    pendingAssignmentsCount: [],
+    upcomingExamsCount: [],
+    todayClassesCount: [],
     todayClasses: [
       {
         subject: "Database Management Systems",
@@ -73,42 +73,77 @@ export default function DashboardPage() {
     ],
   });
 
+  const roll = rollNumber;
+
   useEffect(() => {
     async function fetchRealData() {
+      // 1. Attendance Logic
       try {
-        const [attRes, asgRes, examRes, ttRes, notRes] = await Promise.allSettled([
-          fetch(`${API_URL}/api/attendance/${encodeURIComponent(rollNumber)}`).then((r) => (r.ok ? r.json() : null)),
-          fetch(`${API_URL}/api/assignments/${encodeURIComponent(rollNumber)}`).then((r) => (r.ok ? r.json() : null)),
-          fetch(`${API_URL}/api/exams/${encodeURIComponent(rollNumber)}`).then((r) => (r.ok ? r.json() : null)),
-          fetch(`${API_URL}/api/timetable/${encodeURIComponent(rollNumber)}`).then((r) => (r.ok ? r.json() : null)),
+        const response = await fetch(
+          `${API_URL}/api/attendance/${encodeURIComponent(roll)}`
+        );
+
+        if (response.ok) {
+          const attendance = await response.json();
+
+          let attendancePercentage = 0;
+
+          // Your current Oracle attendance API returns an array
+          if (Array.isArray(attendance)) {
+            let totalAttended = 0;
+            let totalClasses = 0;
+
+            attendance.forEach((item) => {
+              totalAttended += Number(item.ATTENDED_CLASSES) || 0;
+              totalClasses += Number(item.TOTAL_CLASSES) || 0;
+            });
+
+            if (totalClasses > 0) {
+              attendancePercentage = Number(
+                ((totalAttended / totalClasses) * 100).toFixed(1)
+              );
+            }
+          }
+          // Also supports an object response if API changes later
+          else if (
+            attendance &&
+            attendance.overallPercentage !== undefined
+          ) {
+            attendancePercentage = Number(
+              attendance.overallPercentage
+            );
+          }
+
+          setDashboardData((prev) => ({
+            ...prev,
+            attendancePercentage,
+            attendanceStatus: attendancePercentage >= 75 ? "Safe (>75%)" : "Needs Attention (<75%)",
+          }));
+        }
+      } catch (error) {
+        console.warn(
+          "Attendance dashboard data unavailable:",
+          error
+        );
+      }
+
+      // 2. Assignments, Exams, Timetable, Notices
+      try {
+        const [asgRes, examRes, ttRes, notRes] = await Promise.allSettled([
+          fetch(`${API_URL}/api/assignments/${encodeURIComponent(roll)}`).then((r) => (r.ok ? r.json() : null)),
+          fetch(`${API_URL}/api/exams/${encodeURIComponent(roll)}`).then((r) => (r.ok ? r.json() : null)),
+          fetch(`${API_URL}/api/timetable/${encodeURIComponent(roll)}`).then((r) => (r.ok ? r.json() : null)),
           fetch(`${API_URL}/api/notices`).then((r) => (r.ok ? r.json() : null)),
         ]);
 
-        const att = attRes.status === "fulfilled" ? attRes.value : null;
         const asg = asgRes.status === "fulfilled" ? asgRes.value : null;
         const exams = examRes.status === "fulfilled" ? examRes.value : null;
         const tt = ttRes.status === "fulfilled" ? ttRes.value : null;
         const notices = notRes.status === "fulfilled" ? notRes.value : null;
 
-        // 1. Attendance
-        let attendancePct = 81;
-        if (att) {
-          if (typeof att.overallPercentage === "number") {
-            attendancePct = att.overallPercentage;
-          } else if (Array.isArray(att.subjects) && att.subjects.length > 0) {
-            let attended = 0;
-            let total = 0;
-            att.subjects.forEach((s) => {
-              attended += Number(s.attended || s.ATTENDED_CLASSES) || 0;
-              total += Number(s.total || s.TOTAL_CLASSES) || 0;
-            });
-            if (total > 0) attendancePct = Math.round((attended / total) * 100);
-          }
-        }
-
-        // 2. Assignments
+        // Assignments
         let assignmentsList = dashboardData.upcomingAssignments;
-        let pendingCount = 2;
+        let pendingCount = dashboardData.pendingAssignmentsCount;
         const rawAsg = Array.isArray(asg) ? asg : asg?.assignments;
         if (rawAsg && rawAsg.length > 0) {
           const pending = rawAsg.filter(
@@ -123,16 +158,16 @@ export default function DashboardPage() {
           }));
         }
 
-        // 3. Exams
-        let examCount = 2;
+        // Exams
+        let examCount = dashboardData.upcomingExamsCount;
         const rawExams = Array.isArray(exams) ? exams : exams?.exams;
         if (rawExams && rawExams.length > 0) {
           examCount = rawExams.length;
         }
 
-        // 4. Timetable (Today's classes)
+        // Timetable
         let todayClassesList = dashboardData.todayClasses;
-        let todayCount = 2;
+        let todayCount = dashboardData.todayClassesCount;
         const rawTt = Array.isArray(tt) ? tt : tt?.classes;
         if (rawTt && rawTt.length > 0) {
           const todayName = new Date().toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
@@ -149,7 +184,7 @@ export default function DashboardPage() {
           }));
         }
 
-        // 5. Notices
+        // Notices
         let noticesList = dashboardData.recentNotices;
         const rawNotices = Array.isArray(notices) ? notices : notices?.notices;
         if (rawNotices && rawNotices.length > 0) {
@@ -161,23 +196,22 @@ export default function DashboardPage() {
           }));
         }
 
-        setDashboardData({
-          attendancePercentage: attendancePct,
-          attendanceStatus: attendancePct >= 75 ? "Safe (>75%)" : "Needs Attention (<75%)",
+        setDashboardData((prev) => ({
+          ...prev,
           pendingAssignmentsCount: pendingCount,
           upcomingExamsCount: examCount,
           todayClassesCount: todayCount,
           todayClasses: todayClassesList,
           recentNotices: noticesList,
           upcomingAssignments: assignmentsList,
-        });
+        }));
       } catch (err) {
-        console.warn("Using cached dashboard real data fallback:", err);
+        console.warn("Other dashboard services fetch warning:", err);
       }
     }
 
     fetchRealData();
-  }, [rollNumber]);
+  }, [roll]);
 
   const handleAISubmit = (e) => {
     e.preventDefault();
