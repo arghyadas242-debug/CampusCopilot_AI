@@ -144,9 +144,11 @@ export default function CampusPage() {
                     </span>
                     <span className="font-mono-sm text-xs text-outline">{notice.date}</span>
                   </div>
-                  <h2 className="font-headline-lg-mobile md:font-title-md font-bold text-on-surface text-lg">
-                    {notice.title}
-                  </h2>
+                  <Link to="/notice-details" className="hover:text-primary transition-colors">
+                    <h2 className="font-headline-lg-mobile md:font-title-md font-bold text-on-surface text-lg hover:text-primary">
+                      {notice.title}
+                    </h2>
+                  </Link>
                   <p className="font-body-sm text-on-surface-variant text-xs mt-0.5">{notice.author}</p>
                 </div>
               </header>

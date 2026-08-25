@@ -5,6 +5,7 @@ import RegisterPage from "./pages/student/RegisterPage";
 import DashboardPage from "./pages/student/DashboardPage";
 import AIChatPage from "./pages/student/AIChatPage";
 import CampusPage from "./pages/student/CampusPage";
+import NoticesPage from "./pages/student/NoticesPage";
 import AttendancePage from "./pages/student/AttendancePage";
 import TimetablePage from "./pages/student/TimetablePage";
 import AssignmentsPage from "./pages/student/AssignmentsPage";
@@ -31,6 +32,8 @@ function App() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/ai-chat" element={<AIChatPage />} />
         <Route path="/campus" element={<CampusPage />} />
+        <Route path="/notices/:id" element={<NoticesPage />} />
+        <Route path="/notice-details" element={<NoticesPage />} />
         <Route path="/attendance" element={<AttendancePage />} />
         <Route path="/timetable" element={<TimetablePage />} />
         <Route path="/assignments" element={<AssignmentsPage />} />

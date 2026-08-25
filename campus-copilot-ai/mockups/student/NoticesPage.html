@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Notice Details</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&amp;family=Geist:wght@400;600&amp;family=Hanken+Grotesk:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-surface": "#191c1e",
+                      "outline": "#757682",
+                      "surface-container-highest": "#e0e3e5",
+                      "on-error-container": "#93000a",
+                      "on-background": "#191c1e",
+                      "on-surface-variant": "#444651",
+                      "surface-bright": "#f7f9fb",
+                      "surface-container": "#eceef0",
+                      "error-container": "#ffdad6",
+                      "on-secondary-container": "#006f66",
+                      "inverse-surface": "#2d3133",
+                      "tertiary-container": "#5200b5",
+                      "surface": "#f7f9fb",
+                      "outline-variant": "#c5c5d3",
+                      "secondary": "#006a61",
+                      "secondary-fixed-dim": "#6bd8cb",
+                      "secondary-container": "#86f2e4",
+                      "on-secondary-fixed": "#00201d",
+                      "inverse-on-surface": "#eff1f3",
+                      "on-primary-fixed-variant": "#264191",
+                      "secondary-fixed": "#89f5e7",
+                      "on-tertiary-fixed": "#25005a",
+                      "surface-container-low": "#f2f4f6",
+                      "surface-dim": "#d8dadc",
+                      "primary-fixed-dim": "#b6c4ff",
+                      "on-secondary": "#ffffff",
+                      "on-tertiary-container": "#bc9bff",
+                      "primary-container": "#1e3a8a",
+                      "on-secondary-fixed-variant": "#005049",
+                      "tertiary": "#37007e",
+                      "on-tertiary-fixed-variant": "#5a00c6",
+                      "error": "#ba1a1a",
+                      "on-primary-fixed": "#00164e",
+                      "inverse-primary": "#b6c4ff",
+                      "primary": "#00236f",
+                      "on-primary": "#ffffff",
+                      "surface-container-high": "#e6e8ea",
+                      "primary-fixed": "#dce1ff",
+                      "on-tertiary": "#ffffff",
+                      "tertiary-fixed": "#eaddff",
+                      "on-primary-container": "#90a8ff",
+                      "surface-tint": "#4059aa",
+                      "surface-variant": "#e0e3e5",
+                      "surface-container-lowest": "#ffffff",
+                      "on-error": "#ffffff",
+                      "tertiary-fixed-dim": "#d2bbff",
+                      "background": "#f7f9fb"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "xl": "64px",
+                      "base": "4px",
+                      "md": "24px",
+                      "margin-desktop": "32px",
+                      "lg": "40px",
+                      "sm": "16px",
+                      "xs": "8px",
+                      "margin-mobile": "16px",
+                      "gutter": "16px"
+              },
+              "fontFamily": {
+                      "body-sm": [
+                              "Inter"
+                      ],
+                      "mono-sm": [
+                              "Geist"
+                      ],
+                      "label-caps": [
+                              "Geist"
+                      ],
+                      "body-md": [
+                              "Inter"
+                      ],
+                      "display-lg": [
+                              "Hanken Grotesk"
+                      ],
+                      "headline-lg": [
+                              "Hanken Grotesk"
+                      ],
+                      "title-md": [
+                              "Inter"
+                      ],
+                      "headline-lg-mobile": [
+                              "Hanken Grotesk"
+                      ]
+              },
+              "fontSize": {
+                      "body-sm": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "mono-sm": [
+                              "13px",
+                              {
+                                      "lineHeight": "18px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "label-caps": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-md": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "display-lg": [
+                              "48px",
+                              {
+                                      "lineHeight": "56px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "headline-lg": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "letterSpacing": "-0.01em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "title-md": [
+                              "18px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "headline-lg-mobile": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "fontWeight": "600"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+    </script>
+<style>
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(226, 232, 240, 0.5);
+        }
+        .ai-glow {
+            box-shadow: 0 4px 24px rgba(124, 58, 237, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body-md antialiased min-h-screen">
+<!-- TopAppBar Semantic Shell -->
+<header class="flex items-center justify-between px-margin-mobile w-full h-16 fixed top-0 z-50 bg-surface dark:bg-surface flat no shadows">
+<button aria-label="Go back" class="text-primary dark:text-primary-fixed-dim hover:bg-surface-container-high dark:hover:bg-surface-container-high transition-colors active:scale-95 transition-transform p-2 rounded-full">
+<span class="material-symbols-outlined" data-icon="arrow_back">arrow_back</span>
+</button>
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile font-semibold text-primary dark:text-primary-fixed-dim">Notice Details</h1>
+<button aria-label="Share notice" class="text-primary dark:text-primary-fixed-dim hover:bg-surface-container-high dark:hover:bg-surface-container-high transition-colors active:scale-95 transition-transform p-2 rounded-full">
+<span class="material-symbols-outlined" data-icon="share">share</span>
+</button>
+</header>
+<!-- Main Content Canvas -->
+<main class="pt-20 pb-24 px-margin-mobile md:px-margin-desktop max-w-[1440px] mx-auto md:grid md:grid-cols-12 md:gap-md">
+<!-- Left Column / Full Width Mobile -->
+<article class="md:col-span-8 space-y-md">
+<!-- Header Section -->
+<header class="space-y-sm">
+<div class="flex items-center gap-2">
+<span class="inline-flex items-center px-2 py-1 rounded-sm bg-error text-on-error font-label-caps text-label-caps tracking-wider uppercase">URGENT</span>
+</div>
+<h2 class="font-headline-lg text-headline-lg md:font-display-lg md:text-display-lg text-on-surface">Semester Examination Notice</h2>
+<div class="flex flex-wrap items-center gap-2 text-on-surface-variant font-body-sm text-body-sm">
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">account_balance</span> Department of Examinations</span>
+<span>•</span>
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">calendar_today</span> Aug 23, 2024</span>
+</div>
+</header>
+<!-- AI Summary Card (Bento Grid Style) -->
+<aside class="glass-panel rounded-xl p-md ai-glow relative overflow-hidden group">
+<div class="absolute inset-0 bg-gradient-to-br from-[rgba(124,58,237,0.05)] to-transparent pointer-events-none"></div>
+<div class="relative z-10 flex flex-col gap-sm">
+<div class="flex items-center gap-2 text-tertiary">
+<span class="material-symbols-outlined" data-weight="fill" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+<h3 class="font-title-md text-title-md">Copilot Summary</h3>
+</div>
+<ul class="space-y-xs font-mono-sm text-mono-sm text-on-surface-variant">
+<li class="flex items-start gap-2">
+<span class="material-symbols-outlined text-secondary text-[18px] mt-[2px]">check_circle</span>
+<span><strong>Registration Deadline:</strong> Sep 2</span>
+</li>
+<li class="flex items-start gap-2">
+<span class="material-symbols-outlined text-secondary text-[18px] mt-[2px]">check_circle</span>
+<span><strong>Admit Cards Available:</strong> Sep 8</span>
+</li>
+<li class="flex items-start gap-2">
+<span class="material-symbols-outlined text-secondary text-[18px] mt-[2px]">check_circle</span>
+<span><strong>Exams Commence:</strong> Sep 12</span>
+</li>
+</ul>
+</div>
+</aside>
+<!-- Full Text Content -->
+<div class="prose prose-sm md:prose-base text-on-surface font-body-md text-body-md leading-relaxed space-y-4 pt-4 border-t border-outline-variant">
+<p>Dear Students,</p>
+<p>This is to formally notify all enrolled students that the End-of-Semester Examinations for the current academic term will commence on <strong>September 12, 2024</strong>. All theoretical and practical assessments will be conducted in accordance with the university's academic calendar.</p>
+<p><strong>Registration Process:</strong></p>
+<p>Students must complete their examination registration through the university portal no later than <strong>September 2, 2024</strong>. Late registrations will incur a significant penalty fee and are subject to approval by the Dean of Academic Affairs. Ensure all outstanding tuition fees are cleared prior to attempting registration.</p>
+<p><strong>Code of Conduct:</strong></p>
+<p>Strict adherence to the examination code of conduct is expected. Any form of academic dishonesty, including but not limited to plagiarism, unauthorized collaboration, or bringing prohibited materials into the examination hall, will result in immediate disciplinary action.</p>
+<p>We advise you to begin your preparations early and wish you the best in your upcoming assessments.</p>
+<p>Sincerely,<br/>Department of Examinations</p>
+</div>
+</article>
+<!-- Right Column / Stacked Mobile -->
+<aside class="md:col-span-4 mt-lg md:mt-0 space-y-md">
+<!-- Attachments Section -->
+<div class="bg-surface-container-lowest rounded-xl border border-surface-variant p-md flex flex-col gap-sm">
+<h3 class="font-title-md text-title-md flex items-center gap-2">
+<span class="material-symbols-outlined">attachment</span> Attachments
+                </h3>
+<a class="group flex items-center justify-between p-sm rounded-lg border border-outline-variant hover:border-primary hover:bg-surface-container-low transition-all" href="#">
+<div class="flex items-center gap-3">
+<div class="p-2 bg-error-container text-on-error-container rounded-md">
+<span class="material-symbols-outlined">picture_as_pdf</span>
+</div>
+<div class="flex flex-col">
+<span class="font-title-md text-[14px] leading-tight group-hover:text-primary transition-colors">Examination Schedule</span>
+<span class="font-body-sm text-body-sm text-outline text-[12px]">PDF Document (2.4 MB)</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors">download</span>
+</a>
+<a class="group flex items-center justify-between p-sm rounded-lg border border-outline-variant hover:border-primary hover:bg-surface-container-low transition-all" href="#">
+<div class="flex items-center gap-3">
+<div class="p-2 bg-surface-container-highest text-on-surface-variant rounded-md">
+<span class="material-symbols-outlined">description</span>
+</div>
+<div class="flex flex-col">
+<span class="font-title-md text-[14px] leading-tight group-hover:text-primary transition-colors">Hall Ticket Instructions</span>
+<span class="font-body-sm text-body-sm text-outline text-[12px]">Web Document</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors">open_in_new</span>
+</a>
+</div>
+</aside>
+</main>
+<!-- BottomNavBar Semantic Shell -->
+<!-- Suppressed based on The Filter (The "Destination" Rule / Task-Focused sub-page with a "Back" action implies temporary departure from main nav flow). -->
+</body></html>
