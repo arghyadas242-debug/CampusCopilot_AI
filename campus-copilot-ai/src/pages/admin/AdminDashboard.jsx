@@ -192,6 +192,7 @@ export default function AdminDashboard() {
 
             <Link
               to="/notices"
+              state={{ from: "/admin" }}
               className="font-body-md text-on-surface-variant hover:text-primary px-3 py-1.5"
             >
               Notices
@@ -250,6 +251,7 @@ export default function AdminDashboard() {
 
             <Link
               to="/notices"
+              state={{ from: "/admin" }}
               className="px-4 py-2 bg-primary-container/40 text-on-primary border border-on-primary/30 font-semibold text-xs rounded-xl hover:bg-primary-container/60 transition-colors"
             >
               View Notices
@@ -395,6 +397,7 @@ export default function AdminDashboard() {
 
           <Link
             to="/notices"
+            state={{ from: "/admin" }}
             className="p-5 bg-surface-container-lowest border border-outline-variant/70 rounded-2xl hover:border-primary transition-all shadow-sm flex items-start gap-4 group"
           >
 

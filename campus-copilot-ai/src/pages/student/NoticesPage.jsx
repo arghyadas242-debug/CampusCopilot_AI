@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
+import { authService } from "../../services/api";
 
 const DEFAULT_NOTICES = [
   {
@@ -73,15 +74,22 @@ Access is authenticated automatically through the campus network and via institu
 ];
 
 export default function NoticesPage() {
+  const location = useLocation();
+  const currentUser = authService.getCurrentUser();
+  const isAdmin = String(currentUser?.role || "").trim().toLowerCase() === "admin";
+  const roleBackPath = isAdmin ? "/admin" : "/dashboard";
+  const backPath = ["/admin", "/dashboard"].includes(location.state?.from)
+    ? location.state.from
+    : roleBackPath;
+  const dashboardLabel = isAdmin ? "Admin Dashboard" : "Dashboard";
+
   const [notices, setNotices] = useState(DEFAULT_NOTICES);
   const [selectedNotice, setSelectedNotice] = useState(DEFAULT_NOTICES[0]);
-  const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState("all");
 
   useEffect(() => {
     async function loadNotices() {
       try {
-        setLoading(true);
         const res = await fetch("http://localhost:5000/api/notices");
         if (res.ok) {
           const data = await res.json();
@@ -110,8 +118,6 @@ export default function NoticesPage() {
         }
       } catch (e) {
         console.warn("Backend notice fetch fallback to default:", e.message);
-      } finally {
-        setLoading(false);
       }
     }
     loadNotices();
@@ -137,9 +143,9 @@ export default function NoticesPage() {
       <header className="sticky top-0 z-50 bg-surface border-b border-surface-container-high px-4 md:px-8 h-16 flex items-center justify-between shadow-xs">
         <div className="flex items-center gap-3">
           <Link
-            to="/dashboard"
+            to={backPath}
             className="p-2 rounded-full text-primary hover:bg-surface-container-high transition-colors"
-            title="Back to Dashboard"
+            title={`Back to ${dashboardLabel}`}
           >
             <span className="material-symbols-outlined text-[22px]">arrow_back</span>
           </Link>
@@ -160,10 +166,10 @@ export default function NoticesPage() {
             Ask Copilot
           </Link>
           <Link
-            to="/dashboard"
+            to={backPath}
             className="hidden sm:block text-xs font-semibold text-primary px-3 py-1.5 rounded-lg hover:bg-surface-container-high transition-colors"
           >
-            Dashboard
+            {dashboardLabel}
           </Link>
         </div>
       </header>
