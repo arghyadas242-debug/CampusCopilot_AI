@@ -102,6 +102,53 @@ async function initDatabase() {
       console.log("✓ Default Admin account created (admin@campus.edu / Admin@123).");
     }
 
+    // Seed default notices if table is empty
+    const noticeCheck = await connection.execute(`SELECT COUNT(*) AS count FROM NOTICES`, [], {
+      outFormat: require("oracledb").OUT_FORMAT_OBJECT,
+    });
+    const noticeCount = noticeCheck.rows[0]?.COUNT || 0;
+
+    if (noticeCount === 0) {
+      const initialNotices = [
+        {
+          title: "Semester Examination Schedule & Assessment Guidelines",
+          author: "Department of Controller of Examinations",
+          tag: "URGENT",
+          tagColor: "bg-error-container text-on-error-container",
+          category: "exam",
+          content: `End-of-Semester Examinations commence on September 12, 2026. Students must complete exam registration on the student portal before Sep 02, 2026. Admit cards will be available on the Digital Student ID pass portal on Sep 08.`,
+          summary: JSON.stringify([
+            "Registration deadline on the campus portal is Sep 02, 2026.",
+            "Admit cards available on Digital Student ID portal on Sep 08, 2026.",
+            "Examinations begin Sep 12, 2026 in Halls A & B.",
+          ]),
+        },
+        {
+          title: "Annual Hackathon & AI Innovation Challenge 2026",
+          author: "Department of Computer Science & ACM Student Chapter",
+          tag: "EVENT",
+          tagColor: "bg-secondary-container text-on-secondary-container",
+          category: "event",
+          content: `48-hour continuous hackathon on Smart Campus & Generative AI. Teams of 2-4 members will build autonomous agents. Cash pool of $5,000 + cloud credits for top 5 teams. Registration closes Aug 28, 2026.`,
+          summary: JSON.stringify([
+            "48-hour continuous hackathon on Smart Campus & Generative AI.",
+            "Cash pool of $5,000 + cloud credits for top 5 teams.",
+            "Registration closes Aug 28, 2026.",
+          ]),
+        },
+      ];
+
+      for (const n of initialNotices) {
+        await connection.execute(
+          `INSERT INTO NOTICES (title, author, tag, tag_color, category, content, ai_summary)
+           VALUES (:title, :author, :tag, :tagColor, :category, :content, :ai_summary)`,
+          n,
+          { autoCommit: true }
+        );
+      }
+      console.log("✓ Default notices seeded.");
+    }
+
     console.log("Database initialization finished successfully.");
   } catch (error) {
     console.error("Database initialization failed:", error);
@@ -121,4 +168,3 @@ if (require.main === module) {
 }
 
 module.exports = initDatabase;
-

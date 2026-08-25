@@ -1,460 +1,319 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
+const DEFAULT_NOTICES = [
+  {
+    id: 1,
+    title: "Semester Examination Schedule & Assessment Guidelines",
+    author: "Department of Controller of Examinations",
+    tag: "URGENT",
+    category: "exam",
+    date: "Aug 23, 2026",
+    summary: [
+      "Registration deadline on the campus portal is Sep 02, 2026.",
+      "Admit cards available on Digital Student ID portal on Sep 08, 2026.",
+      "Theoretical & practical examinations begin Sep 12, 2026 in Halls A & B.",
+    ],
+    content: `Dear Students,
+
+This is to formally notify all enrolled students that the End-of-Semester Examinations for the current academic term will commence on September 12, 2026. All theoretical and practical assessments will be conducted in accordance with the university's academic calendar.
+
+Registration Process:
+Students must complete their examination subject confirmation through the university portal no later than September 2, 2026. Late registrations will incur a penalty fee and require special sanction by the Dean of Academic Affairs. Please ensure all outstanding library dues and tuition fees are cleared prior to attempting registration.
+
+Code of Conduct:
+Strict adherence to the university examination code of conduct is expected. Any form of academic dishonesty, unauthorized collaboration, or bringing prohibited materials into the examination hall will result in immediate disciplinary action.
+
+We advise beginning your preparations early and wish you the best in your upcoming assessments.
+
+Sincerely,
+Department of Examinations`,
+    attachments: [
+      { name: "Examination Schedule 2026", type: "PDF Document (2.4 MB)", icon: "picture_as_pdf" },
+      { name: "Hall Ticket Instructions & Regulations", type: "Web Document", icon: "description" },
+    ],
+  },
+  {
+    id: 2,
+    title: "Annual Hackathon & AI Innovation Challenge 2026",
+    author: "Department of Computer Science & ACM Student Chapter",
+    tag: "EVENT",
+    category: "event",
+    date: "Aug 21, 2026",
+    summary: [
+      "48-hour continuous hackathon on Smart Campus & Generative AI.",
+      "Cash pool of $5,000 + cloud credits for top 5 teams.",
+      "Registration closes Aug 28, 2026.",
+    ],
+    content: `The Department of Computer Science, in association with the ACM Student Chapter, is pleased to announce the Annual AI Hackathon 2026. 
+
+Teams of 2–4 members will build autonomous agents and full-stack solutions for university and community productivity. Mentors from leading tech firms will be present throughout the 48 hours.
+
+Register your team on the collaboration portal before August 28, 2026.`,
+    attachments: [
+      { name: "Hackathon Rulebook & Problem Statements", type: "PDF (1.1 MB)", icon: "picture_as_pdf" },
+    ],
+  },
+  {
+    id: 3,
+    title: "Library Digital Catalog & IEEE Xplore Access Renewed",
+    author: "Chief University Librarian",
+    tag: "ACADEMIC",
+    category: "academic",
+    date: "Aug 19, 2026",
+    summary: [
+      "Full-text access to IEEE Xplore, ACM DL, and Springer is active via campus Wi-Fi.",
+      "Extended reading room timings till 11:00 PM during exam months.",
+    ],
+    content: `All students and faculty members now have unrestricted access to the IEEE Xplore Digital Library and Springer Nature journals. 
+
+Access is authenticated automatically through the campus network and via institutional single-sign-on (SSO) credentials.`,
+    attachments: [],
+  },
+];
+
 export default function NoticesPage() {
-  const [notices, setNotices] = useState([]);
-  const [selectedNotice, setSelectedNotice] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [notices, setNotices] = useState(DEFAULT_NOTICES);
+  const [selectedNotice, setSelectedNotice] = useState(DEFAULT_NOTICES[0]);
+  const [loading, setLoading] = useState(false);
+  const [filter, setFilter] = useState("all");
 
   useEffect(() => {
     async function loadNotices() {
       try {
         setLoading(true);
-        setError("");
-
-        const response = await fetch(
-          "http://localhost:5000/api/notices"
-        );
-
-        if (!response.ok) {
-          throw new Error("Failed to load notices");
+        const res = await fetch("http://localhost:5000/api/notices");
+        if (res.ok) {
+          const data = await res.json();
+          const items = Array.isArray(data) ? data : data.notices || [];
+          if (items.length > 0) {
+            const formatted = items.map((n, idx) => ({
+              id: n.id || n.ID || idx + 1,
+              title: n.title || n.TITLE || "Campus Notice",
+              author: n.author || n.AUTHOR || "University Administration",
+              tag: (n.tag || n.TAG || "ACADEMIC").toUpperCase(),
+              category: (n.category || n.CATEGORY || "academic").toLowerCase(),
+              date: n.createdAt || n.CREATED_AT || "Recent",
+              summary: Array.isArray(n.summary)
+                ? n.summary
+                : Array.isArray(n.AI_SUMMARY)
+                ? n.AI_SUMMARY
+                : [n.summary || n.AI_SUMMARY || "Verified circular."],
+              content: n.content || n.CONTENT || "Official university circular.",
+              attachments: n.attachments || [
+                { name: "Notice Attachment", type: "PDF Document (1.5 MB)", icon: "picture_as_pdf" },
+              ],
+            }));
+            setNotices(formatted);
+            setSelectedNotice(formatted[0]);
+          }
         }
-
-        const data = await response.json();
-
-        if (!Array.isArray(data)) {
-          throw new Error("Invalid notice data received");
-        }
-
-        setNotices(data);
-
-        if (data.length > 0) {
-          setSelectedNotice(data[0]);
-        }
-      } catch (err) {
-        console.error("Notice loading error:", err);
-
-        setError(
-          err.message || "Unable to load notices."
-        );
+      } catch (e) {
+        console.warn("Backend notice fetch fallback to default:", e.message);
       } finally {
         setLoading(false);
       }
     }
-
     loadNotices();
   }, []);
 
-  function formatDate(dateValue) {
-    if (!dateValue) {
-      return "No date";
+  const filteredNotices =
+    filter === "all" ? notices : notices.filter((n) => n.category === filter || n.tag?.toLowerCase() === filter);
+
+  function getTagColor(tag) {
+    const val = String(tag || "").toUpperCase();
+    if (val === "URGENT" || val === "EXAM") {
+      return "bg-error-container text-on-error-container border-error/20";
     }
-
-    const date = new Date(dateValue);
-
-    if (Number.isNaN(date.getTime())) {
-      return dateValue;
+    if (val === "EVENT") {
+      return "bg-secondary-container text-on-secondary-container border-secondary/20";
     }
-
-    return date.toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  }
-
-  function getTagClasses(tag) {
-    const value = String(tag || "").toLowerCase();
-
-    if (
-      value === "urgent" ||
-      value === "important"
-    ) {
-      return "bg-error-container text-on-error-container";
-    }
-
-    if (value === "general") {
-      return "bg-secondary-container text-on-secondary-container";
-    }
-
-    return "bg-primary/10 text-primary";
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <span className="material-symbols-outlined text-4xl text-primary">
-            campaign
-          </span>
-
-          <p className="mt-2 text-on-surface-variant">
-            Loading notices...
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <span className="material-symbols-outlined text-4xl text-error">
-            error
-          </span>
-
-          <h2 className="font-bold text-error mt-2">
-            Unable to Load Notices
-          </h2>
-
-          <p className="text-on-surface-variant mt-1">
-            {error}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!selectedNotice) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <span className="material-symbols-outlined text-5xl text-outline">
-            campaign
-          </span>
-
-          <h2 className="font-bold text-on-surface mt-2">
-            No Notices Available
-          </h2>
-
-          <p className="text-on-surface-variant mt-1">
-            There are currently no college notices.
-          </p>
-
-          <Link
-            to="/dashboard"
-            className="inline-block mt-4 text-primary font-semibold"
-          >
-            Return to Dashboard
-          </Link>
-        </div>
-      </div>
-    );
+    return "bg-primary-container text-on-primary-container border-primary/20";
   }
 
   return (
-    <div className="bg-background text-on-surface min-h-screen">
-
+    <div className="bg-background text-on-surface font-body-md antialiased min-h-screen pb-16">
       {/* Top Bar */}
-      <header className="sticky top-0 z-50 bg-surface border-b border-outline-variant px-4 md:px-8 h-16 flex items-center justify-between">
+      <header className="sticky top-0 z-50 bg-surface border-b border-surface-container-high px-4 md:px-8 h-16 flex items-center justify-between shadow-xs">
+        <div className="flex items-center gap-3">
+          <Link
+            to="/dashboard"
+            className="p-2 rounded-full text-primary hover:bg-surface-container-high transition-colors"
+            title="Back to Dashboard"
+          >
+            <span className="material-symbols-outlined text-[22px]">arrow_back</span>
+          </Link>
+          <div>
+            <h1 className="font-headline-lg-mobile md:font-headline-lg font-bold text-primary text-lg md:text-xl">
+              Campus Notices
+            </h1>
+            <p className="text-xs text-outline hidden md:block">Official circulars, events, and AI summaries</p>
+          </div>
+        </div>
 
-        <Link
-          to="/dashboard"
-          className="p-2 rounded-full text-primary hover:bg-surface-container-high transition-colors"
-        >
-          <span className="material-symbols-outlined">
-            arrow_back
-          </span>
-        </Link>
-
-        <h1 className="font-headline-lg-mobile font-semibold text-primary">
-          Campus Notices
-        </h1>
-
-        <Link
-          to="/ai-chat"
-          className="p-2 rounded-full text-primary hover:bg-surface-container-high transition-colors"
-        >
-          <span className="material-symbols-outlined">
-            smart_toy
-          </span>
-        </Link>
-
+        <div className="flex items-center gap-2">
+          <Link
+            to="/ai-chat"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-xs font-semibold"
+          >
+            <span className="material-symbols-outlined text-[18px]">smart_toy</span>
+            Ask Copilot
+          </Link>
+          <Link
+            to="/dashboard"
+            className="hidden sm:block text-xs font-semibold text-primary px-3 py-1.5 rounded-lg hover:bg-surface-container-high transition-colors"
+          >
+            Dashboard
+          </Link>
+        </div>
       </header>
 
-      <main className="max-w-[1440px] mx-auto px-4 md:px-8 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+      {/* Main Grid Canvas */}
+      <main className="max-w-[1440px] mx-auto px-4 md:px-8 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Column: Notice Roster */}
+        <aside className="lg:col-span-4 flex flex-col gap-3">
+          {/* Category Tabs */}
+          <div className="flex gap-1.5 overflow-x-auto pb-1">
+            {["all", "exam", "event", "academic"].map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setFilter(cat)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                  filter === cat
+                    ? "bg-primary text-on-primary shadow-xs"
+                    : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high"
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
 
-        {/* Notice List */}
-        <aside className="lg:col-span-4">
-
-          <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/70 overflow-hidden">
-
-            <div className="p-4 border-b border-outline-variant">
-              <h2 className="font-bold text-lg text-on-surface">
-                Latest Notices
-              </h2>
-
-              <p className="text-xs text-on-surface-variant mt-1">
-                {notices.length} notice
-                {notices.length !== 1 ? "s" : ""}
-              </p>
+          <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/70 overflow-hidden shadow-sm">
+            <div className="p-3.5 border-b border-surface-variant flex justify-between items-center bg-surface-container-low">
+              <span className="font-bold text-xs uppercase tracking-wider text-on-surface">
+                All Announcements ({filteredNotices.length})
+              </span>
             </div>
 
-            <div className="divide-y divide-outline-variant">
-
-              {notices.map((notice) => {
-                const isSelected =
-                  selectedNotice?.ID === notice.ID;
-
+            <div className="divide-y divide-surface-variant max-h-[calc(100vh-240px)] overflow-y-auto">
+              {filteredNotices.map((n) => {
+                const isSelected = selectedNotice?.id === n.id;
                 return (
                   <button
-                    key={notice.ID}
-                    onClick={() =>
-                      setSelectedNotice(notice)
-                    }
-                    className={`w-full text-left p-4 transition-colors cursor-pointer ${
+                    key={n.id}
+                    onClick={() => setSelectedNotice(n)}
+                    className={`w-full text-left p-4 transition-all cursor-pointer border-l-4 ${
                       isSelected
-                        ? "bg-primary/10"
-                        : "hover:bg-surface-container-low"
+                        ? "bg-primary/5 border-primary shadow-inner"
+                        : "hover:bg-surface-container-low border-transparent"
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-3">
-
-                      <div className="min-w-0">
-
-                        <span
-                          className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${getTagClasses(
-                            notice.TAG
-                          )}`}
-                        >
-                          {notice.TAG || notice.CATEGORY || "Notice"}
-                        </span>
-
-                        <h3 className="font-semibold text-on-surface mt-2">
-                          {notice.TITLE}
-                        </h3>
-
-                        <p className="text-xs text-on-surface-variant mt-1">
-                          {notice.AUTHOR}
-                        </p>
-
-                        <p className="text-[11px] text-outline mt-1">
-                          {formatDate(
-                            notice.CREATED_AT
-                          )}
-                        </p>
-
-                      </div>
-
-                      <span className="material-symbols-outlined text-outline">
-                        chevron_right
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${getTagColor(n.tag)}`}>
+                        {n.tag}
                       </span>
-
+                      <span className="text-[11px] text-outline font-mono-sm">{n.date}</span>
                     </div>
+                    <h3 className={`font-semibold text-sm line-clamp-2 ${isSelected ? "text-primary font-bold" : "text-on-surface"}`}>
+                      {n.title}
+                    </h3>
+                    <p className="text-xs text-on-surface-variant mt-1 line-clamp-1">{n.author}</p>
                   </button>
                 );
               })}
-
             </div>
-
           </div>
-
         </aside>
 
-        {/* Selected Notice */}
-        <article className="lg:col-span-8 space-y-6">
+        {/* Right Column: Selected Notice Detail View */}
+        {selectedNotice && (
+          <article className="lg:col-span-8 flex flex-col gap-6">
+            {/* Notice Title & Metadata */}
+            <div className="bg-surface-container-lowest rounded-2xl p-6 border border-outline-variant/70 shadow-sm relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-primary via-secondary to-tertiary" />
 
-          {/* Notice Header */}
-          <section>
-
-            <div className="flex items-center gap-2 mb-3">
-
-              <span
-                className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${getTagClasses(
-                  selectedNotice.TAG
-                )}`}
-              >
-                {selectedNotice.TAG ||
-                  selectedNotice.CATEGORY ||
-                  "Notice"}
-              </span>
-
-              {selectedNotice.CATEGORY && (
-                <span className="text-xs text-outline">
-                  {selectedNotice.CATEGORY}
+              <div className="flex items-center gap-2 mb-2">
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${getTagColor(selectedNotice.tag)}`}>
+                  {selectedNotice.tag}
                 </span>
-              )}
-
-            </div>
-
-            <h2 className="font-headline-lg md:font-display-lg text-on-surface font-bold">
-              {selectedNotice.TITLE}
-            </h2>
-
-            <div className="flex flex-wrap items-center gap-2 mt-3 text-sm text-on-surface-variant">
-
-              <span className="flex items-center gap-1">
-                <span className="material-symbols-outlined text-[17px]">
-                  account_balance
-                </span>
-
-                {selectedNotice.AUTHOR}
-              </span>
-
-              <span>•</span>
-
-              <span className="flex items-center gap-1">
-                <span className="material-symbols-outlined text-[17px]">
-                  calendar_today
-                </span>
-
-                {formatDate(
-                  selectedNotice.CREATED_AT
-                )}
-              </span>
-
-            </div>
-
-          </section>
-
-          {/* Copilot Summary */}
-          {selectedNotice.AI_SUMMARY && (
-            <section className="bg-surface-container-lowest rounded-xl border border-tertiary/20 p-5 shadow-sm">
-
-              <div className="flex items-center gap-2 text-tertiary mb-3">
-
-                <span
-                  className="material-symbols-outlined"
-                  style={{
-                    fontVariationSettings:
-                      "'FILL' 1",
-                  }}
-                >
-                  auto_awesome
-                </span>
-
-                <h3 className="font-title-md font-bold">
-                  Copilot Summary
-                </h3>
-
+                <span className="font-mono-sm text-xs text-outline font-semibold">Circular #{selectedNotice.id}</span>
               </div>
 
-              <p className="text-on-surface-variant leading-relaxed">
-                {selectedNotice.AI_SUMMARY}
-              </p>
+              <h2 className="font-headline-lg md:font-display-lg text-primary font-bold text-2xl md:text-3xl leading-tight mb-2">
+                {selectedNotice.title}
+              </h2>
 
-              <Link
-                to="/ai-chat"
-                className="inline-flex items-center gap-1 mt-4 text-sm font-semibold text-tertiary hover:underline"
-              >
-                <span className="material-symbols-outlined text-[17px]">
-                  smart_toy
+              <div className="flex flex-wrap items-center gap-3 text-xs text-on-surface-variant">
+                <span className="flex items-center gap-1 font-medium">
+                  <span className="material-symbols-outlined text-[16px] text-primary">account_balance</span>
+                  {selectedNotice.author}
                 </span>
+                <span>•</span>
+                <span className="flex items-center gap-1 font-mono-sm">
+                  <span className="material-symbols-outlined text-[16px] text-secondary">calendar_today</span>
+                  {selectedNotice.date}
+                </span>
+              </div>
 
-                Ask Copilot about this notice
-              </Link>
+              {/* AI Highlights Box */}
+              <div className="mt-5 bg-surface-container-low rounded-xl p-4 border border-outline-variant/60">
+                <div className="flex items-center gap-2 text-tertiary font-bold text-xs uppercase tracking-wider mb-2">
+                  <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                    smart_toy
+                  </span>
+                  CampusCopilot AI Key Highlights (TL;DR)
+                </div>
+                <ul className="space-y-1.5 text-sm text-on-surface">
+                  {selectedNotice.summary?.map((pt, idx) => (
+                    <li key={idx} className="flex items-start gap-2">
+                      <span className="material-symbols-outlined text-secondary text-[18px] shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>
+                        check_circle
+                      </span>
+                      <span>{pt}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
 
-            </section>
-          )}
-
-          {/* Full Notice */}
-          <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/70 p-5 md:p-6">
-
-            <div className="flex items-center gap-2 mb-4">
-
-              <span className="material-symbols-outlined text-primary">
-                description
-              </span>
-
-              <h3 className="font-title-md font-bold">
-                Full Notice
-              </h3>
-
+              {/* Full Content */}
+              <div className="mt-6 pt-5 border-t border-surface-variant text-on-surface text-sm md:text-base leading-relaxed whitespace-pre-wrap">
+                {selectedNotice.content}
+              </div>
             </div>
 
-            <div className="text-on-surface leading-7 whitespace-pre-line">
-              {selectedNotice.CONTENT ||
-                "No additional notice content available."}
-            </div>
-
-          </section>
-
-        </article>
-
+            {/* Attachments & Actions Card */}
+            {selectedNotice.attachments?.length > 0 && (
+              <div className="bg-surface-container-lowest rounded-2xl p-5 border border-outline-variant/70 shadow-sm">
+                <h3 className="font-title-md font-bold text-on-surface text-base mb-3 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary">attachment</span> Official Attachments
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {selectedNotice.attachments.map((att, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3.5 rounded-xl border border-outline-variant/60 hover:bg-surface-container-low transition-colors flex items-center justify-between group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-lg bg-error-container text-on-error-container flex items-center justify-center">
+                          <span className="material-symbols-outlined text-[20px]">{att.icon || "description"}</span>
+                        </div>
+                        <div>
+                          <div className="font-semibold text-xs text-on-surface group-hover:text-primary">{att.name}</div>
+                          <div className="text-[11px] text-outline">{att.type}</div>
+                        </div>
+                      </div>
+                      <span className="material-symbols-outlined text-outline group-hover:text-primary text-[20px]">
+                        download
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </article>
+        )}
       </main>
-
-      {/* Mobile Bottom Navigation */}
-      <nav className="fixed bottom-0 w-full z-50 h-[64px] bg-surface border-t border-surface-container-high shadow-lg lg:hidden">
-
-        <div className="flex justify-around items-center w-full h-full px-4">
-
-          <Link
-            to="/dashboard"
-            className="flex flex-col items-center text-on-surface-variant"
-          >
-            <span className="material-symbols-outlined">
-              dashboard
-            </span>
-
-            <span className="text-[10px] mt-1">
-              Home
-            </span>
-          </Link>
-
-          <Link
-            to="/attendance"
-            className="flex flex-col items-center text-on-surface-variant"
-          >
-            <span className="material-symbols-outlined">
-              analytics
-            </span>
-
-            <span className="text-[10px] mt-1">
-              Attendance
-            </span>
-          </Link>
-
-          <Link
-            to="/ai-chat"
-            className="flex flex-col items-center text-on-surface-variant"
-          >
-            <span className="material-symbols-outlined">
-              smart_toy
-            </span>
-
-            <span className="text-[10px] mt-1">
-              Copilot
-            </span>
-          </Link>
-
-          <Link
-            to="/assignments"
-            className="flex flex-col items-center text-on-surface-variant"
-          >
-            <span className="material-symbols-outlined">
-              assignment
-            </span>
-
-            <span className="text-[10px] mt-1">
-              Tasks
-            </span>
-          </Link>
-
-          <Link
-            to="/notices"
-            className="flex flex-col items-center text-primary font-bold"
-          >
-            <span
-              className="material-symbols-outlined"
-              style={{
-                fontVariationSettings:
-                  "'FILL' 1",
-              }}
-            >
-              campaign
-            </span>
-
-            <span className="text-[10px] mt-1">
-              Notices
-            </span>
-          </Link>
-
-        </div>
-
-      </nav>
-
     </div>
   );
 }
