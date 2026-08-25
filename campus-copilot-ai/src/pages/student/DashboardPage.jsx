@@ -366,8 +366,12 @@ export default function DashboardPage() {
                   <span className="material-symbols-outlined text-secondary">analytics</span>
                 </div>
                 <div className="flex items-end gap-2">
-                  <span className="font-headline-lg text-on-surface font-bold">{dashboardData.attendancePercentage}%</span>
-                  <span className={`font-body-sm mb-1 ${dashboardData.attendancePercentage >= 75 ? "text-secondary" : "text-error"}`}>
+                  <span className="font-headline-lg text-on-surface font-bold">
+                    {dashboardData.attendancePercentage !== null
+                      ? `${dashboardData.attendancePercentage}%`
+                      : "--"}
+                  </span>
+                  <span className={`font-body-sm mb-1 ${dashboardData.attendancePercentage !== null && dashboardData.attendancePercentage >= 75 ? "text-secondary" : "text-error"}`}>
                     {dashboardData.attendanceStatus}
                   </span>
                 </div>
