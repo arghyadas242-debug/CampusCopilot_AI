@@ -98,7 +98,7 @@ export default function AdminDashboard() {
           </Link>
 
           <Link
-            to="/campus"
+            to="/notices"
             className="p-5 bg-surface-container-lowest border border-outline-variant/70 rounded-xl hover:border-primary transition-all shadow-sm flex items-start gap-4"
           >
             <div className="w-12 h-12 rounded-xl bg-tertiary-container text-on-tertiary flex items-center justify-center shrink-0">

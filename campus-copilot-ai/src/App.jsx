@@ -31,9 +31,10 @@ function App() {
         {/* Student Portal */}
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/ai-chat" element={<AIChatPage />} />
-        <Route path="/campus" element={<CampusPage />} />
+        <Route path="/notices" element={<NoticesPage />} />
         <Route path="/notices/:id" element={<NoticesPage />} />
         <Route path="/notice-details" element={<NoticesPage />} />
+        <Route path="/campus" element={<CampusPage />} />
         <Route path="/attendance" element={<AttendancePage />} />
         <Route path="/timetable" element={<TimetablePage />} />
         <Route path="/assignments" element={<AssignmentsPage />} />

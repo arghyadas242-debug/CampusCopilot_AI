@@ -24,7 +24,7 @@ export default function DashboardPage() {
           </Link>
           <span className="font-headline-lg-mobile font-bold text-primary">CampusCopilot</span>
         </div>
-        <Link to="/campus" className="text-on-surface-variant hover:opacity-80">
+        <Link to="/notices" className="text-on-surface-variant hover:opacity-80">
           <span className="material-symbols-outlined">notifications</span>
         </Link>
       </header>
@@ -89,7 +89,7 @@ export default function DashboardPage() {
               <span className="font-body-md">Exams</span>
             </Link>
             <Link
-              to="/campus"
+              to="/notices"
               className="text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-full flex items-center gap-sm transition-all"
             >
               <span className="material-symbols-outlined">campaign</span>
@@ -241,7 +241,7 @@ export default function DashboardPage() {
               <div className="bg-surface-container-lowest border border-[#E2E8F0] rounded-xl p-md shadow-sm">
                 <div className="flex justify-between items-center mb-sm">
                   <h2 className="font-title-md text-on-surface font-bold">Recent Notices</h2>
-                  <Link to="/campus" className="font-label-caps text-primary hover:underline">
+                  <Link to="/notices" className="font-label-caps text-primary hover:underline">
                     ALL NOTICES
                   </Link>
                 </div>

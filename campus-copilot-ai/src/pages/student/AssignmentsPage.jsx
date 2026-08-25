@@ -305,7 +305,7 @@ export default function AssignmentsPage() {
           </Link>
 
           <Link
-            to="/campus"
+            to="/notices"
             className="flex items-center gap-sm text-on-surface-variant mx-2 px-4 py-2 rounded-full hover:bg-surface-container-high font-body-md"
           >
             <span className="material-symbols-outlined">
@@ -350,7 +350,7 @@ export default function AssignmentsPage() {
           </div>
 
           <Link
-            to="/campus"
+            to="/notices"
             className="text-on-surface-variant hover:opacity-80"
           >
             <span className="material-symbols-outlined text-[24px]">

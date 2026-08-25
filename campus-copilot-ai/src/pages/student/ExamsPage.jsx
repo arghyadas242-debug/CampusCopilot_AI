@@ -76,7 +76,7 @@ export default function ExamsPage() {
           <Link to="/exams" className="flex items-center gap-sm bg-secondary-container text-on-secondary-container rounded-full mx-2 font-bold px-4 py-2 font-body-md">
             <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>description</span> Exams
           </Link>
-          <Link to="/campus" className="flex items-center gap-sm text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-full font-body-md">
+          <Link to="/notices" className="flex items-center gap-sm text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-full font-body-md">
             <span className="material-symbols-outlined">campaign</span> Notices
           </Link>
           <Link to="/ai-chat" className="flex items-center gap-sm text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-full font-body-md">
@@ -95,7 +95,7 @@ export default function ExamsPage() {
             </div>
             <span className="font-headline-lg-mobile font-bold text-primary">CampusCopilot</span>
           </div>
-          <Link to="/campus" className="text-on-surface-variant hover:opacity-80">
+          <Link to="/notices" className="text-on-surface-variant hover:opacity-80">
             <span className="material-symbols-outlined">notifications</span>
           </Link>
         </header>

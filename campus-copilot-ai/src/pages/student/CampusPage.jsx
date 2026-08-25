@@ -76,7 +76,7 @@ export default function CampusPage() {
           <Link to="/timetable" className="flex items-center gap-sm text-on-surface-variant px-4 py-2 hover:bg-surface-container-high rounded-full">
             <span className="material-symbols-outlined">calendar_month</span> Timetable
           </Link>
-          <Link to="/campus" className="flex items-center gap-sm bg-secondary-container text-on-secondary-container rounded-full px-4 py-2 font-bold">
+          <Link to="/notices" className="flex items-center gap-sm bg-secondary-container text-on-secondary-container rounded-full px-4 py-2 font-bold">
             <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>campaign</span> Notices
           </Link>
           <Link to="/attendance" className="flex items-center gap-sm text-on-surface-variant px-4 py-2 hover:bg-surface-container-high rounded-full">
@@ -187,7 +187,7 @@ export default function CampusPage() {
             <span className="material-symbols-outlined">dashboard</span>
             <span className="text-[10px] mt-1">Home</span>
           </Link>
-          <Link to="/campus" className="flex flex-col items-center justify-center text-primary font-bold">
+          <Link to="/notices" className="flex flex-col items-center justify-center text-primary font-bold">
             <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
               campaign
             </span>

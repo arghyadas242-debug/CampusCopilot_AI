@@ -158,7 +158,7 @@ export default function TimetablePage() {
           </Link>
         </nav>
 
-        <Link to="/campus" className="text-on-surface-variant hover:opacity-80 p-2 rounded-full hover:bg-surface-container">
+        <Link to="/notices" className="text-on-surface-variant hover:opacity-80 p-2 rounded-full hover:bg-surface-container">
           <span className="material-symbols-outlined">notifications</span>
         </Link>
       </header>
