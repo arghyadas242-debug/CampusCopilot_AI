@@ -10,39 +10,23 @@ export default function LoginPage() {
   const [error, setError] = useState("");
 
   const handleSubmit = async (e) => {
-    if (e) e.preventDefault();
+    e.preventDefault();
     setLoading(true);
     setError("");
 
     try {
       const data = await authService.login(email, password);
-      if (data.user?.role === "admin") {
-        navigate("/admin");
-      } else {
-        navigate("/dashboard");
+      const role = String(data.user?.role || "").trim().toLowerCase();
+
+      if (!role) {
+        throw new Error("Login succeeded, but no user role was returned.");
       }
+
+      navigate(role === "admin" ? "/admin" : "/dashboard", {
+        replace: true,
+      });
     } catch (err) {
       setError(err.message || "Failed to log in. Check credentials.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleQuickLogin = async (demoEmail, demoPass) => {
-    setEmail(demoEmail);
-    setPassword(demoPass);
-    setLoading(true);
-    setError("");
-
-    try {
-      const data = await authService.login(demoEmail, demoPass);
-      if (data.user?.role === "admin") {
-        navigate("/admin");
-      } else {
-        navigate("/dashboard");
-      }
-    } catch (err) {
-      setError(err.message || "Failed to log in.");
     } finally {
       setLoading(false);
     }
@@ -53,37 +37,14 @@ export default function LoginPage() {
       <div className="w-full max-w-md bg-surface-container-lowest border border-outline-variant/60 rounded-2xl p-8 shadow-xl relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-primary via-secondary to-tertiary" />
 
-        <div className="flex flex-col items-center mb-6">
+        <div className="flex flex-col items-center mb-8">
           <div className="w-14 h-14 rounded-2xl bg-primary-container text-on-primary-container flex items-center justify-center font-bold text-2xl mb-3 shadow-md">
             <span className="material-symbols-outlined text-[32px]">school</span>
           </div>
           <h1 className="font-headline-lg font-bold text-primary text-center">Welcome Back</h1>
           <p className="font-body-sm text-on-surface-variant text-center mt-1">
-            Sign in to access your student copilot or admin portal
+            Sign in to access your student copilot & academic hub
           </p>
-        </div>
-
-        {/* Quick Demo Login Credentials Bar */}
-        <div className="mb-5 p-3 rounded-xl bg-surface-container-low border border-outline-variant/60">
-          <div className="text-[11px] font-bold text-outline uppercase tracking-wider mb-2 flex items-center gap-1">
-            <span className="material-symbols-outlined text-[14px]">bolt</span> Quick Demo Logins
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => handleQuickLogin("arghyadas245@gmail.com", "712409")}
-              className="py-1.5 px-2.5 rounded-lg border border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[14px]">shield_person</span> Admin Portal
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickLogin("ratul@campus.edu", "student123")}
-              className="py-1.5 px-2.5 rounded-lg border border-secondary/30 bg-secondary/10 hover:bg-secondary/20 text-secondary text-xs font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[14px]">school</span> Student Portal
-            </button>
-          </div>
         </div>
 
         {error && (
@@ -107,7 +68,7 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@campus.edu or student@campus.edu"
+                placeholder="student@campus.edu or admin@campus.edu"
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-outline-variant bg-surface-container-low text-on-surface font-body-sm text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
               />
             </div>
