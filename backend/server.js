@@ -7,6 +7,7 @@ const initDatabase = require("./initDb");
 const authRoutes = require("./routes/authRoutes");
 const aiRoutes = require("./routes/aiRoutes");
 const attendanceRoutes = require("./routes/attendanceRoutes");
+const timetableRoutes = require("./routes/timetableRoutes");
 const noticeRoutes = require("./routes/noticeRoutes");
 const studentRoutes = require("./routes/studentRoutes");
 const assignmentRoutes = require("./routes/assignmentRoutes");
@@ -19,6 +20,7 @@ app.use(express.json());
 
 // API Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/timetable", timetableRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/notices", noticeRoutes);
