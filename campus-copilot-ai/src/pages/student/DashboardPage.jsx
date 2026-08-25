@@ -1,277 +1,183 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router";
 import { authService } from "../../services/api";
 
 const API_URL = "http://localhost:5000";
 
-const DEFAULT_DASHBOARD_DATA = {
-  attendancePercentage: 81.2,
-  pendingAssignments: [
-    {
-      ID: 1,
-      TITLE: "ER Modeling & Schema Normalization",
-      SUBJECT_NAME: "Database Management Systems",
-      DUE_DATE: "28-08-2026",
-      PRIORITY: "High",
-      STATUS: "pending",
-    },
-    {
-      ID: 2,
-      TITLE: "Socket Programming in C / Python",
-      SUBJECT_NAME: "Computer Networks",
-      DUE_DATE: "30-08-2026",
-      PRIORITY: "Medium",
-      STATUS: "pending",
-    },
-  ],
-  upcomingExams: [
-    {
-      ID: 1,
-      SUBJECT_CODE: "CS301",
-      SUBJECT_NAME: "Database Management Systems",
-      EXAM_DATE: "12-09-2026",
-      START_TIME: "10:00 AM",
-      END_TIME: "01:00 PM",
-      ROOM: "Hall A (Room 302)",
-      EXAM_TYPE: "End-Semester Theory",
-    },
-    {
-      ID: 2,
-      SUBJECT_CODE: "CS302",
-      SUBJECT_NAME: "Computer Networks",
-      EXAM_DATE: "15-09-2026",
-      START_TIME: "02:00 PM",
-      END_TIME: "05:00 PM",
-      ROOM: "Hall B (Room 105)",
-      EXAM_TYPE: "End-Semester Theory",
-    },
-  ],
-  todayClasses: [
-    {
-      ID: 1,
-      SUBJECT_CODE: "CS301",
-      SUBJECT_NAME: "Database Management Systems",
-      START_TIME: "09:30 AM",
-      END_TIME: "10:30 AM",
-      ROOM: "LH-302",
-      FACULTY_NAME: "Prof. Alan Turing",
-    },
-    {
-      ID: 2,
-      SUBJECT_CODE: "CS302",
-      SUBJECT_NAME: "Computer Networks",
-      START_TIME: "10:30 AM",
-      END_TIME: "11:30 AM",
-      ROOM: "LH-302",
-      FACULTY_NAME: "Dr. Grace Hopper",
-    },
-    {
-      ID: 3,
-      SUBJECT_CODE: "CS303",
-      SUBJECT_NAME: "Operating Systems Lab",
-      START_TIME: "01:30 PM",
-      END_TIME: "03:30 PM",
-      ROOM: "Lab 2",
-      FACULTY_NAME: "Dr. Linus Torvalds",
-    },
-  ],
-  recentNotices: [
-    {
-      ID: 1,
-      TITLE: "Semester Examination Schedule Released",
-      AUTHOR: "Exam Cell",
-      TAG: "URGENT",
-      CREATED_AT: "2 hours ago",
-    },
-    {
-      ID: 2,
-      TITLE: "Annual Hackathon & AI Innovation Challenge 2026",
-      AUTHOR: "ACM Chapter",
-      TAG: "EVENT",
-      CREATED_AT: "Yesterday",
-    },
-  ],
-};
-
 export default function DashboardPage() {
   const navigate = useNavigate();
-
   const [aiQuery, setAiQuery] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [dashboardData, setDashboardData] = useState(DEFAULT_DASHBOARD_DATA);
 
   const currentUser = authService.getCurrentUser();
-  const roll = currentUser?.rollNumber || "12024002037008";
+  const studentName = currentUser?.name || "Ratul Das";
+  const firstName = studentName.trim().split(" ")[0];
+  const department = currentUser?.department || "Computer Science Dept.";
+  const rollNumber = currentUser?.rollNumber || currentUser?.roll_number || "2026-001";
 
-  // =====================================================
-  // LOAD DASHBOARD DATA
-  // =====================================================
+  const getInitials = (name) => {
+    if (!name) return "RD";
+    const parts = name.trim().split(" ");
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  };
+
+  const [dashboardData, setDashboardData] = useState({
+    attendancePercentage: 81,
+    attendanceStatus: "Safe (>75%)",
+    pendingAssignmentsCount: 2,
+    upcomingExamsCount: 2,
+    todayClassesCount: 2,
+    todayClasses: [
+      {
+        subject: "Database Management Systems",
+        room: "Room 302",
+        time: "10:00 AM",
+        color: "primary",
+      },
+      {
+        subject: "Computer Networks",
+        room: "Room 405",
+        time: "11:00 AM",
+        color: "secondary",
+      },
+    ],
+    recentNotices: [
+      {
+        id: 1,
+        title: "Semester Examination Schedule Released",
+        time: "2 hours ago • Exam Cell",
+        isUrgent: true,
+      },
+      {
+        id: 2,
+        title: "Holiday Notice: Campus Sports Day",
+        time: "Yesterday • Dean Office",
+        isUrgent: false,
+      },
+    ],
+    upcomingAssignments: [
+      {
+        id: 1,
+        title: "DBMS Normalization Problem Set",
+        due: "Due Tomorrow, 11:59 PM",
+        isUrgent: true,
+      },
+      {
+        id: 2,
+        title: "Computer Networks Lab Report",
+        due: "Due in 3 days",
+        isUrgent: false,
+      },
+    ],
+  });
 
   useEffect(() => {
-    async function loadDashboard() {
+    async function fetchRealData() {
       try {
-        setLoading(true);
-
-        // Fetch each endpoint safely with individual fallbacks
-        const [
-          attendanceRes,
-          assignmentRes,
-          examRes,
-          timetableRes,
-          noticeRes,
-        ] = await Promise.allSettled([
-          fetch(`${API_URL}/api/attendance/${encodeURIComponent(roll)}`).then((r) => (r.ok ? r.json() : null)),
-          fetch(`${API_URL}/api/assignments/${encodeURIComponent(roll)}`).then((r) => (r.ok ? r.json() : null)),
-          fetch(`${API_URL}/api/exams/${encodeURIComponent(roll)}`).then((r) => (r.ok ? r.json() : null)),
-          fetch(`${API_URL}/api/timetable/${encodeURIComponent(roll)}`).then((r) => (r.ok ? r.json() : null)),
+        const [attRes, asgRes, examRes, ttRes, notRes] = await Promise.allSettled([
+          fetch(`${API_URL}/api/attendance/${encodeURIComponent(rollNumber)}`).then((r) => (r.ok ? r.json() : null)),
+          fetch(`${API_URL}/api/assignments/${encodeURIComponent(rollNumber)}`).then((r) => (r.ok ? r.json() : null)),
+          fetch(`${API_URL}/api/exams/${encodeURIComponent(rollNumber)}`).then((r) => (r.ok ? r.json() : null)),
+          fetch(`${API_URL}/api/timetable/${encodeURIComponent(rollNumber)}`).then((r) => (r.ok ? r.json() : null)),
           fetch(`${API_URL}/api/notices`).then((r) => (r.ok ? r.json() : null)),
         ]);
 
-        const attendanceData = attendanceRes.status === "fulfilled" ? attendanceRes.value : null;
-        const assignmentsData = assignmentRes.status === "fulfilled" ? assignmentRes.value : null;
-        const examsData = examRes.status === "fulfilled" ? examRes.value : null;
-        const timetableData = timetableRes.status === "fulfilled" ? timetableRes.value : null;
-        const noticesData = noticeRes.status === "fulfilled" ? noticeRes.value : null;
+        const att = attRes.status === "fulfilled" ? attRes.value : null;
+        const asg = asgRes.status === "fulfilled" ? asgRes.value : null;
+        const exams = examRes.status === "fulfilled" ? examRes.value : null;
+        const tt = ttRes.status === "fulfilled" ? ttRes.value : null;
+        const notices = notRes.status === "fulfilled" ? notRes.value : null;
 
         // 1. Attendance
-        let attendancePercentage = DEFAULT_DASHBOARD_DATA.attendancePercentage;
-        if (attendanceData) {
-          if (typeof attendanceData.overallPercentage === "number") {
-            attendancePercentage = attendanceData.overallPercentage;
-          } else if (Array.isArray(attendanceData.subjects) && attendanceData.subjects.length > 0) {
-            let totalAttended = 0;
-            let totalClasses = 0;
-            attendanceData.subjects.forEach((s) => {
-              totalAttended += Number(s.attended || s.ATTENDED_CLASSES) || 0;
-              totalClasses += Number(s.total || s.TOTAL_CLASSES) || 0;
+        let attendancePct = 81;
+        if (att) {
+          if (typeof att.overallPercentage === "number") {
+            attendancePct = att.overallPercentage;
+          } else if (Array.isArray(att.subjects) && att.subjects.length > 0) {
+            let attended = 0;
+            let total = 0;
+            att.subjects.forEach((s) => {
+              attended += Number(s.attended || s.ATTENDED_CLASSES) || 0;
+              total += Number(s.total || s.TOTAL_CLASSES) || 0;
             });
-            if (totalClasses > 0) {
-              attendancePercentage = Number(((totalAttended / totalClasses) * 100).toFixed(1));
-            }
+            if (total > 0) attendancePct = Math.round((attended / total) * 100);
           }
         }
 
         // 2. Assignments
-        let pendingAssignments = DEFAULT_DASHBOARD_DATA.pendingAssignments;
-        const rawAssignments = Array.isArray(assignmentsData)
-          ? assignmentsData
-          : Array.isArray(assignmentsData?.assignments)
-          ? assignmentsData.assignments
-          : null;
-
-        if (rawAssignments && rawAssignments.length > 0) {
-          pendingAssignments = rawAssignments
-            .filter((item) => String(item.STATUS || item.status || "pending").toLowerCase() === "pending")
-            .map((item) => ({
-              ID: item.ID || item.id,
-              TITLE: item.TITLE || item.title,
-              SUBJECT_NAME: item.SUBJECT_NAME || item.subject_name || item.subject || item.SUBJECT_CODE || "Course",
-              DUE_DATE: item.DUE_DATE || item.due_date || item.dueDate || "Soon",
-              PRIORITY: item.PRIORITY || item.priority || "Medium",
-              STATUS: item.STATUS || item.status || "pending",
-            }));
-        }
-
-        // 3. Exams
-        let upcomingExams = DEFAULT_DASHBOARD_DATA.upcomingExams;
-        const rawExams = Array.isArray(examsData)
-          ? examsData
-          : Array.isArray(examsData?.exams)
-          ? examsData.exams
-          : null;
-
-        if (rawExams && rawExams.length > 0) {
-          upcomingExams = rawExams.map((exam) => ({
-            ID: exam.ID || exam.id,
-            SUBJECT_CODE: exam.SUBJECT_CODE || exam.subject_code || "CS",
-            SUBJECT_NAME: exam.SUBJECT_NAME || exam.subject_name || "Course Exam",
-            EXAM_DATE: exam.EXAM_DATE || exam.exam_date || "Upcoming",
-            START_TIME: exam.START_TIME || exam.start_time || "10:00 AM",
-            END_TIME: exam.END_TIME || exam.end_time || "01:00 PM",
-            ROOM: exam.ROOM || exam.room || "Exam Hall",
-            EXAM_TYPE: exam.EXAM_TYPE || exam.exam_type || "Theory",
+        let assignmentsList = dashboardData.upcomingAssignments;
+        let pendingCount = 2;
+        const rawAsg = Array.isArray(asg) ? asg : asg?.assignments;
+        if (rawAsg && rawAsg.length > 0) {
+          const pending = rawAsg.filter(
+            (a) => String(a.status || a.STATUS || "pending").toLowerCase() === "pending"
+          );
+          pendingCount = pending.length;
+          assignmentsList = pending.slice(0, 2).map((a, idx) => ({
+            id: a.id || a.ID || idx + 1,
+            title: a.title || a.TITLE || "Assignment",
+            due: a.due_date || a.DUE_DATE || "Due soon",
+            isUrgent: String(a.priority || a.PRIORITY || "").toLowerCase() === "high",
           }));
         }
 
-        // 4. Timetable (Today's classes)
-        let todayClasses = DEFAULT_DASHBOARD_DATA.todayClasses;
-        const rawTimetable = Array.isArray(timetableData)
-          ? timetableData
-          : Array.isArray(timetableData?.classes)
-          ? timetableData.classes
-          : null;
+        // 3. Exams
+        let examCount = 2;
+        const rawExams = Array.isArray(exams) ? exams : exams?.exams;
+        if (rawExams && rawExams.length > 0) {
+          examCount = rawExams.length;
+        }
 
-        if (rawTimetable && rawTimetable.length > 0) {
+        // 4. Timetable (Today's classes)
+        let todayClassesList = dashboardData.todayClasses;
+        let todayCount = 2;
+        const rawTt = Array.isArray(tt) ? tt : tt?.classes;
+        if (rawTt && rawTt.length > 0) {
           const todayName = new Date().toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
-          const matches = rawTimetable.filter(
-            (item) => String(item.DAY_OF_WEEK || item.day_of_week || "").toLowerCase() === todayName
+          const matches = rawTt.filter(
+            (item) => String(item.day_of_week || item.DAY_OF_WEEK || "").toLowerCase() === todayName
           );
-          if (matches.length > 0) {
-            todayClasses = matches.map((item) => ({
-              ID: item.ID || item.id,
-              SUBJECT_CODE: item.SUBJECT_CODE || item.subject_code,
-              SUBJECT_NAME: item.SUBJECT_NAME || item.subject_name || item.subject_code,
-              START_TIME: item.START_TIME || item.start_time,
-              END_TIME: item.END_TIME || item.end_time,
-              ROOM: item.ROOM || item.room || "LH",
-              FACULTY_NAME: item.FACULTY_NAME || item.faculty_name || "Faculty",
-            }));
-          } else {
-            todayClasses = rawTimetable.slice(0, 3).map((item) => ({
-              ID: item.ID || item.id,
-              SUBJECT_CODE: item.SUBJECT_CODE || item.subject_code,
-              SUBJECT_NAME: item.SUBJECT_NAME || item.subject_name || item.subject_code,
-              START_TIME: item.START_TIME || item.start_time,
-              END_TIME: item.END_TIME || item.end_time,
-              ROOM: item.ROOM || item.room || "LH",
-              FACULTY_NAME: item.FACULTY_NAME || item.faculty_name || "Faculty",
-            }));
-          }
+          const chosen = matches.length > 0 ? matches : rawTt.slice(0, 2);
+          todayCount = chosen.length;
+          todayClassesList = chosen.map((c, idx) => ({
+            subject: c.subject_name || c.SUBJECT_NAME || c.subject_code || c.SUBJECT_CODE || "Lecture",
+            room: c.room || c.ROOM || "Room 302",
+            time: c.start_time || c.START_TIME || "10:00 AM",
+            color: idx % 2 === 0 ? "primary" : "secondary",
+          }));
         }
 
         // 5. Notices
-        let recentNotices = DEFAULT_DASHBOARD_DATA.recentNotices;
-        const rawNotices = Array.isArray(noticesData)
-          ? noticesData
-          : Array.isArray(noticesData?.notices)
-          ? noticesData.notices
-          : null;
-
+        let noticesList = dashboardData.recentNotices;
+        const rawNotices = Array.isArray(notices) ? notices : notices?.notices;
         if (rawNotices && rawNotices.length > 0) {
-          recentNotices = rawNotices.slice(0, 2).map((n) => ({
-            ID: n.ID || n.id,
-            TITLE: n.TITLE || n.title,
-            AUTHOR: n.AUTHOR || n.author || "Admin",
-            TAG: (n.TAG || n.tag || "ACADEMIC").toUpperCase(),
-            CREATED_AT: n.CREATED_AT || n.createdAt || "Recent",
+          noticesList = rawNotices.slice(0, 2).map((n, idx) => ({
+            id: n.id || n.ID || idx + 1,
+            title: n.title || n.TITLE || "Campus Notice",
+            time: `${n.createdAt || n.CREATED_AT || "Recent"} • ${n.author || n.AUTHOR || "Administration"}`,
+            isUrgent: String(n.tag || n.TAG || "").toUpperCase() === "URGENT",
           }));
         }
 
         setDashboardData({
-          attendancePercentage,
-          pendingAssignments,
-          upcomingExams,
-          todayClasses,
-          recentNotices,
+          attendancePercentage: attendancePct,
+          attendanceStatus: attendancePct >= 75 ? "Safe (>75%)" : "Needs Attention (<75%)",
+          pendingAssignmentsCount: pendingCount,
+          upcomingExamsCount: examCount,
+          todayClassesCount: todayCount,
+          todayClasses: todayClassesList,
+          recentNotices: noticesList,
+          upcomingAssignments: assignmentsList,
         });
       } catch (err) {
-        console.warn("Dashboard using fallback data:", err);
-      } finally {
-        setLoading(false);
+        console.warn("Using cached dashboard real data fallback:", err);
       }
     }
 
-    loadDashboard();
-  }, [roll]);
-
-  // =====================================================
-  // HELPERS
-  // =====================================================
-
-  function getFirstName() {
-    const name = currentUser?.name || "Ratul";
-    return name.trim().split(" ")[0];
-  }
+    fetchRealData();
+  }, [rollNumber]);
 
   const handleAISubmit = (e) => {
     e.preventDefault();
@@ -282,325 +188,340 @@ export default function DashboardPage() {
     }
   };
 
-  const attendanceSafe = dashboardData.attendancePercentage >= 75;
-  const nextAssignments = dashboardData.pendingAssignments.slice(0, 2);
-  const nextExam = dashboardData.upcomingExams[0];
-
   return (
     <div className="bg-background text-on-background font-body-md antialiased min-h-screen flex flex-col">
-      {/* Mobile Header */}
-      <header className="sticky top-0 w-full z-40 bg-background border-b border-surface-container-high flex justify-between items-center px-4 py-3 md:hidden">
-        <div className="flex items-center gap-3">
+      {/* TopAppBar (Mobile) */}
+      <header className="sticky top-0 w-full z-40 bg-background border-b border-surface-container-high flex justify-between items-center px-margin-mobile py-sm md:hidden">
+        <div className="flex items-center gap-sm">
           <Link
             to="/profile"
             className="w-10 h-10 rounded-full overflow-hidden border border-outline-variant bg-primary-container text-on-primary-container flex items-center justify-center font-bold"
           >
-            {getFirstName().charAt(0)}
+            {getInitials(studentName)}
           </Link>
           <span className="font-headline-lg-mobile font-bold text-primary">CampusCopilot</span>
         </div>
         <Link to="/notices" className="text-on-surface-variant hover:opacity-80">
-          <span className="material-symbols-outlined text-[24px]">notifications</span>
+          <span className="material-symbols-outlined">notifications</span>
         </Link>
       </header>
 
-      {/* Main Content Layout */}
+      {/* Main Content Layout (Desktop Grid / Mobile Stack) */}
       <div className="flex-1 flex flex-col md:flex-row max-w-[1440px] mx-auto w-full">
         {/* NavigationDrawer (Desktop) */}
-        <aside className="hidden md:flex flex-col py-6 bg-surface border-r border-outline-variant h-[calc(100vh-64px)] w-[280px] rounded-r-2xl shadow-sm sticky top-0">
-          <div className="px-6 mb-6 flex items-center gap-2">
+        <nav className="hidden md:flex flex-col py-md bg-surface border-r border-outline-variant h-[calc(100vh-64px)] w-[280px] rounded-r-xl shadow-xl sticky top-0">
+          <div className="px-md mb-xl flex items-center gap-sm">
             <span className="font-headline-lg font-bold text-primary">CampusCopilot</span>
           </div>
 
-          <Link to="/profile" className="px-6 mb-6 block hover:opacity-80 transition-opacity">
-            <div className="flex items-center gap-3">
+          <Link to="/profile" className="px-md mb-lg block hover:opacity-80 transition-opacity">
+            <div className="flex items-center gap-sm">
               <div className="w-12 h-12 rounded-full overflow-hidden border border-outline-variant bg-primary-container text-on-primary-container flex items-center justify-center font-bold text-lg">
-                {getFirstName().charAt(0)}
+                {getInitials(studentName)}
               </div>
               <div>
-                <div className="font-title-md text-on-surface font-semibold">{currentUser?.name || "Ratul Das"}</div>
-                <div className="font-body-sm text-on-surface-variant text-xs">{currentUser?.department || "Computer Science"}</div>
-                <div className="font-mono-sm text-outline text-[11px]">ID: {roll}</div>
+                <div className="font-title-md text-on-surface">{studentName}</div>
+                <div className="font-body-sm text-on-surface-variant">{department}</div>
+                <div className="font-label-caps text-outline">ID: {rollNumber}</div>
               </div>
             </div>
           </Link>
 
-          <nav className="flex flex-col gap-1 flex-1 overflow-y-auto px-2">
+          <div className="flex flex-col gap-xs flex-1 overflow-y-auto">
             <Link
               to="/dashboard"
-              className="bg-secondary-container text-on-secondary-container rounded-full mx-2 font-bold px-4 py-2 flex items-center gap-3 transition-all"
+              className="bg-secondary-container text-on-secondary-container rounded-full mx-2 font-bold px-4 py-2 flex items-center gap-sm transition-all"
             >
               <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
                 dashboard
               </span>
-              <span className="font-body-md text-sm">Home</span>
+              <span className="font-body-md">Home</span>
             </Link>
             <Link
               to="/timetable"
-              className="text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-full flex items-center gap-3 transition-all"
+              className="text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-full flex items-center gap-sm transition-all"
             >
               <span className="material-symbols-outlined">calendar_month</span>
-              <span className="font-body-md text-sm">Timetable</span>
+              <span className="font-body-md">Timetable</span>
             </Link>
             <Link
               to="/attendance"
-              className="text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-full flex items-center gap-3 transition-all"
+              className="text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-full flex items-center gap-sm transition-all"
             >
               <span className="material-symbols-outlined">analytics</span>
-              <span className="font-body-md text-sm">Attendance</span>
+              <span className="font-body-md">Attendance</span>
             </Link>
             <Link
               to="/assignments"
-              className="text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-full flex items-center gap-3 transition-all"
+              className="text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-full flex items-center gap-sm transition-all"
             >
               <span className="material-symbols-outlined">assignment</span>
-              <span className="font-body-md text-sm">Assignments</span>
+              <span className="font-body-md">Assignments</span>
             </Link>
             <Link
               to="/exams"
-              className="text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-full flex items-center gap-3 transition-all"
+              className="text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-full flex items-center gap-sm transition-all"
             >
               <span className="material-symbols-outlined">description</span>
-              <span className="font-body-md text-sm">Exams</span>
+              <span className="font-body-md">Exams</span>
             </Link>
             <Link
               to="/notices"
-              className="text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-full flex items-center gap-3 transition-all"
+              className="text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-full flex items-center gap-sm transition-all"
             >
               <span className="material-symbols-outlined">campaign</span>
-              <span className="font-body-md text-sm">Notices</span>
+              <span className="font-body-md">Notices</span>
             </Link>
             <Link
-              to="/ai-chat"
-              className="text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-full flex items-center gap-3 transition-all"
+              to="/ai-analytics"
+              className="text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-full flex items-center gap-sm transition-all"
             >
-              <span className="material-symbols-outlined">smart_toy</span>
-              <span className="font-body-md text-sm">Copilot AI</span>
+              <span className="material-symbols-outlined">insights</span>
+              <span className="font-body-md">AI Analytics</span>
+            </Link>
+            <Link
+              to="/resources"
+              className="text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-full flex items-center gap-sm transition-all"
+            >
+              <span className="material-symbols-outlined">folder_open</span>
+              <span className="font-body-md">Resources</span>
             </Link>
             <Link
               to="/student-id"
-              className="text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-full flex items-center gap-3 transition-all"
+              className="text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-full flex items-center gap-sm transition-all"
             >
               <span className="material-symbols-outlined">badge</span>
-              <span className="font-body-md text-sm">Digital ID</span>
+              <span className="font-body-md">Digital ID</span>
             </Link>
-          </nav>
-        </aside>
-
-        {/* Canvas */}
-        <main className="flex-1 flex flex-col px-4 md:px-8 py-6 max-w-[1100px] w-full pb-24 md:pb-12">
-          {/* Greeting Section */}
-          <div className="mb-6">
-            <h1 className="font-headline-lg md:font-display-lg text-primary font-bold text-2xl md:text-4xl">
-              Hello, {getFirstName()}! 👋
-            </h1>
-            <p className="font-body-md text-on-surface-variant text-sm mt-1">
-              Here is your academic overview, schedule, and pending tasks for today.
-            </p>
-          </div>
-
-          {/* AI Quick Query Bar */}
-          <form onSubmit={handleAISubmit} className="relative mb-6">
-            <input
-              type="text"
-              value={aiQuery}
-              onChange={(e) => setAiQuery(e.target.value)}
-              placeholder="Ask Copilot: 'What classes do I have today?', 'Explain B-Trees', 'Generate study plan'..."
-              className="w-full py-3.5 pl-12 pr-28 rounded-2xl border border-outline-variant bg-surface-container-lowest text-on-surface text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 shadow-sm"
-            />
-            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-primary">
-              smart_toy
-            </span>
-            <button
-              type="submit"
-              className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 bg-primary text-on-primary rounded-xl text-xs font-bold hover:bg-primary-container transition-all cursor-pointer shadow-sm"
+            <Link
+              to="/profile"
+              className="text-on-surface-variant mx-2 px-4 py-2 hover:bg-surface-container-high rounded-full flex items-center gap-sm transition-all mt-auto"
             >
-              Ask AI
+              <span className="material-symbols-outlined">account_circle</span>
+              <span className="font-body-md">Profile</span>
+            </Link>
+            <button
+              onClick={() => navigate("/login")}
+              className="text-error mx-2 px-4 py-2 hover:bg-error-container/20 rounded-full flex items-center gap-sm transition-all cursor-pointer text-left"
+            >
+              <span className="material-symbols-outlined">logout</span>
+              <span className="font-body-md">Logout</span>
             </button>
-          </form>
+          </div>
+        </nav>
 
-          {/* Quick Metrics Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-            {/* Metric 1: Attendance */}
-            <div className="bg-surface-container-lowest border border-outline-variant/70 rounded-2xl p-5 shadow-sm flex items-center justify-between">
-              <div>
-                <span className="text-xs font-bold text-outline uppercase tracking-wider">Attendance</span>
-                <h3 className="text-2xl md:text-3xl font-bold text-primary mt-0.5">
-                  {dashboardData.attendancePercentage}%
-                </h3>
-                <span className={`text-xs font-semibold ${attendanceSafe ? "text-secondary" : "text-error"}`}>
-                  {attendanceSafe ? "✓ Safe (>75%)" : "⚠️ Needs Attention"}
-                </span>
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-secondary-container text-secondary flex items-center justify-center font-bold">
-                <span className="material-symbols-outlined text-[24px]">analytics</span>
-              </div>
-            </div>
-
-            {/* Metric 2: Pending Tasks */}
-            <div className="bg-surface-container-lowest border border-outline-variant/70 rounded-2xl p-5 shadow-sm flex items-center justify-between">
-              <div>
-                <span className="text-xs font-bold text-outline uppercase tracking-wider">Tasks & Deadlines</span>
-                <h3 className="text-2xl md:text-3xl font-bold text-primary mt-0.5">
-                  {dashboardData.pendingAssignments.length}
-                </h3>
-                <span className="text-xs text-outline">Pending this week</span>
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-primary-container text-on-primary-container flex items-center justify-center font-bold">
-                <span className="material-symbols-outlined text-[24px]">assignment</span>
-              </div>
-            </div>
-
-            {/* Metric 3: Upcoming Exam */}
-            <div className="bg-surface-container-lowest border border-outline-variant/70 rounded-2xl p-5 shadow-sm flex items-center justify-between">
-              <div>
-                <span className="text-xs font-bold text-outline uppercase tracking-wider">Next Examination</span>
-                <h3 className="text-lg md:text-xl font-bold text-primary mt-0.5 line-clamp-1">
-                  {nextExam ? nextExam.SUBJECT_CODE : "Sep 12"}
-                </h3>
-                <span className="text-xs text-outline">{nextExam ? nextExam.EXAM_DATE : "End-Sem Finals"}</span>
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-tertiary-container text-on-tertiary flex items-center justify-center font-bold">
-                <span className="material-symbols-outlined text-[24px]">description</span>
-              </div>
-            </div>
+        {/* Main Canvas */}
+        <main className="flex-1 p-margin-mobile md:p-margin-desktop overflow-y-auto pb-[90px] md:pb-margin-desktop">
+          {/* Header */}
+          <div className="mb-lg hidden md:block">
+            <h1 className="font-display-lg text-on-background">Good Morning, {firstName}</h1>
+            <p className="font-body-md text-on-surface-variant mt-1">Here is your academic overview for today.</p>
+          </div>
+          <div className="mb-md md:hidden">
+            <h1 className="font-headline-lg-mobile text-on-background">Good Morning, {firstName}</h1>
+            <p className="font-body-sm text-on-surface-variant">Here is your academic overview for today.</p>
           </div>
 
-          {/* 2-Column Schedule & Assignments Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Left: Today's Classes */}
-            <div className="lg:col-span-7 bg-surface-container-lowest border border-outline-variant/70 rounded-2xl p-6 shadow-sm">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="font-title-md font-bold text-on-surface text-base flex items-center gap-2">
-                  <span className="material-symbols-outlined text-primary text-[20px]">calendar_today</span>
-                  Today's Lecture Schedule
-                </h2>
-                <Link to="/timetable" className="text-xs font-bold text-primary hover:underline">
-                  Full Timetable
-                </Link>
+          {/* Bento Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-md">
+            {/* Quick Stats Row */}
+            <div className="col-span-1 md:col-span-12 grid grid-cols-2 md:grid-cols-4 gap-sm md:gap-md">
+              <Link to="/attendance" className="bg-surface-container-lowest border border-[#E2E8F0] rounded-xl p-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between mb-sm">
+                  <span className="font-label-caps text-outline">ATTENDANCE</span>
+                  <span className="material-symbols-outlined text-secondary">analytics</span>
+                </div>
+                <div className="flex items-end gap-2">
+                  <span className="font-headline-lg text-on-surface font-bold">{dashboardData.attendancePercentage}%</span>
+                  <span className={`font-body-sm mb-1 ${dashboardData.attendancePercentage >= 75 ? "text-secondary" : "text-error"}`}>
+                    {dashboardData.attendanceStatus}
+                  </span>
+                </div>
+              </Link>
+
+              <Link to="/assignments" className="bg-surface-container-lowest border border-[#E2E8F0] rounded-xl p-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between mb-sm">
+                  <span className="font-label-caps text-outline">PENDING TASKS</span>
+                  <span className="material-symbols-outlined text-primary">assignment</span>
+                </div>
+                <div className="flex items-end gap-2">
+                  <span className="font-headline-lg text-on-surface font-bold">{dashboardData.pendingAssignmentsCount}</span>
+                  <span className="font-body-sm text-on-surface-variant mb-1">Due soon</span>
+                </div>
+              </Link>
+
+              <Link to="/exams" className="bg-surface-container-lowest border border-[#E2E8F0] rounded-xl p-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between mb-sm">
+                  <span className="font-label-caps text-outline">UPCOMING EXAMS</span>
+                  <span className="material-symbols-outlined text-primary">description</span>
+                </div>
+                <div className="flex items-end gap-2">
+                  <span className="font-headline-lg text-on-surface font-bold">{dashboardData.upcomingExamsCount}</span>
+                  <span className="font-body-sm text-on-surface-variant mb-1">This term</span>
+                </div>
+              </Link>
+
+              <Link to="/timetable" className="bg-surface-container-lowest border border-[#E2E8F0] rounded-xl p-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between mb-sm">
+                  <span className="font-label-caps text-outline">CLASSES TODAY</span>
+                  <span className="material-symbols-outlined text-secondary">school</span>
+                </div>
+                <div className="flex items-end gap-2">
+                  <span className="font-headline-lg text-on-surface font-bold">{dashboardData.todayClassesCount}</span>
+                  <span className="font-body-sm text-on-surface-variant mb-1">Schedule</span>
+                </div>
+              </Link>
+            </div>
+
+            {/* Left Column */}
+            <div className="col-span-1 md:col-span-7 flex flex-col gap-md">
+              {/* Today's Classes */}
+              <div className="bg-surface-container-lowest border border-[#E2E8F0] rounded-xl p-md shadow-sm">
+                <div className="flex justify-between items-center mb-sm">
+                  <h2 className="font-title-md text-on-surface font-bold">Today's Classes</h2>
+                  <Link to="/timetable" className="font-label-caps text-primary hover:underline">
+                    VIEW TIMETABLE
+                  </Link>
+                </div>
+                <div className="flex flex-col gap-sm">
+                  {dashboardData.todayClasses.map((cls, idx) => (
+                    <div key={idx} className="relative overflow-hidden border border-[#E2E8F0] rounded-lg p-sm bg-surface">
+                      <div className={`absolute top-0 left-0 w-full h-1 ${cls.color === "primary" ? "bg-primary" : "bg-secondary"}`}></div>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="font-title-md text-on-surface font-semibold">{cls.subject}</div>
+                          <div className="font-body-sm text-on-surface-variant flex items-center gap-1 mt-1">
+                            <span className="material-symbols-outlined text-[16px]">location_on</span> {cls.room}
+                          </div>
+                        </div>
+                        <div className={`${cls.color === "primary" ? "bg-primary-container text-on-primary-container" : "bg-secondary-container text-on-secondary-container"} px-3 py-1 rounded-full font-label-caps font-semibold`}>
+                          {cls.time}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              <div className="space-y-3">
-                {dashboardData.todayClasses.map((cls, idx) => (
-                  <div
-                    key={idx}
-                    className="p-3.5 rounded-xl border border-outline-variant/50 hover:bg-surface-container-low transition-colors flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
-                        {cls.SUBJECT_CODE || "LEC"}
+              {/* Recent Notices */}
+              <div className="bg-surface-container-lowest border border-[#E2E8F0] rounded-xl p-md shadow-sm">
+                <div className="flex justify-between items-center mb-sm">
+                  <h2 className="font-title-md text-on-surface font-bold">Recent Notices</h2>
+                  <Link to="/notices" className="font-label-caps text-primary hover:underline">
+                    ALL NOTICES
+                  </Link>
+                </div>
+                <ul className="flex flex-col gap-sm divide-y divide-surface-variant">
+                  {dashboardData.recentNotices.map((n) => (
+                    <li key={n.id} className="pt-sm first:pt-0 flex items-start gap-sm">
+                      <div className={`w-8 h-8 rounded-full ${n.isUrgent ? "bg-error-container text-on-error-container" : "bg-surface-container-high text-on-surface-variant"} flex items-center justify-center shrink-0`}>
+                        <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: n.isUrgent ? "'FILL' 1" : "'FILL' 0" }}>
+                          {n.isUrgent ? "warning" : "campaign"}
+                        </span>
                       </div>
                       <div>
-                        <h4 className="font-semibold text-sm text-on-surface">{cls.SUBJECT_NAME}</h4>
-                        <p className="text-xs text-on-surface-variant">
-                          {cls.START_TIME} – {cls.END_TIME} • {cls.ROOM}
-                        </p>
+                        <div className="font-body-md font-semibold text-on-surface">{n.title}</div>
+                        <div className="font-body-sm text-outline mt-0.5">{n.time}</div>
                       </div>
-                    </div>
-                    <span className="text-xs font-mono-sm text-outline font-medium">{cls.FACULTY_NAME}</span>
-                  </div>
-                ))}
+                    </li>
+                  ))}
+                </ul>
               </div>
             </div>
 
-            {/* Right: Pending Assignments & Notices */}
-            <div className="lg:col-span-5 flex flex-col gap-6">
-              {/* Upcoming Assignments Card */}
-              <div className="bg-surface-container-lowest border border-outline-variant/70 rounded-2xl p-6 shadow-sm">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="font-title-md font-bold text-on-surface text-base flex items-center gap-2">
-                    <span className="material-symbols-outlined text-tertiary text-[20px]">assignment</span>
-                    Assignments
-                  </h2>
-                  <Link to="/assignments" className="text-xs font-bold text-primary hover:underline">
-                    View All
+            {/* Right Column */}
+            <div className="col-span-1 md:col-span-5 flex flex-col gap-md">
+              {/* Upcoming Assignments */}
+              <div className="bg-surface-container-lowest border border-[#E2E8F0] rounded-xl p-md shadow-sm">
+                <div className="flex items-center justify-between mb-sm">
+                  <h2 className="font-title-md text-on-surface font-bold">Upcoming Assignments</h2>
+                  <Link to="/assignments" className="font-label-caps text-primary hover:underline">
+                    VIEW ALL
                   </Link>
                 </div>
-
-                <div className="space-y-3">
-                  {nextAssignments.map((asg, idx) => (
-                    <div key={idx} className="p-3 rounded-xl bg-surface-container-low border border-outline-variant/40">
-                      <div className="flex justify-between items-start">
-                        <h4 className="font-semibold text-xs text-on-surface line-clamp-1">{asg.TITLE}</h4>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-error-container text-on-error-container">
-                          {asg.PRIORITY}
-                        </span>
+                <div className="flex flex-col gap-xs">
+                  {dashboardData.upcomingAssignments.map((a) => (
+                    <div key={a.id} className="group flex items-center justify-between p-sm border border-transparent hover:border-outline-variant rounded-lg transition-colors bg-surface-bright">
+                      <div>
+                        <div className="font-body-md font-semibold text-on-surface">{a.title}</div>
+                        <div className={`font-body-sm ${a.isUrgent ? "text-error" : "text-on-surface-variant"} mt-0.5 flex items-center gap-1`}>
+                          <span className="material-symbols-outlined text-[14px]">schedule</span> {a.due}
+                        </div>
                       </div>
-                      <p className="text-[11px] text-on-surface-variant mt-1">{asg.SUBJECT_NAME}</p>
-                      <div className="mt-2 flex justify-between items-center text-[11px] text-outline">
-                        <span>Due: {asg.DUE_DATE}</span>
-                        <Link to="/assignments" className="text-primary font-bold hover:underline">
-                          Submit
-                        </Link>
-                      </div>
+                      <Link to="/assignments" className="w-8 h-8 rounded-full border border-outline flex items-center justify-center text-outline group-hover:bg-primary group-hover:text-on-primary group-hover:border-primary transition-colors">
+                        <span className="material-symbols-outlined text-[18px]">upload</span>
+                      </Link>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Recent Notices Card */}
-              <div className="bg-surface-container-lowest border border-outline-variant/70 rounded-2xl p-6 shadow-sm">
-                <div className="flex justify-between items-center mb-3">
-                  <h2 className="font-title-md font-bold text-on-surface text-base flex items-center gap-2">
-                    <span className="material-symbols-outlined text-secondary text-[20px]">campaign</span>
-                    Recent Notices
-                  </h2>
-                  <Link to="/notices" className="text-xs font-bold text-primary hover:underline">
-                    All Notices
+              {/* AI Copilot Suggestion Area */}
+              <div className="ai-layer rounded-xl p-md relative overflow-hidden flex-1 min-h-[180px] shadow-sm">
+                <h3 className="font-title-md mb-2 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-tertiary">smart_toy</span>
+                  <span className="ai-gradient-text font-bold">Copilot Insights</span>
+                </h3>
+                <p className="font-body-sm text-on-surface-variant relative z-10">
+                  Based on your upcoming schedule, I recommend reviewing your <strong className="text-on-surface">DBMS Assignment</strong> tasks tonight. It usually takes students about 3 hours to complete.
+                </p>
+                <div className="mt-3">
+                  <Link to="/ai-chat" className="inline-flex items-center gap-1 text-xs font-semibold text-tertiary hover:underline">
+                    Ask Copilot for study plan <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
                   </Link>
-                </div>
-
-                <div className="space-y-2.5">
-                  {dashboardData.recentNotices.map((n, idx) => (
-                    <Link
-                      key={idx}
-                      to="/notices"
-                      className="block p-3 rounded-xl hover:bg-surface-container-low transition-colors border border-outline-variant/30 group"
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-primary-container text-on-primary-container">
-                          {n.TAG}
-                        </span>
-                        <span className="text-[11px] text-outline font-mono-sm">{n.CREATED_AT}</span>
-                      </div>
-                      <h4 className="font-semibold text-xs text-on-surface group-hover:text-primary line-clamp-1">
-                        {n.TITLE}
-                      </h4>
-                    </Link>
-                  ))}
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* AI Entry Point bar */}
+          <div className="fixed md:sticky bottom-[70px] md:bottom-margin-desktop left-0 w-full px-margin-mobile md:px-0 mt-xl z-30 flex justify-center">
+            <form onSubmit={handleAISubmit} className="w-full max-w-2xl bg-surface-container-lowest glass-panel rounded-full shadow-lg border border-[#E2E8F0] p-1.5 flex items-center group focus-within:border-primary transition-all">
+              <span className="material-symbols-outlined text-outline ml-3 mr-1">smart_toy</span>
+              <input
+                className="flex-1 bg-transparent border-none focus:outline-none font-body-md text-on-surface placeholder:text-outline-variant py-2 px-2"
+                placeholder="Ask CampusCopilot about your classes, attendance, assignments..."
+                type="text"
+                value={aiQuery}
+                onChange={(e) => setAiQuery(e.target.value)}
+              />
+              <button
+                type="submit"
+                className="bg-gradient-to-r from-secondary to-tertiary text-on-primary rounded-full p-2 mr-1 shadow-md hover:opacity-90 transition-opacity cursor-pointer flex items-center justify-center"
+              >
+                <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  arrow_upward
+                </span>
+              </button>
+            </form>
           </div>
         </main>
       </div>
 
-      {/* Bottom Nav Bar (Mobile) */}
-      <nav className="fixed bottom-0 w-full z-50 h-[64px] bg-surface border-t border-surface-container-high shadow-lg md:hidden">
-        <div className="flex justify-around items-center px-4 w-full h-full">
-          <Link to="/dashboard" className="flex flex-col items-center justify-center text-primary font-bold">
-            <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
-              dashboard
-            </span>
-            <span className="text-[10px] mt-1">Home</span>
-          </Link>
-          <Link to="/attendance" className="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary">
-            <span className="material-symbols-outlined">analytics</span>
-            <span className="text-[10px] mt-1">Attendance</span>
-          </Link>
-          <Link to="/ai-chat" className="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary">
-            <span className="material-symbols-outlined">smart_toy</span>
-            <span className="text-[10px] mt-1">Copilot</span>
-          </Link>
-          <Link to="/assignments" className="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary">
-            <span className="material-symbols-outlined">assignment</span>
-            <span className="text-[10px] mt-1">Tasks</span>
-          </Link>
-          <Link to="/profile" className="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary">
-            <span className="material-symbols-outlined">account_circle</span>
-            <span className="text-[10px] mt-1">Profile</span>
-          </Link>
-        </div>
+      {/* BottomNavBar (Mobile Only) */}
+      <nav className="bg-surface fixed bottom-0 w-full z-50 h-[64px] flex justify-around items-center px-margin-mobile md:hidden shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] border-t border-surface-container-high">
+        <Link to="/dashboard" className="flex flex-col items-center justify-center text-primary relative active:scale-95 transition-transform">
+          <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
+            dashboard
+          </span>
+          <span className="text-[11px] font-semibold">Home</span>
+        </Link>
+        <Link to="/attendance" className="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors active:scale-95">
+          <span className="material-symbols-outlined">analytics</span>
+          <span className="text-[11px]">Attendance</span>
+        </Link>
+        <Link to="/ai-chat" className="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors active:scale-95">
+          <span className="material-symbols-outlined">smart_toy</span>
+          <span className="text-[11px]">Copilot</span>
+        </Link>
+        <Link to="/assignments" className="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors active:scale-95">
+          <span className="material-symbols-outlined">assignment</span>
+          <span className="text-[11px]">Tasks</span>
+        </Link>
+        <Link to="/profile" className="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors active:scale-95">
+          <span className="material-symbols-outlined">account_circle</span>
+          <span className="text-[11px]">Profile</span>
+        </Link>
       </nav>
     </div>
   );
