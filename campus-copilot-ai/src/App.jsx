@@ -7,7 +7,9 @@ import AIChatPage from "./pages/student/AIChatPage";
 import CampusPage from "./pages/student/CampusPage";
 import NoticesPage from "./pages/student/NoticesPage";
 import AttendancePage from "./pages/student/AttendancePage";
+import AssignmentManagement from "./pages/admin/AssignmentManagement";
 import TimetablePage from "./pages/student/TimetablePage";
+import SubjectManagement from "./pages/admin/SubjectManagement";
 import AssignmentsPage from "./pages/student/AssignmentsPage";
 import ExamsPage from "./pages/student/ExamsPage";
 import CollaborationPage from "./pages/student/CollaborationPage";
@@ -49,6 +51,8 @@ function App() {
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/attendance" element={<UpdateAttendance />} />
         <Route path="/admin/students" element={<UpdateStudent />} />
+        <Route path="/admin/assignments"element={<AssignmentManagement />}/>
+        <Route path="/admin/subjects" element={<SubjectManagement />} />
       </Routes>
     </div>
   );
