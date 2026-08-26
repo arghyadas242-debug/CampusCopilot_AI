@@ -4,19 +4,18 @@ import AdminSidebar from "../../components/admin/AdminSidebar";
 
 const API_URL = "http://localhost:5000";
 
-export default function AssignmentManagement() {
-  const [assignments, setAssignments] = useState([]);
+export default function TimetableManagement() {
+  const [timetable, setTimetable] = useState([]);
   const [students, setStudents] = useState([]);
   const [subjects, setSubjects] = useState([]);
 
   const [formData, setFormData] = useState({
     studentRoll: "",
     subjectCode: "",
-    title: "",
-    description: "",
-    dueDate: "",
-    priority: "medium",
-    status: "pending",
+    dayOfWeek: "",
+    startTime: "",
+    endTime: "",
+    room: "",
   });
 
   const [editingId, setEditingId] = useState(null);
@@ -28,58 +27,18 @@ export default function AssignmentManagement() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // =====================================================
-  // FORMAT ORACLE DATE FOR <input type="date">
-  // =====================================================
-
-  const formatDateForInput = (value) => {
-    if (!value) {
-      return "";
-    }
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-      return "";
-    }
-
-    const year = date.getFullYear();
-
-    const month = String(
-      date.getMonth() + 1
-    ).padStart(2, "0");
-
-    const day = String(
-      date.getDate()
-    ).padStart(2, "0");
-
-    return `${year}-${month}-${day}`;
-  };
+  const days = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+  ];
 
   // =====================================================
-  // FORMAT DATE FOR DISPLAY
-  // =====================================================
-
-  const formatDateForDisplay = (value) => {
-    if (!value) {
-      return "No due date";
-    }
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-      return value;
-    }
-
-    return date.toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  };
-
-  // =====================================================
-  // LOAD ALL DATA
+  // LOAD DATA
   // =====================================================
 
   const loadData = async () => {
@@ -88,25 +47,19 @@ export default function AssignmentManagement() {
       setError("");
 
       const [
-        assignmentsResponse,
+        timetableResponse,
         studentsResponse,
         subjectsResponse,
       ] = await Promise.all([
-        fetch(
-          `${API_URL}/api/admin/assignments`
-        ),
+        fetch(`${API_URL}/api/admin/timetable`),
 
-        fetch(
-          `${API_URL}/api/students`
-        ),
+        fetch(`${API_URL}/api/students`),
 
-        fetch(
-          `${API_URL}/api/subjects`
-        ),
+        fetch(`${API_URL}/api/subjects`),
       ]);
 
-      const assignmentsData =
-        await assignmentsResponse.json();
+      const timetableData =
+        await timetableResponse.json();
 
       const studentsData =
         await studentsResponse.json();
@@ -114,10 +67,10 @@ export default function AssignmentManagement() {
       const subjectsData =
         await subjectsResponse.json();
 
-      if (!assignmentsResponse.ok) {
+      if (!timetableResponse.ok) {
         throw new Error(
-          assignmentsData.error ||
-            "Unable to load assignments"
+          timetableData.error ||
+            "Unable to load timetable"
         );
       }
 
@@ -135,9 +88,9 @@ export default function AssignmentManagement() {
         );
       }
 
-      setAssignments(
-        Array.isArray(assignmentsData)
-          ? assignmentsData
+      setTimetable(
+        Array.isArray(timetableData)
+          ? timetableData
           : []
       );
 
@@ -154,13 +107,13 @@ export default function AssignmentManagement() {
       );
     } catch (err) {
       console.error(
-        "Assignment management load error:",
+        "Timetable management load error:",
         err
       );
 
       setError(
         err.message ||
-          "Unable to load assignment data."
+          "Unable to load timetable data."
       );
     } finally {
       setLoading(false);
@@ -194,16 +147,15 @@ export default function AssignmentManagement() {
     setFormData({
       studentRoll: "",
       subjectCode: "",
-      title: "",
-      description: "",
-      dueDate: "",
-      priority: "medium",
-      status: "pending",
+      dayOfWeek: "",
+      startTime: "",
+      endTime: "",
+      room: "",
     });
   };
 
   // =====================================================
-  // ADD / UPDATE ASSIGNMENT
+  // ADD / UPDATE
   // =====================================================
 
   const handleSubmit = async (e) => {
@@ -212,11 +164,22 @@ export default function AssignmentManagement() {
     if (
       !formData.studentRoll ||
       !formData.subjectCode ||
-      !formData.title.trim() ||
-      !formData.dueDate
+      !formData.dayOfWeek ||
+      !formData.startTime ||
+      !formData.endTime
     ) {
       setError(
-        "Student, subject, title and due date are required."
+        "Student, subject, day, start time and end time are required."
+      );
+
+      return;
+    }
+
+    if (
+      formData.endTime <= formData.startTime
+    ) {
+      setError(
+        "End time must be later than start time."
       );
 
       return;
@@ -232,8 +195,8 @@ export default function AssignmentManagement() {
         editingId !== null;
 
       const url = isEditing
-        ? `${API_URL}/api/admin/assignments/${editingId}`
-        : `${API_URL}/api/admin/assignments`;
+        ? `${API_URL}/api/admin/timetable/${editingId}`
+        : `${API_URL}/api/admin/timetable`;
 
       const response = await fetch(url, {
         method: isEditing
@@ -252,20 +215,17 @@ export default function AssignmentManagement() {
           subjectCode:
             formData.subjectCode,
 
-          title:
-            formData.title,
+          dayOfWeek:
+            formData.dayOfWeek,
 
-          description:
-            formData.description,
+          startTime:
+            formData.startTime,
 
-          dueDate:
-            formData.dueDate,
+          endTime:
+            formData.endTime,
 
-          priority:
-            formData.priority,
-
-          status:
-            formData.status,
+          room:
+            formData.room,
         }),
       });
 
@@ -275,14 +235,14 @@ export default function AssignmentManagement() {
       if (!response.ok) {
         throw new Error(
           data.error ||
-            "Unable to save assignment"
+            "Unable to save timetable entry"
         );
       }
 
       setSuccess(
         isEditing
-          ? "Assignment updated successfully."
-          : "Assignment created successfully."
+          ? "Timetable entry updated successfully."
+          : "Timetable entry created successfully."
       );
 
       resetForm();
@@ -290,13 +250,13 @@ export default function AssignmentManagement() {
       await loadData();
     } catch (err) {
       console.error(
-        "Save assignment error:",
+        "Save timetable error:",
         err
       );
 
       setError(
         err.message ||
-          "Unable to save assignment."
+          "Unable to save timetable entry."
       );
     } finally {
       setSaving(false);
@@ -304,43 +264,30 @@ export default function AssignmentManagement() {
   };
 
   // =====================================================
-  // EDIT ASSIGNMENT
+  // EDIT
   // =====================================================
 
-  const handleEdit = (assignment) => {
-    setEditingId(
-      assignment.ID
-    );
+  const handleEdit = (entry) => {
+    setEditingId(entry.ID);
 
     setFormData({
       studentRoll:
-        assignment.STUDENT_ROLL || "",
+        entry.STUDENT_ROLL || "",
 
       subjectCode:
-        assignment.SUBJECT_CODE || "",
+        entry.SUBJECT_CODE || "",
 
-      title:
-        assignment.TITLE || "",
+      dayOfWeek:
+        entry.DAY_OF_WEEK || "",
 
-      description:
-        assignment.DESCRIPTION || "",
+      startTime:
+        entry.START_TIME || "",
 
-      dueDate:
-        formatDateForInput(
-          assignment.DUE_DATE
-        ),
+      endTime:
+        entry.END_TIME || "",
 
-      priority:
-        (
-          assignment.PRIORITY ||
-          "medium"
-        ).toLowerCase(),
-
-      status:
-        (
-          assignment.STATUS ||
-          "pending"
-        ).toLowerCase(),
+      room:
+        entry.ROOM || "",
     });
 
     setError("");
@@ -353,15 +300,13 @@ export default function AssignmentManagement() {
   };
 
   // =====================================================
-  // DELETE ASSIGNMENT
+  // DELETE
   // =====================================================
 
-  const handleDelete = async (
-    assignment
-  ) => {
+  const handleDelete = async (entry) => {
     const confirmed =
       window.confirm(
-        `Are you sure you want to delete "${assignment.TITLE}"?`
+        `Delete ${entry.SUBJECT_NAME} class on ${entry.DAY_OF_WEEK}?`
       );
 
     if (!confirmed) {
@@ -369,15 +314,13 @@ export default function AssignmentManagement() {
     }
 
     try {
-      setDeletingId(
-        assignment.ID
-      );
+      setDeletingId(entry.ID);
 
       setError("");
       setSuccess("");
 
       const response = await fetch(
-        `${API_URL}/api/admin/assignments/${assignment.ID}`,
+        `${API_URL}/api/admin/timetable/${entry.ID}`,
         {
           method: "DELETE",
         }
@@ -389,30 +332,28 @@ export default function AssignmentManagement() {
       if (!response.ok) {
         throw new Error(
           data.error ||
-            "Unable to delete assignment"
+            "Unable to delete timetable entry"
         );
       }
 
-      if (
-        editingId === assignment.ID
-      ) {
+      if (editingId === entry.ID) {
         resetForm();
       }
 
       setSuccess(
-        "Assignment deleted successfully."
+        "Timetable entry deleted successfully."
       );
 
       await loadData();
     } catch (err) {
       console.error(
-        "Delete assignment error:",
+        "Delete timetable error:",
         err
       );
 
       setError(
         err.message ||
-          "Unable to delete assignment."
+          "Unable to delete timetable entry."
       );
     } finally {
       setDeletingId(null);
@@ -420,47 +361,23 @@ export default function AssignmentManagement() {
   };
 
   // =====================================================
-  // PRIORITY STYLE
+  // GROUP BY DAY
   // =====================================================
 
-  const getPriorityClass = (
-    priority
-  ) => {
-    const value =
-      String(priority || "")
-        .toLowerCase();
+  const groupedTimetable =
+    days.reduce((result, day) => {
+      const records =
+        timetable.filter(
+          (entry) =>
+            entry.DAY_OF_WEEK === day
+        );
 
-    if (value === "high") {
-      return "bg-error-container text-on-error-container";
-    }
+      if (records.length > 0) {
+        result[day] = records;
+      }
 
-    if (value === "low") {
-      return "bg-surface-container-high text-on-surface-variant";
-    }
-
-    return "bg-secondary-container text-on-secondary-container";
-  };
-
-  // =====================================================
-  // STATUS STYLE
-  // =====================================================
-
-  const getStatusClass = (
-    status
-  ) => {
-    const value =
-      String(status || "")
-        .toLowerCase();
-
-    if (
-      value === "completed" ||
-      value === "submitted"
-    ) {
-      return "bg-secondary-container text-on-secondary-container";
-    }
-
-    return "bg-primary-container text-on-primary-container";
-  };
+      return result;
+    }, {});
 
   // =====================================================
   // UI
@@ -473,9 +390,7 @@ export default function AssignmentManagement() {
 
       <main className="md:ml-[280px] min-h-screen flex flex-col">
 
-      {/* =================================================
-          HEADER
-      ================================================= */}
+      {/* HEADER */}
 
       <header className="sticky top-0 w-full z-40 bg-surface border-b border-outline-variant shadow-xs">
 
@@ -493,7 +408,7 @@ export default function AssignmentManagement() {
             </Link>
 
             <h1 className="font-headline-lg-mobile md:font-headline-lg font-bold text-primary">
-              Assignment Management
+              Timetable Management
             </h1>
 
           </div>
@@ -501,11 +416,11 @@ export default function AssignmentManagement() {
           <div className="flex items-center gap-2 bg-surface-container-low px-3 py-1.5 rounded-full border border-outline-variant text-xs">
 
             <span className="material-symbols-outlined text-primary text-base">
-              assignment
+              calendar_view_week
             </span>
 
             <span className="font-semibold text-on-surface">
-              {assignments.length} Assignments
+              {timetable.length} Classes
             </span>
 
           </div>
@@ -514,20 +429,14 @@ export default function AssignmentManagement() {
 
       </header>
 
-      {/* =================================================
-          MAIN
-      ================================================= */}
+      {/* MAIN */}
 
       <div className="flex-1 max-w-[1440px] mx-auto w-full p-4 md:p-8 flex flex-col gap-6 pt-6">
 
-        {/* =================================================
-            SIDEBAR
-        ================================================= */}
+        {/* SIDEBAR */}
 
 
-        {/* =================================================
-            CONTENT
-        ================================================= */}
+        {/* CONTENT */}
 
         <div className="flex flex-col gap-6">
 
@@ -559,9 +468,7 @@ export default function AssignmentManagement() {
             </div>
           )}
 
-          {/* =================================================
-              ADD / EDIT FORM
-          ================================================= */}
+          {/* ADD / EDIT FORM */}
 
           <section className="bg-surface-container-lowest rounded-2xl border border-outline-variant/70 p-5 md:p-6 shadow-sm">
 
@@ -571,14 +478,14 @@ export default function AssignmentManagement() {
 
                 <h2 className="font-title-md font-bold text-on-surface text-lg">
                   {editingId
-                    ? "Edit Assignment"
-                    : "Add New Assignment"}
+                    ? "Edit Class"
+                    : "Add New Class"}
                 </h2>
 
                 <p className="text-xs text-on-surface-variant mt-1">
                   {editingId
-                    ? "Update the selected assignment."
-                    : "Create an assignment for a student."}
+                    ? "Update the selected timetable entry."
+                    : "Create a timetable entry for a student."}
                 </p>
 
               </div>
@@ -588,7 +495,7 @@ export default function AssignmentManagement() {
                 <span className="material-symbols-outlined">
                   {editingId
                     ? "edit"
-                    : "assignment_add"}
+                    : "calendar_add_on"}
                 </span>
 
               </div>
@@ -698,67 +605,59 @@ export default function AssignmentManagement() {
 
               </div>
 
-              {/* Title */}
+              {/* DAY */}
 
               <div className="flex flex-col gap-1">
 
                 <label className="font-label-caps text-outline text-xs uppercase">
-                  Assignment Title
+                  Day
                 </label>
 
-                <input
+                <select
                   className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
-                  name="title"
+                  name="dayOfWeek"
                   value={
-                    formData.title
+                    formData.dayOfWeek
                   }
                   onChange={
                     handleChange
                   }
-                  placeholder="Example: DBMS Lab Report"
                   required
-                />
+                >
+
+                  <option value="">
+                    Select Day
+                  </option>
+
+                  {days.map((day) => (
+                    <option
+                      key={day}
+                      value={day}
+                    >
+                      {day}
+                    </option>
+                  ))}
+
+                </select>
 
               </div>
 
-              {/* Description */}
-
-              <div className="flex flex-col gap-1">
-
-                <label className="font-label-caps text-outline text-xs uppercase">
-                  Description
-                </label>
-
-                <textarea
-                  className="w-full min-h-[100px] rounded-xl border border-outline-variant bg-surface-container-low p-3 text-sm text-on-surface focus:outline-none focus:border-primary resize-y"
-                  name="description"
-                  value={
-                    formData.description
-                  }
-                  onChange={
-                    handleChange
-                  }
-                  placeholder="Enter assignment instructions..."
-                />
-
-              </div>
-
-              {/* Date + Priority + Status */}
+              {/* TIME + ROOM */}
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
 
                 <div className="flex flex-col gap-1">
 
                   <label className="font-label-caps text-outline text-xs uppercase">
-                    Due Date
+                    Start Time
                   </label>
 
                   <input
-                    type="date"
+                    type="time"
                     className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
-                    name="dueDate"
+                    name="startTime"
                     value={
-                      formData.dueDate
+                      formData.startTime
                     }
                     onChange={
                       handleChange
@@ -771,77 +670,54 @@ export default function AssignmentManagement() {
                 <div className="flex flex-col gap-1">
 
                   <label className="font-label-caps text-outline text-xs uppercase">
-                    Priority
+                    End Time
                   </label>
 
-                  <select
+                  <input
+                    type="time"
                     className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
-                    name="priority"
+                    name="endTime"
                     value={
-                      formData.priority
+                      formData.endTime
                     }
                     onChange={
                       handleChange
                     }
-                  >
-                    <option value="low">
-                      Low
-                    </option>
-
-                    <option value="medium">
-                      Medium
-                    </option>
-
-                    <option value="high">
-                      High
-                    </option>
-                  </select>
+                    required
+                  />
 
                 </div>
 
                 <div className="flex flex-col gap-1">
 
                   <label className="font-label-caps text-outline text-xs uppercase">
-                    Status
+                    Room
                   </label>
 
-                  <select
+                  <input
                     className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
-                    name="status"
+                    name="room"
                     value={
-                      formData.status
+                      formData.room
                     }
                     onChange={
                       handleChange
                     }
-                  >
-                    <option value="pending">
-                      Pending
-                    </option>
-
-                    <option value="submitted">
-                      Submitted
-                    </option>
-
-                    <option value="completed">
-                      Completed
-                    </option>
-                  </select>
+                    placeholder="Room 302"
+                  />
 
                 </div>
 
               </div>
 
-              {/* Buttons */}
+              {/* BUTTONS */}
 
               <div className="mt-3 flex justify-end gap-3">
 
                 {editingId && (
                   <button
                     type="button"
-                    onClick={
-                      resetForm
-                    }
+                    onClick={resetForm}
                     className="px-5 py-2.5 border border-outline-variant text-on-surface-variant font-bold text-sm rounded-xl hover:bg-surface-container-low transition-all"
                   >
                     Cancel
@@ -862,7 +738,7 @@ export default function AssignmentManagement() {
                     ? "Saving..."
                     : editingId
                     ? "Save Changes"
-                    : "Add Assignment"}
+                    : "Add Class"}
 
                 </button>
 
@@ -872,9 +748,7 @@ export default function AssignmentManagement() {
 
           </section>
 
-          {/* =================================================
-              ASSIGNMENT LIST
-          ================================================= */}
+          {/* TIMETABLE LIST */}
 
           <section className="bg-surface-container-lowest rounded-2xl border border-outline-variant/70 p-5 md:p-6 shadow-sm">
 
@@ -883,181 +757,236 @@ export default function AssignmentManagement() {
               <div>
 
                 <h2 className="font-title-md font-bold text-on-surface text-lg">
-                  Current Assignments
+                  Weekly Timetable
                 </h2>
 
                 <p className="text-xs text-on-surface-variant mt-1">
-                  Assignments currently stored in the academic database.
+                  Classes currently stored in the academic database.
                 </p>
 
               </div>
 
               <span className="px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full text-xs font-bold">
-                {assignments.length} Total
+                {timetable.length} Total
               </span>
 
             </div>
 
             {loading && (
               <div className="py-10 text-center text-sm text-on-surface-variant">
-                Loading assignments...
+                Loading timetable...
               </div>
             )}
 
             {!loading &&
-              assignments.length === 0 && (
+              timetable.length === 0 && (
                 <div className="py-10 text-center">
 
                   <span className="material-symbols-outlined text-5xl text-outline">
-                    assignment
+                    calendar_view_week
                   </span>
 
                   <p className="text-sm text-on-surface-variant mt-2">
-                    No assignments found.
+                    No timetable entries found.
                   </p>
 
                 </div>
               )}
 
             {!loading &&
-              assignments.length > 0 && (
-                <div className="flex flex-col divide-y divide-surface-variant">
+              timetable.length > 0 && (
+                <div className="flex flex-col gap-6">
 
-                  {assignments.map(
-                    (assignment) => (
+                  {Object.entries(
+                    groupedTimetable
+                  ).map(
+                    ([day, entries]) => (
 
-                      <div
-                        key={
-                          assignment.ID
-                        }
-                        className="py-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4"
-                      >
+                      <div key={day}>
 
-                        <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-3">
 
-                          <div className="flex flex-wrap items-center gap-2 mb-2">
+                          <span className="material-symbols-outlined text-primary">
+                            calendar_today
+                          </span>
 
-                            <h3 className="font-bold text-on-surface">
-                              {
-                                assignment.TITLE
-                              }
-                            </h3>
+                          <h3 className="font-bold text-primary">
+                            {day}
+                          </h3>
 
-                            <span className="px-2 py-0.5 bg-primary-container text-on-primary-container rounded-lg text-xs font-bold">
-                              {
-                                assignment.SUBJECT_CODE
-                              }
-                            </span>
-
-                            <span
-                              className={`px-2 py-0.5 rounded-lg text-xs font-bold ${getPriorityClass(
-                                assignment.PRIORITY
-                              )}`}
-                            >
-                              {assignment.PRIORITY ||
-                                "Medium"}
-                            </span>
-
-                            <span
-                              className={`px-2 py-0.5 rounded-lg text-xs font-bold capitalize ${getStatusClass(
-                                assignment.STATUS
-                              )}`}
-                            >
-                              {assignment.STATUS ||
-                                "pending"}
-                            </span>
-
-                          </div>
-
-                          <p className="text-sm text-on-surface-variant">
-                            {
-                              assignment.DESCRIPTION
-                            }
-                          </p>
-
-                          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-outline">
-
-                            <span className="flex items-center gap-1">
-
-                              <span className="material-symbols-outlined text-[15px]">
-                                person
-                              </span>
-
-                              {
-                                assignment.STUDENT_NAME
-                              }
-
-                              {" ("}
-
-                              {
-                                assignment.STUDENT_ROLL
-                              }
-
-                              {")"}
-
-                            </span>
-
-                            <span className="flex items-center gap-1">
-
-                              <span className="material-symbols-outlined text-[15px]">
-                                calendar_month
-                              </span>
-
-                              Due:{" "}
-                              {formatDateForDisplay(
-                                assignment.DUE_DATE
-                              )}
-
-                            </span>
-
-                          </div>
+                          <span className="text-xs text-outline">
+                            ({entries.length})
+                          </span>
 
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col divide-y divide-surface-variant border border-outline-variant rounded-xl overflow-hidden">
 
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleEdit(
-                                assignment
-                              )
-                            }
-                            className="px-4 py-2 border border-outline-variant rounded-xl text-sm font-semibold text-on-surface-variant hover:bg-surface-container-low flex items-center gap-2 transition-all"
-                          >
+                          {entries.map(
+                            (entry) => (
 
-                            <span className="material-symbols-outlined text-[18px]">
-                              edit
-                            </span>
+                              <div
+                                key={
+                                  entry.ID
+                                }
+                                className="p-4 bg-surface flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+                              >
 
-                            Edit
+                                <div className="flex-1">
 
-                          </button>
+                                  <div className="flex flex-wrap items-center gap-2 mb-2">
 
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleDelete(
-                                assignment
-                              )
-                            }
-                            disabled={
-                              deletingId ===
-                              assignment.ID
-                            }
-                            className="px-4 py-2 border border-error text-error rounded-xl text-sm font-semibold hover:bg-error-container flex items-center gap-2 transition-all disabled:opacity-50"
-                          >
+                                    <h4 className="font-bold text-on-surface">
+                                      {
+                                        entry.SUBJECT_NAME
+                                      }
+                                    </h4>
 
-                            <span className="material-symbols-outlined text-[18px]">
-                              delete
-                            </span>
+                                    <span className="px-2 py-0.5 bg-primary-container text-on-primary-container rounded-lg text-xs font-bold">
+                                      {
+                                        entry.SUBJECT_CODE
+                                      }
+                                    </span>
 
-                            {deletingId ===
-                            assignment.ID
-                              ? "Deleting..."
-                              : "Delete"}
+                                  </div>
 
-                          </button>
+                                  <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-on-surface-variant">
+
+                                    <span className="flex items-center gap-1">
+
+                                      <span className="material-symbols-outlined text-[16px]">
+                                        person
+                                      </span>
+
+                                      {
+                                        entry.STUDENT_NAME
+                                      }
+
+                                      {" ("}
+
+                                      {
+                                        entry.STUDENT_ROLL
+                                      }
+
+                                      {")"}
+
+                                    </span>
+
+                                    <span className="flex items-center gap-1">
+
+                                      <span className="material-symbols-outlined text-[16px]">
+                                        schedule
+                                      </span>
+
+                                      {
+                                        entry.START_TIME
+                                      }
+
+                                      {" - "}
+
+                                      {
+                                        entry.END_TIME
+                                      }
+
+                                    </span>
+
+                                    <span className="flex items-center gap-1">
+
+                                      <span className="material-symbols-outlined text-[16px]">
+                                        meeting_room
+                                      </span>
+
+                                      {
+                                        entry.ROOM ||
+                                        "Room not assigned"
+                                      }
+
+                                    </span>
+
+                                    {entry.FACULTY_NAME && (
+                                      <span className="flex items-center gap-1">
+
+                                        <span className="material-symbols-outlined text-[16px]">
+                                          school
+                                        </span>
+
+                                        {
+                                          entry.FACULTY_NAME
+                                        }
+
+                                      </span>
+                                    )}
+
+                                    {entry.SECTION && (
+                                      <span className="flex items-center gap-1">
+
+                                        <span className="material-symbols-outlined text-[16px]">
+                                          group
+                                        </span>
+
+                                        Section{" "}
+                                        {
+                                          entry.SECTION
+                                        }
+
+                                      </span>
+                                    )}
+
+                                  </div>
+
+                                </div>
+
+                                <div className="flex items-center gap-2">
+
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleEdit(
+                                        entry
+                                      )
+                                    }
+                                    className="px-4 py-2 border border-outline-variant rounded-xl text-sm font-semibold text-on-surface-variant hover:bg-surface-container-low flex items-center gap-2 transition-all"
+                                  >
+
+                                    <span className="material-symbols-outlined text-[18px]">
+                                      edit
+                                    </span>
+
+                                    Edit
+
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleDelete(
+                                        entry
+                                      )
+                                    }
+                                    disabled={
+                                      deletingId ===
+                                      entry.ID
+                                    }
+                                    className="px-4 py-2 border border-error text-error rounded-xl text-sm font-semibold hover:bg-error-container flex items-center gap-2 transition-all disabled:opacity-50"
+                                  >
+
+                                    <span className="material-symbols-outlined text-[18px]">
+                                      delete
+                                    </span>
+
+                                    {deletingId ===
+                                    entry.ID
+                                      ? "Deleting..."
+                                      : "Delete"}
+
+                                  </button>
+
+                                </div>
+
+                              </div>
+
+                            )
+                          )}
 
                         </div>
 

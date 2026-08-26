@@ -4,10 +4,18 @@ const getConnection = require("../db");
 
 const router = express.Router();
 
+const VALID_RESOURCE_TYPES = [
+  "PDF",
+  "Notes",
+  "Question Paper",
+  "Video",
+  "Link",
+  "Other",
+];
 
 // =====================================================
-// GET ALL EXAMS
-// GET /api/admin/exams
+// GET ALL RESOURCES
+// GET /api/admin/resources
 // =====================================================
 
 router.get("/", async (req, res) => {
@@ -19,28 +27,23 @@ router.get("/", async (req, res) => {
     const result = await connection.execute(
       `
       SELECT
-        e.id,
-        e.student_roll,
-        s.name AS student_name,
-        e.subject_code,
-        sub.subject_name,
-        e.exam_date,
-        e.start_time,
-        e.end_time,
-        e.room,
-        e.exam_type
-      FROM exams e
-
-      LEFT JOIN students s
-        ON e.student_roll = s.student_roll
-
-      LEFT JOIN subjects sub
-        ON e.subject_code = sub.subject_code
-
+        r.resource_id,
+        r.subject_code,
+        s.subject_name,
+        s.faculty_name,
+        r.title,
+        r.description,
+        r.resource_type,
+        r.resource_url,
+        r.semester,
+        r.uploaded_by,
+        r.created_at
+      FROM resources r
+      LEFT JOIN subjects s
+        ON r.subject_code = s.subject_code
       ORDER BY
-        e.exam_date ASC,
-        e.start_time ASC,
-        e.id ASC
+        r.created_at DESC,
+        r.resource_id DESC
       `,
       [],
       {
@@ -49,21 +52,17 @@ router.get("/", async (req, res) => {
     );
 
     return res.json(result.rows);
-
   } catch (error) {
-
     console.error(
-      "Admin exams load error:",
+      "Admin resources load error:",
       error
     );
 
     return res.status(500).json({
-      error: "Unable to load exams",
+      error: "Unable to load resources",
       details: error.message,
     });
-
   } finally {
-
     if (connection) {
       try {
         await connection.close();
@@ -79,8 +78,8 @@ router.get("/", async (req, res) => {
 
 
 // =====================================================
-// ADD EXAM
-// POST /api/admin/exams
+// ADD RESOURCE
+// POST /api/admin/resources
 // =====================================================
 
 router.post("/", async (req, res) => {
@@ -88,91 +87,93 @@ router.post("/", async (req, res) => {
 
   try {
     const {
-      studentRoll,
       subjectCode,
-      examDate,
-      startTime,
-      endTime,
-      room,
-      examType,
+      title,
+      description,
+      resourceType,
+      resourceUrl,
+      semester,
+      uploadedBy,
     } = req.body;
 
-
     // -------------------------------------------------
-    // VALIDATION
+    // REQUIRED FIELDS
     // -------------------------------------------------
 
     if (
-      !studentRoll?.trim() ||
       !subjectCode?.trim() ||
-      !examDate ||
-      !startTime?.trim() ||
-      !endTime?.trim() ||
-      !examType?.trim()
+      !title?.trim() ||
+      !resourceType?.trim() ||
+      !resourceUrl?.trim()
     ) {
       return res.status(400).json({
         error:
-          "Student, subject, exam date, start time, end time and exam type are required",
+          "Subject, title, resource type and resource URL are required",
       });
     }
-
-
-    const cleanStudentRoll =
-      studentRoll.trim();
 
     const cleanSubjectCode =
       subjectCode.trim().toUpperCase();
 
-    const cleanStartTime =
-      startTime.trim();
+    const cleanTitle =
+      title.trim();
 
-    const cleanEndTime =
-      endTime.trim();
+    const cleanDescription =
+      description?.trim() || null;
 
-    const cleanRoom =
-      room?.trim() || null;
+    const cleanResourceType =
+      resourceType.trim();
 
-    const cleanExamType =
-      examType.trim();
+    const cleanResourceUrl =
+      resourceUrl.trim();
 
-
-    connection = await getConnection();
-
+    const cleanUploadedBy =
+      uploadedBy?.trim() ||
+      "Academic Office";
 
     // -------------------------------------------------
-    // CHECK STUDENT
+    // RESOURCE TYPE VALIDATION
     // -------------------------------------------------
-
-    const studentResult =
-      await connection.execute(
-        `
-        SELECT student_roll
-        FROM students
-        WHERE LOWER(student_roll) =
-              LOWER(:studentRoll)
-        `,
-        {
-          studentRoll:
-            cleanStudentRoll,
-        },
-        {
-          outFormat:
-            oracledb.OUT_FORMAT_OBJECT,
-        }
-      );
-
 
     if (
-      studentResult.rows.length === 0
+      !VALID_RESOURCE_TYPES.includes(
+        cleanResourceType
+      )
     ) {
-      return res.status(404).json({
-        error: "Student not found",
+      return res.status(400).json({
+        error: "Invalid resource type",
       });
     }
 
+    // -------------------------------------------------
+    // SEMESTER VALIDATION
+    // -------------------------------------------------
+
+    let cleanSemester = null;
+
+    if (
+      semester !== undefined &&
+      semester !== null &&
+      semester !== ""
+    ) {
+      cleanSemester = Number(semester);
+
+      if (
+        !Number.isInteger(cleanSemester) ||
+        cleanSemester < 1 ||
+        cleanSemester > 8
+      ) {
+        return res.status(400).json({
+          error:
+            "Semester must be between 1 and 8",
+        });
+      }
+    }
+
+    connection = await getConnection();
 
     // -------------------------------------------------
-    // CHECK SUBJECT
+    // CHECK SUBJECT EXISTS
     // -------------------------------------------------
 
     const subjectResult =
@@ -193,7 +194,6 @@ router.post("/", async (req, res) => {
         }
       );
 
-
     if (
       subjectResult.rows.length === 0
     ) {
@@ -202,67 +202,63 @@ router.post("/", async (req, res) => {
       });
     }
 
-
     // -------------------------------------------------
-    // INSERT EXAM
-    // ID omitted so Oracle generates it
+    // INSERT RESOURCE
+    // RESOURCE_ID + CREATED_AT generated by Oracle
     // -------------------------------------------------
 
     await connection.execute(
       `
-      INSERT INTO exams (
-        student_roll,
+      INSERT INTO resources (
         subject_code,
-        exam_date,
-        start_time,
-        end_time,
-        room,
-        exam_type
+        title,
+        description,
+        resource_type,
+        resource_url,
+        semester,
+        uploaded_by
       )
       VALUES (
-        :studentRoll,
         :subjectCode,
-        TO_DATE(:examDate, 'YYYY-MM-DD'),
-        :startTime,
-        :endTime,
-        :room,
-        :examType
+        :title,
+        :description,
+        :resourceType,
+        :resourceUrl,
+        :semester,
+        :uploadedBy
       )
       `,
       {
-        studentRoll:
-          cleanStudentRoll,
-
         subjectCode:
           cleanSubjectCode,
 
-        examDate,
+        title:
+          cleanTitle,
 
-        startTime:
-          cleanStartTime,
+        description:
+          cleanDescription,
 
-        endTime:
-          cleanEndTime,
+        resourceType:
+          cleanResourceType,
 
-        room:
-          cleanRoom,
+        resourceUrl:
+          cleanResourceUrl,
 
-        examType:
-          cleanExamType,
+        semester:
+          cleanSemester,
+
+        uploadedBy:
+          cleanUploadedBy,
       }
     );
 
-
     await connection.commit();
-
 
     return res.status(201).json({
       message:
-        "Exam created successfully",
+        "Resource added successfully",
     });
-
   } catch (error) {
-
     if (connection) {
       try {
         await connection.rollback();
@@ -274,23 +270,18 @@ router.post("/", async (req, res) => {
       }
     }
 
-
     console.error(
-      "Create exam error:",
+      "Create resource error:",
       error
     );
 
-
     return res.status(500).json({
       error:
-        "Unable to create exam",
-
+        "Unable to add resource",
       details:
         error.message,
     });
-
   } finally {
-
     if (connection) {
       try {
         await connection.close();
@@ -306,121 +297,119 @@ router.post("/", async (req, res) => {
 
 
 // =====================================================
-// UPDATE EXAM
-// PUT /api/admin/exams/:id
+// UPDATE RESOURCE
+// PUT /api/admin/resources/:id
 // =====================================================
 
 router.put("/:id", async (req, res) => {
   let connection;
 
   try {
-    const examId =
+    const resourceId =
       Number(req.params.id);
 
-
     if (
-      !Number.isInteger(examId) ||
-      examId <= 0
-    ) {
-      return res.status(400).json({
-        error: "Invalid exam ID",
-      });
-    }
-
-
-    const {
-      studentRoll,
-      subjectCode,
-      examDate,
-      startTime,
-      endTime,
-      room,
-      examType,
-    } = req.body;
-
-
-    if (
-      !studentRoll?.trim() ||
-      !subjectCode?.trim() ||
-      !examDate ||
-      !startTime?.trim() ||
-      !endTime?.trim() ||
-      !examType?.trim()
+      !Number.isInteger(resourceId) ||
+      resourceId <= 0
     ) {
       return res.status(400).json({
         error:
-          "Student, subject, exam date, start time, end time and exam type are required",
+          "Invalid resource ID",
       });
     }
 
+    const {
+      subjectCode,
+      title,
+      description,
+      resourceType,
+      resourceUrl,
+      semester,
+      uploadedBy,
+    } = req.body;
+
+    if (
+      !subjectCode?.trim() ||
+      !title?.trim() ||
+      !resourceType?.trim() ||
+      !resourceUrl?.trim()
+    ) {
+      return res.status(400).json({
+        error:
+          "Subject, title, resource type and resource URL are required",
+      });
+    }
+
+    const cleanSubjectCode =
+      subjectCode.trim().toUpperCase();
+
+    const cleanResourceType =
+      resourceType.trim();
+
+    if (
+      !VALID_RESOURCE_TYPES.includes(
+        cleanResourceType
+      )
+    ) {
+      return res.status(400).json({
+        error: "Invalid resource type",
+      });
+    }
+
+    let cleanSemester = null;
+
+    if (
+      semester !== undefined &&
+      semester !== null &&
+      semester !== ""
+    ) {
+      cleanSemester = Number(semester);
+
+      if (
+        !Number.isInteger(cleanSemester) ||
+        cleanSemester < 1 ||
+        cleanSemester > 8
+      ) {
+        return res.status(400).json({
+          error:
+            "Semester must be between 1 and 8",
+        });
+      }
+    }
 
     connection = await getConnection();
 
-
     // -------------------------------------------------
-    // CHECK EXAM EXISTS
+    // CHECK RESOURCE EXISTS
     // -------------------------------------------------
 
     const existing =
       await connection.execute(
         `
-        SELECT id
-        FROM exams
-        WHERE id = :id
+        SELECT resource_id
+        FROM resources
+        WHERE resource_id = :id
         `,
         {
-          id: examId,
+          id: resourceId,
         },
         {
           outFormat:
             oracledb.OUT_FORMAT_OBJECT,
         }
       );
-
 
     if (
       existing.rows.length === 0
     ) {
       return res.status(404).json({
-        error: "Exam not found",
+        error:
+          "Resource not found",
       });
     }
 
-
     // -------------------------------------------------
-    // CHECK STUDENT
-    // -------------------------------------------------
-
-    const studentResult =
-      await connection.execute(
-        `
-        SELECT student_roll
-        FROM students
-        WHERE LOWER(student_roll) =
-              LOWER(:studentRoll)
-        `,
-        {
-          studentRoll:
-            studentRoll.trim(),
-        },
-        {
-          outFormat:
-            oracledb.OUT_FORMAT_OBJECT,
-        }
-      );
-
-
-    if (
-      studentResult.rows.length === 0
-    ) {
-      return res.status(404).json({
-        error: "Student not found",
-      });
-    }
-
-
-    // -------------------------------------------------
-    // CHECK SUBJECT
+    // CHECK SUBJECT EXISTS
     // -------------------------------------------------
 
     const subjectResult =
@@ -433,14 +422,13 @@ router.put("/:id", async (req, res) => {
         `,
         {
           subjectCode:
-            subjectCode.trim(),
+            cleanSubjectCode,
         },
         {
           outFormat:
             oracledb.OUT_FORMAT_OBJECT,
         }
       );
-
 
     if (
       subjectResult.rows.length === 0
@@ -450,64 +438,58 @@ router.put("/:id", async (req, res) => {
       });
     }
 
-
     // -------------------------------------------------
-    // UPDATE EXAM
+    // UPDATE
     // -------------------------------------------------
 
     await connection.execute(
       `
-      UPDATE exams
+      UPDATE resources
       SET
-        student_roll = :studentRoll,
         subject_code = :subjectCode,
-        exam_date =
-          TO_DATE(:examDate, 'YYYY-MM-DD'),
-        start_time = :startTime,
-        end_time = :endTime,
-        room = :room,
-        exam_type = :examType
-      WHERE id = :id
+        title = :title,
+        description = :description,
+        resource_type = :resourceType,
+        resource_url = :resourceUrl,
+        semester = :semester,
+        uploaded_by = :uploadedBy
+      WHERE resource_id = :id
       `,
       {
-        studentRoll:
-          studentRoll.trim(),
-
         subjectCode:
-          subjectCode
-            .trim()
-            .toUpperCase(),
+          cleanSubjectCode,
 
-        examDate,
+        title:
+          title.trim(),
 
-        startTime:
-          startTime.trim(),
+        description:
+          description?.trim() || null,
 
-        endTime:
-          endTime.trim(),
+        resourceType:
+          cleanResourceType,
 
-        room:
-          room?.trim() || null,
+        resourceUrl:
+          resourceUrl.trim(),
 
-        examType:
-          examType.trim(),
+        semester:
+          cleanSemester,
+
+        uploadedBy:
+          uploadedBy?.trim() ||
+          "Academic Office",
 
         id:
-          examId,
+          resourceId,
       }
     );
 
-
     await connection.commit();
-
 
     return res.json({
       message:
-        "Exam updated successfully",
+        "Resource updated successfully",
     });
-
   } catch (error) {
-
     if (connection) {
       try {
         await connection.rollback();
@@ -519,23 +501,18 @@ router.put("/:id", async (req, res) => {
       }
     }
 
-
     console.error(
-      "Update exam error:",
+      "Update resource error:",
       error
     );
 
-
     return res.status(500).json({
       error:
-        "Unable to update exam",
-
+        "Unable to update resource",
       details:
         error.message,
     });
-
   } finally {
-
     if (connection) {
       try {
         await connection.close();
@@ -551,42 +528,39 @@ router.put("/:id", async (req, res) => {
 
 
 // =====================================================
-// DELETE EXAM
-// DELETE /api/admin/exams/:id
+// DELETE RESOURCE
+// DELETE /api/admin/resources/:id
 // =====================================================
 
 router.delete("/:id", async (req, res) => {
   let connection;
 
   try {
-    const examId =
+    const resourceId =
       Number(req.params.id);
 
-
     if (
-      !Number.isInteger(examId) ||
-      examId <= 0
+      !Number.isInteger(resourceId) ||
+      resourceId <= 0
     ) {
       return res.status(400).json({
-        error: "Invalid exam ID",
+        error:
+          "Invalid resource ID",
       });
     }
 
-
     connection = await getConnection();
-
 
     const result =
       await connection.execute(
         `
-        DELETE FROM exams
-        WHERE id = :id
+        DELETE FROM resources
+        WHERE resource_id = :id
         `,
         {
-          id: examId,
+          id: resourceId,
         }
       );
-
 
     if (
       result.rowsAffected === 0
@@ -594,21 +568,18 @@ router.delete("/:id", async (req, res) => {
       await connection.rollback();
 
       return res.status(404).json({
-        error: "Exam not found",
+        error:
+          "Resource not found",
       });
     }
 
-
     await connection.commit();
-
 
     return res.json({
       message:
-        "Exam deleted successfully",
+        "Resource deleted successfully",
     });
-
   } catch (error) {
-
     if (connection) {
       try {
         await connection.rollback();
@@ -620,23 +591,18 @@ router.delete("/:id", async (req, res) => {
       }
     }
 
-
     console.error(
-      "Delete exam error:",
+      "Delete resource error:",
       error
     );
 
-
     return res.status(500).json({
       error:
-        "Unable to delete exam",
-
+        "Unable to delete resource",
       details:
         error.message,
     });
-
   } finally {
-
     if (connection) {
       try {
         await connection.close();

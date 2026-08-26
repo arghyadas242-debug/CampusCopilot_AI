@@ -12,9 +12,13 @@ import TimetablePage from "./pages/student/TimetablePage";
 import SubjectManagement from "./pages/admin/SubjectManagement";
 import AssignmentsPage from "./pages/student/AssignmentsPage";
 import ExamsPage from "./pages/student/ExamsPage";
+import ExamManagement from "./pages/admin/ExamManagement";
+import TimetableManagement from "./pages/admin/TimetableManagement";
 import CollaborationPage from "./pages/student/CollaborationPage";
 import ProfilePage from "./pages/student/ProfilePage";
 import AIAnalyticsPage from "./pages/student/AIAnalyticsPage";
+import ResourceManagement from "./pages/admin/ResourceManagement";
+import NoticeManagement from "./pages/admin/NoticeManagement";
 import ResourceHubPage from "./pages/student/ResourceHubPage";
 import StudentIDPage from "./pages/student/StudentIDPage";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -51,8 +55,15 @@ function App() {
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/attendance" element={<UpdateAttendance />} />
         <Route path="/admin/students" element={<UpdateStudent />} />
-        <Route path="/admin/assignments"element={<AssignmentManagement />}/>
+        <Route path="/admin/assignments" element={<AssignmentManagement />} />
         <Route path="/admin/subjects" element={<SubjectManagement />} />
+        <Route path="/admin/timetable" element={<TimetableManagement />} />
+        <Route path="/admin/notices" element={<NoticeManagement />} />
+        <Route path="/admin/exams" element={<ExamManagement />} />
+        <Route
+  path="/admin/resources"
+  element={<ResourceManagement />}
+/>
       </Routes>
     </div>
   );

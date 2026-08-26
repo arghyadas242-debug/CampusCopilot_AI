@@ -4,19 +4,18 @@ import AdminSidebar from "../../components/admin/AdminSidebar";
 
 const API_URL = "http://localhost:5000";
 
-export default function AssignmentManagement() {
-  const [assignments, setAssignments] = useState([]);
-  const [students, setStudents] = useState([]);
+export default function ResourceManagement() {
+  const [resources, setResources] = useState([]);
   const [subjects, setSubjects] = useState([]);
 
   const [formData, setFormData] = useState({
-    studentRoll: "",
     subjectCode: "",
     title: "",
     description: "",
-    dueDate: "",
-    priority: "medium",
-    status: "pending",
+    resourceType: "PDF",
+    resourceUrl: "",
+    semester: "",
+    uploadedBy: "Academic Office",
   });
 
   const [editingId, setEditingId] = useState(null);
@@ -28,58 +27,17 @@ export default function AssignmentManagement() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // =====================================================
-  // FORMAT ORACLE DATE FOR <input type="date">
-  // =====================================================
-
-  const formatDateForInput = (value) => {
-    if (!value) {
-      return "";
-    }
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-      return "";
-    }
-
-    const year = date.getFullYear();
-
-    const month = String(
-      date.getMonth() + 1
-    ).padStart(2, "0");
-
-    const day = String(
-      date.getDate()
-    ).padStart(2, "0");
-
-    return `${year}-${month}-${day}`;
-  };
+  const resourceTypes = [
+    "PDF",
+    "Notes",
+    "Question Paper",
+    "Video",
+    "Link",
+    "Other",
+  ];
 
   // =====================================================
-  // FORMAT DATE FOR DISPLAY
-  // =====================================================
-
-  const formatDateForDisplay = (value) => {
-    if (!value) {
-      return "No due date";
-    }
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-      return value;
-    }
-
-    return date.toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  };
-
-  // =====================================================
-  // LOAD ALL DATA
+  // LOAD RESOURCES + SUBJECTS
   // =====================================================
 
   const loadData = async () => {
@@ -88,16 +46,11 @@ export default function AssignmentManagement() {
       setError("");
 
       const [
-        assignmentsResponse,
-        studentsResponse,
+        resourcesResponse,
         subjectsResponse,
       ] = await Promise.all([
         fetch(
-          `${API_URL}/api/admin/assignments`
-        ),
-
-        fetch(
-          `${API_URL}/api/students`
+          `${API_URL}/api/admin/resources`
         ),
 
         fetch(
@@ -105,26 +58,16 @@ export default function AssignmentManagement() {
         ),
       ]);
 
-      const assignmentsData =
-        await assignmentsResponse.json();
-
-      const studentsData =
-        await studentsResponse.json();
+      const resourcesData =
+        await resourcesResponse.json();
 
       const subjectsData =
         await subjectsResponse.json();
 
-      if (!assignmentsResponse.ok) {
+      if (!resourcesResponse.ok) {
         throw new Error(
-          assignmentsData.error ||
-            "Unable to load assignments"
-        );
-      }
-
-      if (!studentsResponse.ok) {
-        throw new Error(
-          studentsData.error ||
-            "Unable to load students"
+          resourcesData.error ||
+            "Unable to load resources"
         );
       }
 
@@ -135,15 +78,9 @@ export default function AssignmentManagement() {
         );
       }
 
-      setAssignments(
-        Array.isArray(assignmentsData)
-          ? assignmentsData
-          : []
-      );
-
-      setStudents(
-        Array.isArray(studentsData)
-          ? studentsData
+      setResources(
+        Array.isArray(resourcesData)
+          ? resourcesData
           : []
       );
 
@@ -154,13 +91,13 @@ export default function AssignmentManagement() {
       );
     } catch (err) {
       console.error(
-        "Assignment management load error:",
+        "Resource management load error:",
         err
       );
 
       setError(
         err.message ||
-          "Unable to load assignment data."
+          "Unable to load resource data."
       );
     } finally {
       setLoading(false);
@@ -192,31 +129,45 @@ export default function AssignmentManagement() {
     setEditingId(null);
 
     setFormData({
-      studentRoll: "",
       subjectCode: "",
       title: "",
       description: "",
-      dueDate: "",
-      priority: "medium",
-      status: "pending",
+      resourceType: "PDF",
+      resourceUrl: "",
+      semester: "",
+      uploadedBy: "Academic Office",
     });
   };
 
   // =====================================================
-  // ADD / UPDATE ASSIGNMENT
+  // ADD / UPDATE RESOURCE
   // =====================================================
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (
-      !formData.studentRoll ||
       !formData.subjectCode ||
       !formData.title.trim() ||
-      !formData.dueDate
+      !formData.resourceType ||
+      !formData.resourceUrl.trim()
     ) {
       setError(
-        "Student, subject, title and due date are required."
+        "Subject, title, resource type and resource URL are required."
+      );
+
+      return;
+    }
+
+    if (
+      formData.semester &&
+      (
+        Number(formData.semester) < 1 ||
+        Number(formData.semester) > 8
+      )
+    ) {
+      setError(
+        "Semester must be between 1 and 8."
       );
 
       return;
@@ -232,8 +183,8 @@ export default function AssignmentManagement() {
         editingId !== null;
 
       const url = isEditing
-        ? `${API_URL}/api/admin/assignments/${editingId}`
-        : `${API_URL}/api/admin/assignments`;
+        ? `${API_URL}/api/admin/resources/${editingId}`
+        : `${API_URL}/api/admin/resources`;
 
       const response = await fetch(url, {
         method: isEditing
@@ -246,9 +197,6 @@ export default function AssignmentManagement() {
         },
 
         body: JSON.stringify({
-          studentRoll:
-            formData.studentRoll,
-
           subjectCode:
             formData.subjectCode,
 
@@ -258,14 +206,17 @@ export default function AssignmentManagement() {
           description:
             formData.description,
 
-          dueDate:
-            formData.dueDate,
+          resourceType:
+            formData.resourceType,
 
-          priority:
-            formData.priority,
+          resourceUrl:
+            formData.resourceUrl,
 
-          status:
-            formData.status,
+          semester:
+            formData.semester,
+
+          uploadedBy:
+            formData.uploadedBy,
         }),
       });
 
@@ -275,14 +226,14 @@ export default function AssignmentManagement() {
       if (!response.ok) {
         throw new Error(
           data.error ||
-            "Unable to save assignment"
+            "Unable to save resource"
         );
       }
 
       setSuccess(
         isEditing
-          ? "Assignment updated successfully."
-          : "Assignment created successfully."
+          ? "Resource updated successfully."
+          : "Resource added successfully."
       );
 
       resetForm();
@@ -290,13 +241,13 @@ export default function AssignmentManagement() {
       await loadData();
     } catch (err) {
       console.error(
-        "Save assignment error:",
+        "Save resource error:",
         err
       );
 
       setError(
         err.message ||
-          "Unable to save assignment."
+          "Unable to save resource."
       );
     } finally {
       setSaving(false);
@@ -304,43 +255,39 @@ export default function AssignmentManagement() {
   };
 
   // =====================================================
-  // EDIT ASSIGNMENT
+  // EDIT RESOURCE
   // =====================================================
 
-  const handleEdit = (assignment) => {
+  const handleEdit = (resource) => {
     setEditingId(
-      assignment.ID
+      resource.RESOURCE_ID
     );
 
     setFormData({
-      studentRoll:
-        assignment.STUDENT_ROLL || "",
-
       subjectCode:
-        assignment.SUBJECT_CODE || "",
+        resource.SUBJECT_CODE || "",
 
       title:
-        assignment.TITLE || "",
+        resource.TITLE || "",
 
       description:
-        assignment.DESCRIPTION || "",
+        resource.DESCRIPTION || "",
 
-      dueDate:
-        formatDateForInput(
-          assignment.DUE_DATE
-        ),
+      resourceType:
+        resource.RESOURCE_TYPE ||
+        "PDF",
 
-      priority:
-        (
-          assignment.PRIORITY ||
-          "medium"
-        ).toLowerCase(),
+      resourceUrl:
+        resource.RESOURCE_URL || "",
 
-      status:
-        (
-          assignment.STATUS ||
-          "pending"
-        ).toLowerCase(),
+      semester:
+        resource.SEMESTER
+          ? String(resource.SEMESTER)
+          : "",
+
+      uploadedBy:
+        resource.UPLOADED_BY ||
+        "Academic Office",
     });
 
     setError("");
@@ -353,15 +300,15 @@ export default function AssignmentManagement() {
   };
 
   // =====================================================
-  // DELETE ASSIGNMENT
+  // DELETE RESOURCE
   // =====================================================
 
   const handleDelete = async (
-    assignment
+    resource
   ) => {
     const confirmed =
       window.confirm(
-        `Are you sure you want to delete "${assignment.TITLE}"?`
+        `Are you sure you want to delete "${resource.TITLE}"?`
       );
 
     if (!confirmed) {
@@ -370,14 +317,14 @@ export default function AssignmentManagement() {
 
     try {
       setDeletingId(
-        assignment.ID
+        resource.RESOURCE_ID
       );
 
       setError("");
       setSuccess("");
 
       const response = await fetch(
-        `${API_URL}/api/admin/assignments/${assignment.ID}`,
+        `${API_URL}/api/admin/resources/${resource.RESOURCE_ID}`,
         {
           method: "DELETE",
         }
@@ -389,30 +336,31 @@ export default function AssignmentManagement() {
       if (!response.ok) {
         throw new Error(
           data.error ||
-            "Unable to delete assignment"
+            "Unable to delete resource"
         );
       }
 
       if (
-        editingId === assignment.ID
+        editingId ===
+        resource.RESOURCE_ID
       ) {
         resetForm();
       }
 
       setSuccess(
-        "Assignment deleted successfully."
+        "Resource deleted successfully."
       );
 
       await loadData();
     } catch (err) {
       console.error(
-        "Delete assignment error:",
+        "Delete resource error:",
         err
       );
 
       setError(
         err.message ||
-          "Unable to delete assignment."
+          "Unable to delete resource."
       );
     } finally {
       setDeletingId(null);
@@ -420,46 +368,56 @@ export default function AssignmentManagement() {
   };
 
   // =====================================================
-  // PRIORITY STYLE
+  // FORMAT DATE
   // =====================================================
 
-  const getPriorityClass = (
-    priority
-  ) => {
-    const value =
-      String(priority || "")
-        .toLowerCase();
-
-    if (value === "high") {
-      return "bg-error-container text-on-error-container";
+  const formatDate = (value) => {
+    if (!value) {
+      return "--";
     }
 
-    if (value === "low") {
-      return "bg-surface-container-high text-on-surface-variant";
+    const date = new Date(value);
+
+    if (
+      Number.isNaN(date.getTime())
+    ) {
+      return value;
     }
 
-    return "bg-secondary-container text-on-secondary-container";
+    return date.toLocaleDateString(
+      "en-IN",
+      {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }
+    );
   };
 
   // =====================================================
-  // STATUS STYLE
+  // RESOURCE ICON
   // =====================================================
 
-  const getStatusClass = (
-    status
-  ) => {
-    const value =
-      String(status || "")
-        .toLowerCase();
+  const getResourceIcon = (type) => {
+    switch (type) {
+      case "PDF":
+        return "picture_as_pdf";
 
-    if (
-      value === "completed" ||
-      value === "submitted"
-    ) {
-      return "bg-secondary-container text-on-secondary-container";
+      case "Notes":
+        return "description";
+
+      case "Question Paper":
+        return "quiz";
+
+      case "Video":
+        return "play_circle";
+
+      case "Link":
+        return "link";
+
+      default:
+        return "folder_open";
     }
-
-    return "bg-primary-container text-on-primary-container";
   };
 
   // =====================================================
@@ -473,9 +431,7 @@ export default function AssignmentManagement() {
 
       <main className="md:ml-[280px] min-h-screen flex flex-col">
 
-      {/* =================================================
-          HEADER
-      ================================================= */}
+      {/* HEADER */}
 
       <header className="sticky top-0 w-full z-40 bg-surface border-b border-outline-variant shadow-xs">
 
@@ -493,7 +449,7 @@ export default function AssignmentManagement() {
             </Link>
 
             <h1 className="font-headline-lg-mobile md:font-headline-lg font-bold text-primary">
-              Assignment Management
+              Resource Management
             </h1>
 
           </div>
@@ -501,11 +457,11 @@ export default function AssignmentManagement() {
           <div className="flex items-center gap-2 bg-surface-container-low px-3 py-1.5 rounded-full border border-outline-variant text-xs">
 
             <span className="material-symbols-outlined text-primary text-base">
-              assignment
+              folder_open
             </span>
 
             <span className="font-semibold text-on-surface">
-              {assignments.length} Assignments
+              {resources.length} Resources
             </span>
 
           </div>
@@ -514,20 +470,14 @@ export default function AssignmentManagement() {
 
       </header>
 
-      {/* =================================================
-          MAIN
-      ================================================= */}
+      {/* MAIN */}
 
       <div className="flex-1 max-w-[1440px] mx-auto w-full p-4 md:p-8 flex flex-col gap-6 pt-6">
 
-        {/* =================================================
-            SIDEBAR
-        ================================================= */}
+        {/* SIDEBAR */}
 
 
-        {/* =================================================
-            CONTENT
-        ================================================= */}
+        {/* CONTENT */}
 
         <div className="flex flex-col gap-6">
 
@@ -560,7 +510,7 @@ export default function AssignmentManagement() {
           )}
 
           {/* =================================================
-              ADD / EDIT FORM
+              ADD / EDIT RESOURCE
           ================================================= */}
 
           <section className="bg-surface-container-lowest rounded-2xl border border-outline-variant/70 p-5 md:p-6 shadow-sm">
@@ -570,15 +520,19 @@ export default function AssignmentManagement() {
               <div>
 
                 <h2 className="font-title-md font-bold text-on-surface text-lg">
+
                   {editingId
-                    ? "Edit Assignment"
-                    : "Add New Assignment"}
+                    ? "Edit Resource"
+                    : "Add Study Resource"}
+
                 </h2>
 
                 <p className="text-xs text-on-surface-variant mt-1">
+
                   {editingId
-                    ? "Update the selected assignment."
-                    : "Create an assignment for a student."}
+                    ? "Update the selected study resource."
+                    : "Add notes, PDFs, question papers, videos or useful links."}
+
                 </p>
 
               </div>
@@ -586,9 +540,11 @@ export default function AssignmentManagement() {
               <div className="w-11 h-11 rounded-xl bg-primary-container text-on-primary-container flex items-center justify-center">
 
                 <span className="material-symbols-outlined">
+
                   {editingId
                     ? "edit"
-                    : "assignment_add"}
+                    : "upload_file"}
+
                 </span>
 
               </div>
@@ -600,54 +556,9 @@ export default function AssignmentManagement() {
               className="flex flex-col gap-4"
             >
 
-              {/* Student + Subject */}
+              {/* SUBJECT + TYPE */}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-                <div className="flex flex-col gap-1">
-
-                  <label className="font-label-caps text-outline text-xs uppercase">
-                    Student
-                  </label>
-
-                  <select
-                    className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
-                    name="studentRoll"
-                    value={
-                      formData.studentRoll
-                    }
-                    onChange={
-                      handleChange
-                    }
-                    required
-                  >
-
-                    <option value="">
-                      Select Student
-                    </option>
-
-                    {students.map(
-                      (student) => (
-                        <option
-                          key={
-                            student.STUDENT_ROLL
-                          }
-                          value={
-                            student.STUDENT_ROLL
-                          }
-                        >
-                          {student.NAME}
-                          {" - "}
-                          {
-                            student.STUDENT_ROLL
-                          }
-                        </option>
-                      )
-                    )}
-
-                  </select>
-
-                </div>
 
                 <div className="flex flex-col gap-1">
 
@@ -656,14 +567,12 @@ export default function AssignmentManagement() {
                   </label>
 
                   <select
-                    className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
                     name="subjectCode"
                     value={
                       formData.subjectCode
                     }
-                    onChange={
-                      handleChange
-                    }
+                    onChange={handleChange}
+                    className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
                     required
                   >
 
@@ -696,32 +605,60 @@ export default function AssignmentManagement() {
 
                 </div>
 
+                <div className="flex flex-col gap-1">
+
+                  <label className="font-label-caps text-outline text-xs uppercase">
+                    Resource Type
+                  </label>
+
+                  <select
+                    name="resourceType"
+                    value={
+                      formData.resourceType
+                    }
+                    onChange={handleChange}
+                    className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
+                  >
+
+                    {resourceTypes.map(
+                      (type) => (
+                        <option
+                          key={type}
+                          value={type}
+                        >
+                          {type}
+                        </option>
+                      )
+                    )}
+
+                  </select>
+
+                </div>
+
               </div>
 
-              {/* Title */}
+              {/* TITLE */}
 
               <div className="flex flex-col gap-1">
 
                 <label className="font-label-caps text-outline text-xs uppercase">
-                  Assignment Title
+                  Resource Title
                 </label>
 
                 <input
-                  className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
                   name="title"
                   value={
                     formData.title
                   }
-                  onChange={
-                    handleChange
-                  }
-                  placeholder="Example: DBMS Lab Report"
+                  onChange={handleChange}
+                  placeholder="Example: DBMS Normalization Notes"
+                  className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
                   required
                 />
 
               </div>
 
-              {/* Description */}
+              {/* DESCRIPTION */}
 
               <div className="flex flex-col gap-1">
 
@@ -730,118 +667,109 @@ export default function AssignmentManagement() {
                 </label>
 
                 <textarea
-                  className="w-full min-h-[100px] rounded-xl border border-outline-variant bg-surface-container-low p-3 text-sm text-on-surface focus:outline-none focus:border-primary resize-y"
                   name="description"
                   value={
                     formData.description
                   }
-                  onChange={
-                    handleChange
-                  }
-                  placeholder="Enter assignment instructions..."
+                  onChange={handleChange}
+                  placeholder="Describe what this resource contains..."
+                  className="w-full min-h-[100px] rounded-xl border border-outline-variant bg-surface-container-low p-3 text-sm text-on-surface focus:outline-none focus:border-primary resize-y"
                 />
 
               </div>
 
-              {/* Date + Priority + Status */}
+              {/* URL */}
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="flex flex-col gap-1">
+
+                <label className="font-label-caps text-outline text-xs uppercase">
+                  Resource URL
+                </label>
+
+                <input
+                  type="url"
+                  name="resourceUrl"
+                  value={
+                    formData.resourceUrl
+                  }
+                  onChange={handleChange}
+                  placeholder="https://..."
+                  className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
+                  required
+                />
+
+                <p className="text-xs text-outline">
+                  Paste the PDF, Drive, video or study-material link.
+                </p>
+
+              </div>
+
+              {/* SEMESTER + UPLOADER */}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
                 <div className="flex flex-col gap-1">
 
                   <label className="font-label-caps text-outline text-xs uppercase">
-                    Due Date
+                    Semester
+                  </label>
+
+                  <select
+                    name="semester"
+                    value={
+                      formData.semester
+                    }
+                    onChange={handleChange}
+                    className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
+                  >
+
+                    <option value="">
+                      All Semesters
+                    </option>
+
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map(
+                      (semester) => (
+                        <option
+                          key={semester}
+                          value={semester}
+                        >
+                          Semester {semester}
+                        </option>
+                      )
+                    )}
+
+                  </select>
+
+                </div>
+
+                <div className="flex flex-col gap-1">
+
+                  <label className="font-label-caps text-outline text-xs uppercase">
+                    Uploaded By
                   </label>
 
                   <input
-                    type="date"
-                    className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
-                    name="dueDate"
+                    name="uploadedBy"
                     value={
-                      formData.dueDate
+                      formData.uploadedBy
                     }
-                    onChange={
-                      handleChange
-                    }
-                    required
+                    onChange={handleChange}
+                    placeholder="Academic Office"
+                    className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
                   />
-
-                </div>
-
-                <div className="flex flex-col gap-1">
-
-                  <label className="font-label-caps text-outline text-xs uppercase">
-                    Priority
-                  </label>
-
-                  <select
-                    className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
-                    name="priority"
-                    value={
-                      formData.priority
-                    }
-                    onChange={
-                      handleChange
-                    }
-                  >
-                    <option value="low">
-                      Low
-                    </option>
-
-                    <option value="medium">
-                      Medium
-                    </option>
-
-                    <option value="high">
-                      High
-                    </option>
-                  </select>
-
-                </div>
-
-                <div className="flex flex-col gap-1">
-
-                  <label className="font-label-caps text-outline text-xs uppercase">
-                    Status
-                  </label>
-
-                  <select
-                    className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
-                    name="status"
-                    value={
-                      formData.status
-                    }
-                    onChange={
-                      handleChange
-                    }
-                  >
-                    <option value="pending">
-                      Pending
-                    </option>
-
-                    <option value="submitted">
-                      Submitted
-                    </option>
-
-                    <option value="completed">
-                      Completed
-                    </option>
-                  </select>
 
                 </div>
 
               </div>
 
-              {/* Buttons */}
+              {/* BUTTONS */}
 
               <div className="mt-3 flex justify-end gap-3">
 
                 {editingId && (
                   <button
                     type="button"
-                    onClick={
-                      resetForm
-                    }
+                    onClick={resetForm}
                     className="px-5 py-2.5 border border-outline-variant text-on-surface-variant font-bold text-sm rounded-xl hover:bg-surface-container-low transition-all"
                   >
                     Cancel
@@ -862,7 +790,7 @@ export default function AssignmentManagement() {
                     ? "Saving..."
                     : editingId
                     ? "Save Changes"
-                    : "Add Assignment"}
+                    : "Add Resource"}
 
                 </button>
 
@@ -873,7 +801,7 @@ export default function AssignmentManagement() {
           </section>
 
           {/* =================================================
-              ASSIGNMENT LIST
+              RESOURCE LIST
           ================================================= */}
 
           <section className="bg-surface-container-lowest rounded-2xl border border-outline-variant/70 p-5 md:p-6 shadow-sm">
@@ -883,136 +811,183 @@ export default function AssignmentManagement() {
               <div>
 
                 <h2 className="font-title-md font-bold text-on-surface text-lg">
-                  Current Assignments
+                  Study Resources
                 </h2>
 
                 <p className="text-xs text-on-surface-variant mt-1">
-                  Assignments currently stored in the academic database.
+                  Resources currently stored in the academic database.
                 </p>
 
               </div>
 
               <span className="px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full text-xs font-bold">
-                {assignments.length} Total
+                {resources.length} Total
               </span>
 
             </div>
 
+            {/* LOADING */}
+
             {loading && (
               <div className="py-10 text-center text-sm text-on-surface-variant">
-                Loading assignments...
+                Loading resources...
               </div>
             )}
 
+            {/* EMPTY */}
+
             {!loading &&
-              assignments.length === 0 && (
+              resources.length === 0 && (
                 <div className="py-10 text-center">
 
                   <span className="material-symbols-outlined text-5xl text-outline">
-                    assignment
+                    folder_open
                   </span>
 
                   <p className="text-sm text-on-surface-variant mt-2">
-                    No assignments found.
+                    No resources found.
                   </p>
 
                 </div>
               )}
 
+            {/* RESOURCES */}
+
             {!loading &&
-              assignments.length > 0 && (
+              resources.length > 0 && (
                 <div className="flex flex-col divide-y divide-surface-variant">
 
-                  {assignments.map(
-                    (assignment) => (
+                  {resources.map(
+                    (resource) => (
 
                       <div
                         key={
-                          assignment.ID
+                          resource.RESOURCE_ID
                         }
-                        className="py-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+                        className="py-5 flex flex-col lg:flex-row lg:items-center justify-between gap-5"
                       >
 
-                        <div className="flex-1">
+                        {/* RESOURCE DETAILS */}
 
-                          <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <div className="flex gap-4 flex-1">
 
-                            <h3 className="font-bold text-on-surface">
-                              {
-                                assignment.TITLE
-                              }
-                            </h3>
+                          <div className="w-12 h-12 shrink-0 rounded-xl bg-primary-container text-on-primary-container flex items-center justify-center">
 
-                            <span className="px-2 py-0.5 bg-primary-container text-on-primary-container rounded-lg text-xs font-bold">
-                              {
-                                assignment.SUBJECT_CODE
-                              }
-                            </span>
-
-                            <span
-                              className={`px-2 py-0.5 rounded-lg text-xs font-bold ${getPriorityClass(
-                                assignment.PRIORITY
-                              )}`}
-                            >
-                              {assignment.PRIORITY ||
-                                "Medium"}
-                            </span>
-
-                            <span
-                              className={`px-2 py-0.5 rounded-lg text-xs font-bold capitalize ${getStatusClass(
-                                assignment.STATUS
-                              )}`}
-                            >
-                              {assignment.STATUS ||
-                                "pending"}
+                            <span className="material-symbols-outlined text-[26px]">
+                              {getResourceIcon(
+                                resource.RESOURCE_TYPE
+                              )}
                             </span>
 
                           </div>
 
-                          <p className="text-sm text-on-surface-variant">
-                            {
-                              assignment.DESCRIPTION
-                            }
-                          </p>
+                          <div className="flex-1">
 
-                          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-outline">
+                            <div className="flex flex-wrap items-center gap-2 mb-2">
 
-                            <span className="flex items-center gap-1">
+                              <h3 className="font-bold text-on-surface">
+                                {resource.TITLE}
+                              </h3>
 
-                              <span className="material-symbols-outlined text-[15px]">
-                                person
+                              <span className="px-2 py-0.5 bg-primary-container text-on-primary-container rounded-lg text-xs font-bold">
+                                {
+                                  resource.SUBJECT_CODE
+                                }
                               </span>
 
-                              {
-                                assignment.STUDENT_NAME
-                              }
-
-                              {" ("}
-
-                              {
-                                assignment.STUDENT_ROLL
-                              }
-
-                              {")"}
-
-                            </span>
-
-                            <span className="flex items-center gap-1">
-
-                              <span className="material-symbols-outlined text-[15px]">
-                                calendar_month
+                              <span className="px-2 py-0.5 bg-secondary-container text-on-secondary-container rounded-lg text-xs font-bold">
+                                {
+                                  resource.RESOURCE_TYPE
+                                }
                               </span>
 
-                              Due:{" "}
-                              {formatDateForDisplay(
-                                assignment.DUE_DATE
+                              {resource.SEMESTER && (
+                                <span className="px-2 py-0.5 bg-surface-container-high text-on-surface-variant rounded-lg text-xs font-semibold">
+
+                                  Semester{" "}
+                                  {
+                                    resource.SEMESTER
+                                  }
+
+                                </span>
                               )}
 
-                            </span>
+                            </div>
+
+                            {resource.DESCRIPTION && (
+                              <p className="text-sm text-on-surface-variant mb-3">
+                                {
+                                  resource.DESCRIPTION
+                                }
+                              </p>
+                            )}
+
+                            <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-outline">
+
+                              {resource.SUBJECT_NAME && (
+                                <span className="flex items-center gap-1">
+
+                                  <span className="material-symbols-outlined text-[15px]">
+                                    menu_book
+                                  </span>
+
+                                  {
+                                    resource.SUBJECT_NAME
+                                  }
+
+                                </span>
+                              )}
+
+                              <span className="flex items-center gap-1">
+
+                                <span className="material-symbols-outlined text-[15px]">
+                                  person
+                                </span>
+
+                                {
+                                  resource.UPLOADED_BY
+                                }
+
+                              </span>
+
+                              <span className="flex items-center gap-1">
+
+                                <span className="material-symbols-outlined text-[15px]">
+                                  calendar_month
+                                </span>
+
+                                {formatDate(
+                                  resource.CREATED_AT
+                                )}
+
+                              </span>
+
+                            </div>
+
+                            {/* OPEN RESOURCE */}
+
+                            <a
+                              href={
+                                resource.RESOURCE_URL
+                              }
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 mt-3 text-sm font-bold text-primary hover:underline"
+                            >
+
+                              <span className="material-symbols-outlined text-[17px]">
+                                open_in_new
+                              </span>
+
+                              Open Resource
+
+                            </a>
 
                           </div>
 
                         </div>
+
+                        {/* ACTIONS */}
 
                         <div className="flex items-center gap-2">
 
@@ -1020,7 +995,7 @@ export default function AssignmentManagement() {
                             type="button"
                             onClick={() =>
                               handleEdit(
-                                assignment
+                                resource
                               )
                             }
                             className="px-4 py-2 border border-outline-variant rounded-xl text-sm font-semibold text-on-surface-variant hover:bg-surface-container-low flex items-center gap-2 transition-all"
@@ -1038,12 +1013,12 @@ export default function AssignmentManagement() {
                             type="button"
                             onClick={() =>
                               handleDelete(
-                                assignment
+                                resource
                               )
                             }
                             disabled={
                               deletingId ===
-                              assignment.ID
+                              resource.RESOURCE_ID
                             }
                             className="px-4 py-2 border border-error text-error rounded-xl text-sm font-semibold hover:bg-error-container flex items-center gap-2 transition-all disabled:opacity-50"
                           >
@@ -1053,7 +1028,7 @@ export default function AssignmentManagement() {
                             </span>
 
                             {deletingId ===
-                            assignment.ID
+                            resource.RESOURCE_ID
                               ? "Deleting..."
                               : "Delete"}
 

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router";
+import AdminSidebar from "../../components/admin/AdminSidebar";
 
 const API_URL = "http://localhost:5000";
 
@@ -454,72 +455,7 @@ export default function UpdateStudent() {
   return (
     <div className="bg-surface text-on-surface font-body-md antialiased min-h-screen flex flex-col md:flex-row pb-12">
 
-      {/* SIDEBAR */}
-
-      <aside className="hidden md:flex flex-col h-screen w-[280px] fixed left-0 top-0 py-md bg-surface-container-low border-r border-outline-variant/30 z-40">
-
-        <div className="px-md mb-lg flex items-center gap-sm">
-
-          <div className="w-10 h-10 rounded-xl bg-primary text-on-primary flex items-center justify-center font-bold text-lg">
-            CC
-          </div>
-
-          <div>
-            <h1 className="font-headline-lg-mobile text-primary font-bold">
-              Admin Portal
-            </h1>
-
-            <p className="font-body-sm text-outline text-xs">
-              Student Management
-            </p>
-          </div>
-
-        </div>
-
-        <nav className="flex-1 px-sm space-y-1">
-
-          <Link
-            to="/admin"
-            className="flex items-center gap-3 text-on-surface-variant mx-2 px-4 py-2.5 rounded-xl hover:bg-surface-container-high transition-all"
-          >
-            <span className="material-symbols-outlined">
-              dashboard
-            </span>
-
-            <span className="font-title-md text-sm">
-              Dashboard
-            </span>
-          </Link>
-
-          <Link
-            to="/admin/students"
-            className="flex items-center gap-3 bg-secondary-container text-on-secondary-container mx-2 px-4 py-2.5 rounded-xl font-bold transition-all"
-          >
-            <span className="material-symbols-outlined">
-              group
-            </span>
-
-            <span className="font-title-md text-sm">
-              Student Directory
-            </span>
-          </Link>
-
-          <Link
-            to="/admin/attendance"
-            className="flex items-center gap-3 text-on-surface-variant mx-2 px-4 py-2.5 rounded-xl hover:bg-surface-container-high transition-all"
-          >
-            <span className="material-symbols-outlined">
-              fact_check
-            </span>
-
-            <span className="font-title-md text-sm">
-              Attendance
-            </span>
-          </Link>
-
-        </nav>
-
-      </aside>
+      <AdminSidebar />
 
       {/* MAIN */}
 

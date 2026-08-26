@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
+import AdminSidebar from "../../components/admin/AdminSidebar";
 
 const API_URL = "http://localhost:5000";
 
@@ -373,6 +374,10 @@ export default function UpdateAttendance() {
   return (
     <div className="bg-background text-on-background font-body-md min-h-screen flex flex-col pb-[64px] md:pb-12">
 
+      <AdminSidebar />
+
+      <main className="md:ml-[280px] min-h-screen flex flex-col">
+
       {/* =================================================
           TOP NAVIGATION BAR
       ================================================= */}
@@ -418,90 +423,18 @@ export default function UpdateAttendance() {
           MAIN
       ================================================= */}
 
-      <main className="flex-1 max-w-[1440px] mx-auto w-full p-4 md:p-8 grid grid-cols-1 md:grid-cols-12 gap-6 items-start pt-6">
+      <div className="flex-1 max-w-[1440px] mx-auto w-full p-4 md:p-8 flex flex-col gap-6 pt-6">
 
         {/* =================================================
             SIDEBAR
         ================================================= */}
 
-        <nav className="hidden md:flex flex-col py-6 bg-surface border border-outline-variant rounded-2xl shadow-sm col-span-3">
-
-          <div className="px-4 mb-4">
-
-            <div className="flex items-center gap-3">
-
-              <div className="w-10 h-10 rounded-xl bg-primary-container text-on-primary-container flex items-center justify-center font-bold">
-                AD
-              </div>
-
-              <div>
-
-                <div className="font-title-md font-bold text-primary text-sm">
-                  Admin Portal
-                </div>
-
-                <div className="font-label-caps text-outline text-xs">
-                  Academic Office
-                </div>
-
-              </div>
-
-            </div>
-
-          </div>
-
-          <Link
-            to="/admin"
-            className="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-high mx-2 px-4 py-2.5 rounded-xl transition-all"
-          >
-            <span className="material-symbols-outlined">
-              dashboard
-            </span>
-
-            <span>
-              Dashboard
-            </span>
-          </Link>
-
-          <Link
-            to="/admin/attendance"
-            className="flex items-center gap-3 bg-secondary-container text-on-secondary-container rounded-xl mx-2 px-4 py-2.5 font-bold transition-all"
-          >
-            <span
-              className="material-symbols-outlined"
-              style={{
-                fontVariationSettings:
-                  "'FILL' 1",
-              }}
-            >
-              fact_check
-            </span>
-
-            <span>
-              Attendance
-            </span>
-          </Link>
-
-          <Link
-            to="/admin/students"
-            className="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-high mx-2 px-4 py-2.5 rounded-xl transition-all"
-          >
-            <span className="material-symbols-outlined">
-              groups
-            </span>
-
-            <span>
-              Students
-            </span>
-          </Link>
-
-        </nav>
 
         {/* =================================================
             CONTENT
         ================================================= */}
 
-        <div className="col-span-1 md:col-span-9 flex flex-col gap-6">
+        <div className="flex flex-col gap-6">
 
           {/* ERROR */}
 
@@ -805,6 +738,8 @@ export default function UpdateAttendance() {
           </section>
 
         </div>
+
+      </div>
 
       </main>
 

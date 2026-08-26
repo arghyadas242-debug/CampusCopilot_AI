@@ -4,19 +4,19 @@ import AdminSidebar from "../../components/admin/AdminSidebar";
 
 const API_URL = "http://localhost:5000";
 
-export default function AssignmentManagement() {
-  const [assignments, setAssignments] = useState([]);
+export default function ExamManagement() {
+  const [exams, setExams] = useState([]);
   const [students, setStudents] = useState([]);
   const [subjects, setSubjects] = useState([]);
 
   const [formData, setFormData] = useState({
     studentRoll: "",
     subjectCode: "",
-    title: "",
-    description: "",
-    dueDate: "",
-    priority: "medium",
-    status: "pending",
+    examDate: "",
+    startTime: "",
+    endTime: "",
+    room: "",
+    examType: "",
   });
 
   const [editingId, setEditingId] = useState(null);
@@ -29,7 +29,7 @@ export default function AssignmentManagement() {
   const [success, setSuccess] = useState("");
 
   // =====================================================
-  // FORMAT ORACLE DATE FOR <input type="date">
+  // FORMAT DATE FOR INPUT
   // =====================================================
 
   const formatDateForInput = (value) => {
@@ -62,7 +62,7 @@ export default function AssignmentManagement() {
 
   const formatDateForDisplay = (value) => {
     if (!value) {
-      return "No due date";
+      return "No date";
     }
 
     const date = new Date(value);
@@ -79,7 +79,39 @@ export default function AssignmentManagement() {
   };
 
   // =====================================================
-  // LOAD ALL DATA
+  // FORMAT TIME
+  // =====================================================
+
+  const formatTimeForInput = (value) => {
+    if (!value) {
+      return "";
+    }
+
+    const text = String(value);
+
+    if (/^\d{2}:\d{2}/.test(text)) {
+      return text.slice(0, 5);
+    }
+
+    const date = new Date(value);
+
+    if (!Number.isNaN(date.getTime())) {
+      const hours = String(
+        date.getHours()
+      ).padStart(2, "0");
+
+      const minutes = String(
+        date.getMinutes()
+      ).padStart(2, "0");
+
+      return `${hours}:${minutes}`;
+    }
+
+    return "";
+  };
+
+  // =====================================================
+  // LOAD EXAMS + STUDENTS + SUBJECTS
   // =====================================================
 
   const loadData = async () => {
@@ -88,12 +120,12 @@ export default function AssignmentManagement() {
       setError("");
 
       const [
-        assignmentsResponse,
+        examsResponse,
         studentsResponse,
         subjectsResponse,
       ] = await Promise.all([
         fetch(
-          `${API_URL}/api/admin/assignments`
+          `${API_URL}/api/admin/exams`
         ),
 
         fetch(
@@ -105,8 +137,8 @@ export default function AssignmentManagement() {
         ),
       ]);
 
-      const assignmentsData =
-        await assignmentsResponse.json();
+      const examsData =
+        await examsResponse.json();
 
       const studentsData =
         await studentsResponse.json();
@@ -114,10 +146,10 @@ export default function AssignmentManagement() {
       const subjectsData =
         await subjectsResponse.json();
 
-      if (!assignmentsResponse.ok) {
+      if (!examsResponse.ok) {
         throw new Error(
-          assignmentsData.error ||
-            "Unable to load assignments"
+          examsData.error ||
+            "Unable to load exams"
         );
       }
 
@@ -135,9 +167,9 @@ export default function AssignmentManagement() {
         );
       }
 
-      setAssignments(
-        Array.isArray(assignmentsData)
-          ? assignmentsData
+      setExams(
+        Array.isArray(examsData)
+          ? examsData
           : []
       );
 
@@ -154,13 +186,13 @@ export default function AssignmentManagement() {
       );
     } catch (err) {
       console.error(
-        "Assignment management load error:",
+        "Exam management load error:",
         err
       );
 
       setError(
         err.message ||
-          "Unable to load assignment data."
+          "Unable to load exam data."
       );
     } finally {
       setLoading(false);
@@ -194,16 +226,16 @@ export default function AssignmentManagement() {
     setFormData({
       studentRoll: "",
       subjectCode: "",
-      title: "",
-      description: "",
-      dueDate: "",
-      priority: "medium",
-      status: "pending",
+      examDate: "",
+      startTime: "",
+      endTime: "",
+      room: "",
+      examType: "",
     });
   };
 
   // =====================================================
-  // ADD / UPDATE ASSIGNMENT
+  // ADD / UPDATE EXAM
   // =====================================================
 
   const handleSubmit = async (e) => {
@@ -212,11 +244,23 @@ export default function AssignmentManagement() {
     if (
       !formData.studentRoll ||
       !formData.subjectCode ||
-      !formData.title.trim() ||
-      !formData.dueDate
+      !formData.examDate ||
+      !formData.startTime ||
+      !formData.endTime ||
+      !formData.examType.trim()
     ) {
       setError(
-        "Student, subject, title and due date are required."
+        "Student, subject, exam date, start time, end time and exam type are required."
+      );
+
+      return;
+    }
+
+    if (
+      formData.endTime <= formData.startTime
+    ) {
+      setError(
+        "End time must be later than start time."
       );
 
       return;
@@ -232,8 +276,8 @@ export default function AssignmentManagement() {
         editingId !== null;
 
       const url = isEditing
-        ? `${API_URL}/api/admin/assignments/${editingId}`
-        : `${API_URL}/api/admin/assignments`;
+        ? `${API_URL}/api/admin/exams/${editingId}`
+        : `${API_URL}/api/admin/exams`;
 
       const response = await fetch(url, {
         method: isEditing
@@ -252,20 +296,20 @@ export default function AssignmentManagement() {
           subjectCode:
             formData.subjectCode,
 
-          title:
-            formData.title,
+          examDate:
+            formData.examDate,
 
-          description:
-            formData.description,
+          startTime:
+            formData.startTime,
 
-          dueDate:
-            formData.dueDate,
+          endTime:
+            formData.endTime,
 
-          priority:
-            formData.priority,
+          room:
+            formData.room,
 
-          status:
-            formData.status,
+          examType:
+            formData.examType,
         }),
       });
 
@@ -275,14 +319,14 @@ export default function AssignmentManagement() {
       if (!response.ok) {
         throw new Error(
           data.error ||
-            "Unable to save assignment"
+            "Unable to save exam"
         );
       }
 
       setSuccess(
         isEditing
-          ? "Assignment updated successfully."
-          : "Assignment created successfully."
+          ? "Exam updated successfully."
+          : "Exam created successfully."
       );
 
       resetForm();
@@ -290,13 +334,13 @@ export default function AssignmentManagement() {
       await loadData();
     } catch (err) {
       console.error(
-        "Save assignment error:",
+        "Save exam error:",
         err
       );
 
       setError(
         err.message ||
-          "Unable to save assignment."
+          "Unable to save exam."
       );
     } finally {
       setSaving(false);
@@ -304,43 +348,39 @@ export default function AssignmentManagement() {
   };
 
   // =====================================================
-  // EDIT ASSIGNMENT
+  // EDIT EXAM
   // =====================================================
 
-  const handleEdit = (assignment) => {
-    setEditingId(
-      assignment.ID
-    );
+  const handleEdit = (exam) => {
+    setEditingId(exam.ID);
 
     setFormData({
       studentRoll:
-        assignment.STUDENT_ROLL || "",
+        exam.STUDENT_ROLL || "",
 
       subjectCode:
-        assignment.SUBJECT_CODE || "",
+        exam.SUBJECT_CODE || "",
 
-      title:
-        assignment.TITLE || "",
-
-      description:
-        assignment.DESCRIPTION || "",
-
-      dueDate:
+      examDate:
         formatDateForInput(
-          assignment.DUE_DATE
+          exam.EXAM_DATE
         ),
 
-      priority:
-        (
-          assignment.PRIORITY ||
-          "medium"
-        ).toLowerCase(),
+      startTime:
+        formatTimeForInput(
+          exam.START_TIME
+        ),
 
-      status:
-        (
-          assignment.STATUS ||
-          "pending"
-        ).toLowerCase(),
+      endTime:
+        formatTimeForInput(
+          exam.END_TIME
+        ),
+
+      room:
+        exam.ROOM || "",
+
+      examType:
+        exam.EXAM_TYPE || "",
     });
 
     setError("");
@@ -353,15 +393,13 @@ export default function AssignmentManagement() {
   };
 
   // =====================================================
-  // DELETE ASSIGNMENT
+  // DELETE EXAM
   // =====================================================
 
-  const handleDelete = async (
-    assignment
-  ) => {
+  const handleDelete = async (exam) => {
     const confirmed =
       window.confirm(
-        `Are you sure you want to delete "${assignment.TITLE}"?`
+        `Are you sure you want to delete this ${exam.EXAM_TYPE} exam for ${exam.STUDENT_NAME}?`
       );
 
     if (!confirmed) {
@@ -369,15 +407,13 @@ export default function AssignmentManagement() {
     }
 
     try {
-      setDeletingId(
-        assignment.ID
-      );
+      setDeletingId(exam.ID);
 
       setError("");
       setSuccess("");
 
       const response = await fetch(
-        `${API_URL}/api/admin/assignments/${assignment.ID}`,
+        `${API_URL}/api/admin/exams/${exam.ID}`,
         {
           method: "DELETE",
         }
@@ -389,77 +425,32 @@ export default function AssignmentManagement() {
       if (!response.ok) {
         throw new Error(
           data.error ||
-            "Unable to delete assignment"
+            "Unable to delete exam"
         );
       }
 
-      if (
-        editingId === assignment.ID
-      ) {
+      if (editingId === exam.ID) {
         resetForm();
       }
 
       setSuccess(
-        "Assignment deleted successfully."
+        "Exam deleted successfully."
       );
 
       await loadData();
     } catch (err) {
       console.error(
-        "Delete assignment error:",
+        "Delete exam error:",
         err
       );
 
       setError(
         err.message ||
-          "Unable to delete assignment."
+          "Unable to delete exam."
       );
     } finally {
       setDeletingId(null);
     }
-  };
-
-  // =====================================================
-  // PRIORITY STYLE
-  // =====================================================
-
-  const getPriorityClass = (
-    priority
-  ) => {
-    const value =
-      String(priority || "")
-        .toLowerCase();
-
-    if (value === "high") {
-      return "bg-error-container text-on-error-container";
-    }
-
-    if (value === "low") {
-      return "bg-surface-container-high text-on-surface-variant";
-    }
-
-    return "bg-secondary-container text-on-secondary-container";
-  };
-
-  // =====================================================
-  // STATUS STYLE
-  // =====================================================
-
-  const getStatusClass = (
-    status
-  ) => {
-    const value =
-      String(status || "")
-        .toLowerCase();
-
-    if (
-      value === "completed" ||
-      value === "submitted"
-    ) {
-      return "bg-secondary-container text-on-secondary-container";
-    }
-
-    return "bg-primary-container text-on-primary-container";
   };
 
   // =====================================================
@@ -473,9 +464,7 @@ export default function AssignmentManagement() {
 
       <main className="md:ml-[280px] min-h-screen flex flex-col">
 
-      {/* =================================================
-          HEADER
-      ================================================= */}
+      {/* HEADER */}
 
       <header className="sticky top-0 w-full z-40 bg-surface border-b border-outline-variant shadow-xs">
 
@@ -493,7 +482,7 @@ export default function AssignmentManagement() {
             </Link>
 
             <h1 className="font-headline-lg-mobile md:font-headline-lg font-bold text-primary">
-              Assignment Management
+              Exam Management
             </h1>
 
           </div>
@@ -501,11 +490,11 @@ export default function AssignmentManagement() {
           <div className="flex items-center gap-2 bg-surface-container-low px-3 py-1.5 rounded-full border border-outline-variant text-xs">
 
             <span className="material-symbols-outlined text-primary text-base">
-              assignment
+              event_note
             </span>
 
             <span className="font-semibold text-on-surface">
-              {assignments.length} Assignments
+              {exams.length} Exams
             </span>
 
           </div>
@@ -514,20 +503,14 @@ export default function AssignmentManagement() {
 
       </header>
 
-      {/* =================================================
-          MAIN
-      ================================================= */}
+      {/* MAIN */}
 
       <div className="flex-1 max-w-[1440px] mx-auto w-full p-4 md:p-8 flex flex-col gap-6 pt-6">
 
-        {/* =================================================
-            SIDEBAR
-        ================================================= */}
+        {/* SIDEBAR */}
 
 
-        {/* =================================================
-            CONTENT
-        ================================================= */}
+        {/* CONTENT */}
 
         <div className="flex flex-col gap-6">
 
@@ -559,9 +542,7 @@ export default function AssignmentManagement() {
             </div>
           )}
 
-          {/* =================================================
-              ADD / EDIT FORM
-          ================================================= */}
+          {/* ADD / EDIT EXAM */}
 
           <section className="bg-surface-container-lowest rounded-2xl border border-outline-variant/70 p-5 md:p-6 shadow-sm">
 
@@ -571,14 +552,14 @@ export default function AssignmentManagement() {
 
                 <h2 className="font-title-md font-bold text-on-surface text-lg">
                   {editingId
-                    ? "Edit Assignment"
-                    : "Add New Assignment"}
+                    ? "Edit Exam"
+                    : "Add New Exam"}
                 </h2>
 
                 <p className="text-xs text-on-surface-variant mt-1">
                   {editingId
-                    ? "Update the selected assignment."
-                    : "Create an assignment for a student."}
+                    ? "Update the selected examination schedule."
+                    : "Create a new examination schedule for a student."}
                 </p>
 
               </div>
@@ -588,7 +569,7 @@ export default function AssignmentManagement() {
                 <span className="material-symbols-outlined">
                   {editingId
                     ? "edit"
-                    : "assignment_add"}
+                    : "event_note"}
                 </span>
 
               </div>
@@ -698,67 +679,22 @@ export default function AssignmentManagement() {
 
               </div>
 
-              {/* Title */}
+              {/* Exam Date + Exam Type */}
 
-              <div className="flex flex-col gap-1">
-
-                <label className="font-label-caps text-outline text-xs uppercase">
-                  Assignment Title
-                </label>
-
-                <input
-                  className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
-                  name="title"
-                  value={
-                    formData.title
-                  }
-                  onChange={
-                    handleChange
-                  }
-                  placeholder="Example: DBMS Lab Report"
-                  required
-                />
-
-              </div>
-
-              {/* Description */}
-
-              <div className="flex flex-col gap-1">
-
-                <label className="font-label-caps text-outline text-xs uppercase">
-                  Description
-                </label>
-
-                <textarea
-                  className="w-full min-h-[100px] rounded-xl border border-outline-variant bg-surface-container-low p-3 text-sm text-on-surface focus:outline-none focus:border-primary resize-y"
-                  name="description"
-                  value={
-                    formData.description
-                  }
-                  onChange={
-                    handleChange
-                  }
-                  placeholder="Enter assignment instructions..."
-                />
-
-              </div>
-
-              {/* Date + Priority + Status */}
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
                 <div className="flex flex-col gap-1">
 
                   <label className="font-label-caps text-outline text-xs uppercase">
-                    Due Date
+                    Exam Date
                   </label>
 
                   <input
                     type="date"
                     className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
-                    name="dueDate"
+                    name="examDate"
                     value={
-                      formData.dueDate
+                      formData.examDate
                     }
                     onChange={
                       handleChange
@@ -771,60 +707,42 @@ export default function AssignmentManagement() {
                 <div className="flex flex-col gap-1">
 
                   <label className="font-label-caps text-outline text-xs uppercase">
-                    Priority
+                    Exam Type
                   </label>
 
                   <select
                     className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
-                    name="priority"
+                    name="examType"
                     value={
-                      formData.priority
+                      formData.examType
                     }
                     onChange={
                       handleChange
                     }
+                    required
                   >
-                    <option value="low">
-                      Low
+                    <option value="">
+                      Select Exam Type
                     </option>
 
-                    <option value="medium">
-                      Medium
+                    <option value="Class Test">
+                      Class Test
                     </option>
 
-                    <option value="high">
-                      High
-                    </option>
-                  </select>
-
-                </div>
-
-                <div className="flex flex-col gap-1">
-
-                  <label className="font-label-caps text-outline text-xs uppercase">
-                    Status
-                  </label>
-
-                  <select
-                    className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
-                    name="status"
-                    value={
-                      formData.status
-                    }
-                    onChange={
-                      handleChange
-                    }
-                  >
-                    <option value="pending">
-                      Pending
+                    <option value="Mid Semester">
+                      Mid Semester
                     </option>
 
-                    <option value="submitted">
-                      Submitted
+                    <option value="End Semester">
+                      End Semester
                     </option>
 
-                    <option value="completed">
-                      Completed
+                    <option value="Practical">
+                      Practical
+                    </option>
+
+                    <option value="Viva">
+                      Viva
                     </option>
                   </select>
 
@@ -832,16 +750,82 @@ export default function AssignmentManagement() {
 
               </div>
 
-              {/* Buttons */}
+              {/* Start + End + Room */}
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+
+                <div className="flex flex-col gap-1">
+
+                  <label className="font-label-caps text-outline text-xs uppercase">
+                    Start Time
+                  </label>
+
+                  <input
+                    type="time"
+                    className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
+                    name="startTime"
+                    value={
+                      formData.startTime
+                    }
+                    onChange={
+                      handleChange
+                    }
+                    required
+                  />
+
+                </div>
+
+                <div className="flex flex-col gap-1">
+
+                  <label className="font-label-caps text-outline text-xs uppercase">
+                    End Time
+                  </label>
+
+                  <input
+                    type="time"
+                    className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
+                    name="endTime"
+                    value={
+                      formData.endTime
+                    }
+                    onChange={
+                      handleChange
+                    }
+                    required
+                  />
+
+                </div>
+
+                <div className="flex flex-col gap-1">
+
+                  <label className="font-label-caps text-outline text-xs uppercase">
+                    Room
+                  </label>
+
+                  <input
+                    className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
+                    name="room"
+                    value={
+                      formData.room
+                    }
+                    onChange={
+                      handleChange
+                    }
+                    placeholder="Room 302"
+                  />
+
+                </div>
+
+              </div>
+
+              {/* BUTTONS */}
 
               <div className="mt-3 flex justify-end gap-3">
 
                 {editingId && (
                   <button
                     type="button"
-                    onClick={
-                      resetForm
-                    }
+                    onClick={resetForm}
                     className="px-5 py-2.5 border border-outline-variant text-on-surface-variant font-bold text-sm rounded-xl hover:bg-surface-container-low transition-all"
                   >
                     Cancel
@@ -862,7 +846,7 @@ export default function AssignmentManagement() {
                     ? "Saving..."
                     : editingId
                     ? "Save Changes"
-                    : "Add Assignment"}
+                    : "Add Exam"}
 
                 </button>
 
@@ -872,9 +856,7 @@ export default function AssignmentManagement() {
 
           </section>
 
-          {/* =================================================
-              ASSIGNMENT LIST
-          ================================================= */}
+          {/* EXAM LIST */}
 
           <section className="bg-surface-container-lowest rounded-2xl border border-outline-variant/70 p-5 md:p-6 shadow-sm">
 
@@ -883,188 +865,167 @@ export default function AssignmentManagement() {
               <div>
 
                 <h2 className="font-title-md font-bold text-on-surface text-lg">
-                  Current Assignments
+                  Examination Schedule
                 </h2>
 
                 <p className="text-xs text-on-surface-variant mt-1">
-                  Assignments currently stored in the academic database.
+                  Exams currently stored in the academic database.
                 </p>
 
               </div>
 
               <span className="px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full text-xs font-bold">
-                {assignments.length} Total
+                {exams.length} Total
               </span>
 
             </div>
 
             {loading && (
               <div className="py-10 text-center text-sm text-on-surface-variant">
-                Loading assignments...
+                Loading exams...
               </div>
             )}
 
             {!loading &&
-              assignments.length === 0 && (
+              exams.length === 0 && (
                 <div className="py-10 text-center">
 
                   <span className="material-symbols-outlined text-5xl text-outline">
-                    assignment
+                    event_note
                   </span>
 
                   <p className="text-sm text-on-surface-variant mt-2">
-                    No assignments found.
+                    No exams found.
                   </p>
 
                 </div>
               )}
 
             {!loading &&
-              assignments.length > 0 && (
+              exams.length > 0 && (
                 <div className="flex flex-col divide-y divide-surface-variant">
 
-                  {assignments.map(
-                    (assignment) => (
+                  {exams.map((exam) => (
 
-                      <div
-                        key={
-                          assignment.ID
-                        }
-                        className="py-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4"
-                      >
+                    <div
+                      key={exam.ID}
+                      className="py-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+                    >
 
-                        <div className="flex-1">
+                      <div className="flex-1">
 
-                          <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
 
-                            <h3 className="font-bold text-on-surface">
-                              {
-                                assignment.TITLE
-                              }
-                            </h3>
+                          <h3 className="font-bold text-on-surface">
+                            {exam.SUBJECT_NAME}
+                          </h3>
 
-                            <span className="px-2 py-0.5 bg-primary-container text-on-primary-container rounded-lg text-xs font-bold">
-                              {
-                                assignment.SUBJECT_CODE
-                              }
-                            </span>
+                          <span className="px-2 py-0.5 bg-primary-container text-on-primary-container rounded-lg text-xs font-bold">
+                            {exam.SUBJECT_CODE}
+                          </span>
 
-                            <span
-                              className={`px-2 py-0.5 rounded-lg text-xs font-bold ${getPriorityClass(
-                                assignment.PRIORITY
-                              )}`}
-                            >
-                              {assignment.PRIORITY ||
-                                "Medium"}
-                            </span>
-
-                            <span
-                              className={`px-2 py-0.5 rounded-lg text-xs font-bold capitalize ${getStatusClass(
-                                assignment.STATUS
-                              )}`}
-                            >
-                              {assignment.STATUS ||
-                                "pending"}
-                            </span>
-
-                          </div>
-
-                          <p className="text-sm text-on-surface-variant">
-                            {
-                              assignment.DESCRIPTION
-                            }
-                          </p>
-
-                          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-outline">
-
-                            <span className="flex items-center gap-1">
-
-                              <span className="material-symbols-outlined text-[15px]">
-                                person
-                              </span>
-
-                              {
-                                assignment.STUDENT_NAME
-                              }
-
-                              {" ("}
-
-                              {
-                                assignment.STUDENT_ROLL
-                              }
-
-                              {")"}
-
-                            </span>
-
-                            <span className="flex items-center gap-1">
-
-                              <span className="material-symbols-outlined text-[15px]">
-                                calendar_month
-                              </span>
-
-                              Due:{" "}
-                              {formatDateForDisplay(
-                                assignment.DUE_DATE
-                              )}
-
-                            </span>
-
-                          </div>
+                          <span className="px-2 py-0.5 bg-secondary-container text-on-secondary-container rounded-lg text-xs font-bold">
+                            {exam.EXAM_TYPE}
+                          </span>
 
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-on-surface-variant">
 
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleEdit(
-                                assignment
-                              )
-                            }
-                            className="px-4 py-2 border border-outline-variant rounded-xl text-sm font-semibold text-on-surface-variant hover:bg-surface-container-low flex items-center gap-2 transition-all"
-                          >
+                          <span className="flex items-center gap-1">
 
-                            <span className="material-symbols-outlined text-[18px]">
-                              edit
+                            <span className="material-symbols-outlined text-[16px]">
+                              person
                             </span>
 
-                            Edit
+                            {exam.STUDENT_NAME}
+                            {" ("}
+                            {exam.STUDENT_ROLL}
+                            {")"}
 
-                          </button>
+                          </span>
 
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleDelete(
-                                assignment
-                              )
-                            }
-                            disabled={
-                              deletingId ===
-                              assignment.ID
-                            }
-                            className="px-4 py-2 border border-error text-error rounded-xl text-sm font-semibold hover:bg-error-container flex items-center gap-2 transition-all disabled:opacity-50"
-                          >
+                          <span className="flex items-center gap-1">
 
-                            <span className="material-symbols-outlined text-[18px]">
-                              delete
+                            <span className="material-symbols-outlined text-[16px]">
+                              calendar_month
                             </span>
 
-                            {deletingId ===
-                            assignment.ID
-                              ? "Deleting..."
-                              : "Delete"}
+                            {formatDateForDisplay(
+                              exam.EXAM_DATE
+                            )}
 
-                          </button>
+                          </span>
+
+                          <span className="flex items-center gap-1">
+
+                            <span className="material-symbols-outlined text-[16px]">
+                              schedule
+                            </span>
+
+                            {exam.START_TIME}
+                            {" - "}
+                            {exam.END_TIME}
+
+                          </span>
+
+                          <span className="flex items-center gap-1">
+
+                            <span className="material-symbols-outlined text-[16px]">
+                              meeting_room
+                            </span>
+
+                            {exam.ROOM ||
+                              "Room not assigned"}
+
+                          </span>
 
                         </div>
 
                       </div>
 
-                    )
-                  )}
+                      <div className="flex items-center gap-2">
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleEdit(exam)
+                          }
+                          className="px-4 py-2 border border-outline-variant rounded-xl text-sm font-semibold text-on-surface-variant hover:bg-surface-container-low flex items-center gap-2 transition-all"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">
+                            edit
+                          </span>
+
+                          Edit
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleDelete(exam)
+                          }
+                          disabled={
+                            deletingId ===
+                            exam.ID
+                          }
+                          className="px-4 py-2 border border-error text-error rounded-xl text-sm font-semibold hover:bg-error-container flex items-center gap-2 transition-all disabled:opacity-50"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">
+                            delete
+                          </span>
+
+                          {deletingId ===
+                          exam.ID
+                            ? "Deleting..."
+                            : "Delete"}
+                        </button>
+
+                      </div>
+
+                    </div>
+
+                  ))}
 
                 </div>
               )}

@@ -12,7 +12,15 @@ const timetableRoutes = require("./routes/timetableRoutes");
 const adminAssignmentRoutes = require("./routes/adminAssigmentRoutes");
 const subjectRoutes = require("./routes/subjectRoutes");
 const adminRoutes = require("./routes/adminRoutes");
+const adminExamRoutes =
+  require("./routes/adminExamRoutes");
+const adminTimetableRoutes =
+  require("./routes/adminTimetableRoutes");
+const adminNoticeRoutes =
+  require("./routes/adminNoticeRoutes");
 const noticeRoutes = require("./routes/noticeRoutes");
+const adminResourceRoutes =
+  require("./routes/adminResourceRoutes");
 const studentRoutes = require("./routes/studentRoutes");
 const assignmentRoutes = require("./routes/assignmentRoutes");
 
@@ -31,10 +39,22 @@ app.use("/api/attendance", attendanceRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/admin/assignments", adminAssignmentRoutes);
 app.use("/api/notices", noticeRoutes);
+app.use(
+  "/api/admin/resources",
+  adminResourceRoutes
+);
 app.use("/api/students", studentRoutes);
 app.use("/api/assignments", assignmentRoutes);
+app.use(
+  "/api/admin/timetable",
+  adminTimetableRoutes
+);
+app.use(
+  "/api/admin/notices",
+  adminNoticeRoutes
+);
 app.use("/api/exams", examRoutes);
-
+app.use("/api/admin/exams", adminExamRoutes);
 // Root Route
 app.get("/", (req, res) => {
   res.json({

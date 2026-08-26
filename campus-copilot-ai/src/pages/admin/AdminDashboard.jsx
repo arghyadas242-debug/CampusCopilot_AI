@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { authService } from "../../services/api";
+import AdminSidebar from "../../components/admin/AdminSidebar";
 
 const API_URL = "http://localhost:5000";
 
@@ -139,6 +140,10 @@ export default function AdminDashboard() {
   return (
     <div className="bg-background text-on-background min-h-screen pb-[80px] md:pb-12 font-body-md">
 
+      <AdminSidebar />
+
+      <main className="md:ml-[280px] min-h-screen flex flex-col">
+
       {/* =================================================
           ADMIN TOP BAR
       ================================================= */}
@@ -219,7 +224,7 @@ export default function AdminDashboard() {
           MAIN CONTENT
       ================================================= */}
 
-      <main className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin-desktop pt-md flex flex-col gap-lg">
+      <div className="max-w-[1440px] mx-auto w-full px-margin-mobile md:px-margin-desktop pt-md flex flex-col gap-lg">
 
         {/* ===============================================
             BANNER
@@ -634,7 +639,7 @@ export default function AdminDashboard() {
 
         </section>
 
-      </main>
+      </div>
 
       {/* =================================================
           MOBILE ADMIN NAVIGATION
@@ -691,6 +696,8 @@ export default function AdminDashboard() {
         </button>
 
       </nav>
+
+      </main>
 
     </div>
   );
