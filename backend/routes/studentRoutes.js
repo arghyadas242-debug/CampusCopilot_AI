@@ -813,5 +813,184 @@ router.put("/:studentRoll", async (req, res) => {
   }
 });
 
+// =====================================================
+// DELETE STUDENT
+// DELETE /api/students/:studentRoll
+// =====================================================
+
+router.delete("/:studentRoll", async (req, res) => {
+  let connection;
+
+  try {
+    const studentRoll =
+      req.params.studentRoll.trim();
+
+    connection = await getConnection();
+
+    // Find student
+    const studentResult =
+      await connection.execute(
+        `
+        SELECT
+          student_id,
+          name,
+          email,
+          student_roll
+        FROM students
+        WHERE LOWER(student_roll) =
+              LOWER(:studentRoll)
+        `,
+        {
+          studentRoll,
+        },
+        {
+          outFormat:
+            oracledb.OUT_FORMAT_OBJECT,
+        }
+      );
+
+    if (studentResult.rows.length === 0) {
+      return res.status(404).json({
+        error: "Student not found",
+      });
+    }
+
+    const student =
+      studentResult.rows[0];
+
+    // Delete attendance
+    await connection.execute(
+      `
+      DELETE FROM attendance
+      WHERE LOWER(student_roll) =
+            LOWER(:studentRoll)
+      `,
+      {
+        studentRoll,
+      }
+    );
+
+    // Delete assignments
+    await connection.execute(
+      `
+      DELETE FROM assignments
+      WHERE LOWER(student_roll) =
+            LOWER(:studentRoll)
+      `,
+      {
+        studentRoll,
+      }
+    );
+
+    // Delete timetable
+    await connection.execute(
+      `
+      DELETE FROM timetable
+      WHERE LOWER(student_roll) =
+            LOWER(:studentRoll)
+      `,
+      {
+        studentRoll,
+      }
+    );
+
+    // Delete exams
+    await connection.execute(
+      `
+      DELETE FROM exams
+      WHERE LOWER(student_roll) =
+            LOWER(:studentRoll)
+      `,
+      {
+        studentRoll,
+      }
+    );
+
+    // Delete student
+    await connection.execute(
+      `
+      DELETE FROM students
+      WHERE LOWER(student_roll) =
+            LOWER(:studentRoll)
+      `,
+      {
+        studentRoll,
+      }
+    );
+
+    // Delete login account
+    await connection.execute(
+      `
+      DELETE FROM users
+      WHERE LOWER(email) =
+            LOWER(:email)
+        AND LOWER(role) = 'student'
+      `,
+      {
+        email: student.EMAIL,
+      }
+    );
+
+    await connection.commit();
+
+    return res.json({
+      message:
+        "Student deleted successfully",
+
+      student: {
+        studentId:
+          student.STUDENT_ID,
+
+        name:
+          student.NAME,
+
+        email:
+          student.EMAIL,
+
+        studentRoll:
+          student.STUDENT_ROLL,
+      },
+    });
+
+  } catch (error) {
+
+    if (connection) {
+      try {
+        await connection.rollback();
+      } catch (rollbackError) {
+        console.error(
+          "Rollback error:",
+          rollbackError
+        );
+      }
+    }
+
+    console.error(
+      "Delete student error:",
+      error
+    );
+
+    return res.status(500).json({
+      error:
+        "Unable to delete student",
+
+      details:
+        error.message,
+    });
+
+  } finally {
+
+    if (connection) {
+      try {
+        await connection.close();
+      } catch (closeError) {
+        console.error(
+          "Connection close error:",
+          closeError
+        );
+      }
+    }
+  }
+});
 
 module.exports = router;
