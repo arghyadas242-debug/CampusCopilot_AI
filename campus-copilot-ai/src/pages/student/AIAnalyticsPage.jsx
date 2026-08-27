@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import StudentNotificationBell from "./StudentNotificationBell";
 
 export default function AIAnalyticsPage() {
   const subjectScores = [
@@ -39,9 +40,12 @@ export default function AIAnalyticsPage() {
           </Link>
           <span className="font-headline-lg-mobile md:font-headline-lg font-bold text-primary">CampusCopilot</span>
         </div>
-        <Link to="/dashboard" className="text-xs font-semibold text-primary px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20">
-          Dashboard
-        </Link>
+        <div className="flex items-center gap-2">
+          <StudentNotificationBell />
+          <Link to="/dashboard" className="text-xs font-semibold text-primary px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20">
+            Dashboard
+          </Link>
+        </div>
       </header>
 
       {/* Main Content Canvas */}
@@ -161,4 +165,3 @@ export default function AIAnalyticsPage() {
     </div>
   );
 }
-

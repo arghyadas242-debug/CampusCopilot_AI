@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router";
 import { aiService, authService } from "../../services/api";
+import StudentNotificationBell from "./StudentNotificationBell";
 
 export default function AIChatPage() {
   const [messages, setMessages] = useState([
@@ -103,9 +104,10 @@ export default function AIChatPage() {
           </div>
 
           <div className="flex items-center gap-3">
+            <StudentNotificationBell />
             <Link
               to="/dashboard"
-              className="text-xs font-semibold text-primary px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors"
+              className="hidden sm:block text-xs font-semibold text-primary px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors"
             >
               Dashboard
             </Link>

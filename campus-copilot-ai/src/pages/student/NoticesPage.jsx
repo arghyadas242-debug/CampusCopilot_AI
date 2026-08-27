@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router";
 import { authService } from "../../services/api";
+import StudentNotificationBell from "./StudentNotificationBell";
 
 const DEFAULT_NOTICES = [
   {
@@ -158,12 +159,13 @@ export default function NoticesPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <StudentNotificationBell />
           <Link
             to="/ai-chat"
             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-xs font-semibold"
           >
             <span className="material-symbols-outlined text-[18px]">smart_toy</span>
-            Ask Copilot
+            <span className="hidden sm:inline">Ask Copilot</span>
           </Link>
           <Link
             to={backPath}

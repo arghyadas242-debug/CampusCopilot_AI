@@ -12,6 +12,7 @@ import TimetablePage from "./pages/student/TimetablePage";
 import SubjectManagement from "./pages/admin/SubjectManagement";
 import AssignmentsPage from "./pages/student/AssignmentsPage";
 import ExamsPage from "./pages/student/ExamsPage";
+import NotificationsPage from "./pages/student/NotificationsPage";
 import ExamManagement from "./pages/admin/ExamManagement";
 import TimetableManagement from "./pages/admin/TimetableManagement";
 import CollaborationPage from "./pages/student/CollaborationPage";
@@ -24,7 +25,6 @@ import StudentIDPage from "./pages/student/StudentIDPage";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import UpdateAttendance from "./pages/admin/UpdateAttendance";
 import UpdateStudent from "./pages/admin/UpdateStudent";
-import NotificationsPage from "./pages/student/NotificationsPage";
 
 function App() {
   return (

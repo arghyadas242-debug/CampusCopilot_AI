@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { authService } from "../../services/api";
+import StudentNotificationBell from "./StudentNotificationBell";
 
 export default function AssignmentsPage() {
   const [activeTab, setActiveTab] = useState("upcoming");
@@ -405,14 +406,7 @@ export default function AssignmentsPage() {
 
           </div>
 
-          <Link
-            to="/notices"
-            className="text-on-surface-variant hover:opacity-80"
-          >
-            <span className="material-symbols-outlined text-[24px]">
-              notifications
-            </span>
-          </Link>
+          <StudentNotificationBell />
 
         </header>
 
@@ -420,16 +414,22 @@ export default function AssignmentsPage() {
 
         <div className="flex-1 px-margin-mobile md:px-margin-desktop py-md">
 
-          <div className="mb-md">
+          <div className="mb-md flex items-start justify-between gap-4">
 
-            <h2 className="font-headline-lg md:font-display-lg text-on-background font-bold mb-1">
-              Assignments & Tasks
-            </h2>
+            <div>
+              <h2 className="font-headline-lg md:font-display-lg text-on-background font-bold mb-1">
+                Assignments & Tasks
+              </h2>
 
-            <p className="font-body-md text-on-surface-variant">
-              Manage your academic submissions,
-              project deliverables, and lab reports.
-            </p>
+              <p className="font-body-md text-on-surface-variant">
+                Manage your academic submissions,
+                project deliverables, and lab reports.
+              </p>
+            </div>
+
+            <div className="hidden md:block">
+              <StudentNotificationBell />
+            </div>
 
           </div>
 

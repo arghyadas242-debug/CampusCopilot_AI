@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
+import StudentNotificationBell from "./StudentNotificationBell";
 
 const API_URL = "http://localhost:5000";
 
@@ -305,12 +306,15 @@ export default function ResourceHubPage() {
 
         </div>
 
-        <Link
-          to="/dashboard"
-          className="text-xs font-semibold text-primary px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20"
-        >
-          Dashboard
-        </Link>
+        <div className="flex items-center gap-2">
+          <StudentNotificationBell />
+          <Link
+            to="/dashboard"
+            className="text-xs font-semibold text-primary px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20"
+          >
+            Dashboard
+          </Link>
+        </div>
 
       </header>
 

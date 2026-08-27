@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { attendanceService, authService } from "../../services/api";
+import StudentNotificationBell from "./StudentNotificationBell";
 
 export default function AttendancePage() {
   const [attendanceData, setAttendanceData] = useState({
@@ -168,12 +169,15 @@ export default function AttendancePage() {
           </span>
         </div>
 
-        <Link
-          to="/dashboard"
-          className="text-xs font-semibold text-primary px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20"
-        >
-          Dashboard
-        </Link>
+        <div className="flex items-center gap-2">
+          <StudentNotificationBell />
+          <Link
+            to="/dashboard"
+            className="text-xs font-semibold text-primary px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20"
+          >
+            Dashboard
+          </Link>
+        </div>
       </header>
 
       {/* Main Content */}

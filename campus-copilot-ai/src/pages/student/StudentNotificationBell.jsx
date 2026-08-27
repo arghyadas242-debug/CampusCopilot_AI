@@ -1,383 +1,934 @@
-import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
+import {
+  Link,
+  useNavigate,
+} from "react-router";
+
+import { authService } from "../../services/api";
+
 
 const API_URL = "http://localhost:5000";
 
-const DEFAULT_NOTIFICATIONS = [
-  {
-    NOTIFICATION_ID: 1,
-    NOTIFICATION_TYPE: "SYSTEM",
-    TITLE: "AI Study Plan Adjusted",
-    MESSAGE_TEXT:
-      "Your Copilot detected a pattern in your recent quiz scores and suggested shifting focus to Advanced Calculus.",
-    RELATED_TYPE: "AI_PLAN",
-    ACTION_URL: "/ai-chat",
-    IS_READ: 0,
-    CREATED_AT: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
-    isToday: true,
+
+// =====================================================
+// NOTIFICATION TYPE DESIGN
+// =====================================================
+
+const NOTIFICATION_META = {
+  ASSIGNMENT: {
+    icon: "assignment",
+    label: "Assignment",
+    iconClass:
+      "bg-primary/10 text-primary border-primary/20",
   },
-  {
-    NOTIFICATION_ID: 2,
-    NOTIFICATION_TYPE: "ASSIGNMENT",
-    TITLE: "Physics Lab Report Due",
-    MESSAGE_TEXT:
-      "Don't forget to submit your report for Lab 4: Kinematics by 11:59 PM tonight.",
-    RELATED_TYPE: "ASSIGNMENT",
-    ACTION_URL: "/assignments",
-    IS_READ: 0,
-    CREATED_AT: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
-    isToday: true,
+
+  EXAM: {
+    icon: "event_note",
+    label: "Exam",
+    iconClass:
+      "bg-error/10 text-error border-error/20",
   },
-  {
-    NOTIFICATION_ID: 3,
-    NOTIFICATION_TYPE: "EXAM",
-    TITLE: "Midterm Location Changed",
-    MESSAGE_TEXT:
-      "The location for CS201 Midterm has been moved from Hall A to Science Center Auditorium.",
-    RELATED_TYPE: "EXAM",
-    ACTION_URL: "/exams",
-    IS_READ: 1,
-    CREATED_AT: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    isToday: false,
+
+  NOTICE: {
+    icon: "campaign",
+    label: "Notice",
+    iconClass:
+      "bg-secondary-container text-on-secondary-container border-outline-variant/40",
   },
-  {
-    NOTIFICATION_ID: 4,
-    NOTIFICATION_TYPE: "NOTICE",
-    TITLE: "Library Extended Hours",
-    MESSAGE_TEXT:
-      "The Main Library will remain open 24/7 starting next Monday for finals week preparation.",
-    RELATED_TYPE: "NOTICE",
-    ACTION_URL: "/notices",
-    IS_READ: 1,
-    CREATED_AT: new Date(Date.now() - 26 * 60 * 60 * 1000).toISOString(),
-    isToday: false,
+
+  RESOURCE: {
+    icon: "folder_open",
+    label: "Resource",
+    iconClass:
+      "bg-surface-container-high text-primary border-outline-variant/50",
   },
-];
+
+  TIMETABLE: {
+    icon: "calendar_month",
+    label: "Timetable",
+    iconClass:
+      "bg-primary/10 text-primary border-primary/20",
+  },
+
+  ATTENDANCE: {
+    icon: "fact_check",
+    label: "Attendance",
+    iconClass:
+      "bg-error-container text-on-error-container border-error/20",
+  },
+
+  SYSTEM: {
+    icon: "info",
+    label: "System",
+    iconClass:
+      "bg-gradient-to-br from-secondary to-tertiary text-white border-transparent",
+  },
+};
+
+
+// =====================================================
+// NORMALIZE ORACLE RESPONSE
+// =====================================================
+
+function normalizeNotification(item) {
+  return {
+    id:
+      item.NOTIFICATION_ID ??
+      item.notification_id,
+
+    type:
+      item.NOTIFICATION_TYPE ??
+      item.notification_type ??
+      "SYSTEM",
+
+    title:
+      item.TITLE ??
+      item.title ??
+      "Notification",
+
+    message:
+      item.MESSAGE_TEXT ??
+      item.message_text ??
+      "",
+
+    actionUrl:
+      item.ACTION_URL ??
+      item.action_url ??
+      "/notifications",
+
+    isRead:
+      Number(
+        item.IS_READ ??
+          item.is_read ??
+          0
+      ) === 1,
+
+    createdAt:
+      item.CREATED_AT ??
+      item.created_at ??
+      null,
+  };
+}
+
+
+// =====================================================
+// FORMAT RELATIVE TIME
+// =====================================================
+
+function formatRelativeTime(value) {
+  if (!value) {
+    return "Recently";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Recently";
+  }
+
+  const difference =
+    Date.now() - date.getTime();
+
+  const minutes =
+    Math.floor(
+      difference / 60000
+    );
+
+  if (minutes < 1) {
+    return "Just now";
+  }
+
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+
+  const hours =
+    Math.floor(minutes / 60);
+
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+
+  const days =
+    Math.floor(hours / 24);
+
+  if (days === 1) {
+    return "Yesterday";
+  }
+
+  if (days < 7) {
+    return `${days}d ago`;
+  }
+
+  return date.toLocaleDateString(
+    "en-IN",
+    {
+      day: "numeric",
+      month: "short",
+    }
+  );
+}
+
+
+// =====================================================
+// COMPONENT
+// =====================================================
 
 export default function StudentNotificationBell() {
-  const navigate = useNavigate();
-  const [notifications, setNotifications] = useState(DEFAULT_NOTIFICATIONS);
-  const [loading, setLoading] = useState(true);
-  const [studentRoll, setStudentRoll] = useState("12024002037008");
+  const navigate =
+    useNavigate();
 
-  useEffect(() => {
-    try {
-      const storedUser = localStorage.getItem("user");
-      if (storedUser) {
-        const parsed = JSON.parse(storedUser);
-        if (parsed.rollNumber) {
-          setStudentRoll(parsed.rollNumber);
-        }
+  const containerRef =
+    useRef(null);
+
+
+  const [open, setOpen] =
+    useState(false);
+
+  const [notifications, setNotifications] =
+    useState([]);
+
+  const [loading, setLoading] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
+
+
+  // =====================================================
+  // LOGGED-IN STUDENT
+  // =====================================================
+
+  const currentUser =
+    authService.getCurrentUser();
+
+
+  const studentRoll =
+    currentUser?.rollNumber ||
+    currentUser?.studentRoll ||
+    currentUser?.roll_number ||
+    "";
+
+
+  // =====================================================
+  // UNREAD COUNT
+  // =====================================================
+
+  const unreadCount =
+    notifications.filter(
+      (notification) =>
+        !notification.isRead
+    ).length;
+
+
+  // =====================================================
+  // LOAD NOTIFICATIONS
+  // =====================================================
+
+  const loadNotifications =
+    useCallback(async () => {
+
+      if (!studentRoll) {
+        setNotifications([]);
+        setError(
+          "Student information unavailable"
+        );
+
+        return;
       }
-    } catch (e) {}
-  }, []);
 
-  useEffect(() => {
-    async function loadNotifications() {
+
       try {
         setLoading(true);
-        const response = await fetch(`${API_URL}/api/notifications/${encodeURIComponent(studentRoll)}`);
-        if (response.ok) {
-          const data = await response.json();
-          if (Array.isArray(data) && data.length > 0) {
-            setNotifications(data);
-          }
+        setError("");
+
+
+        const response =
+          await fetch(
+            `${API_URL}/api/notifications/${encodeURIComponent(
+              studentRoll
+            )}`
+          );
+
+
+        const data =
+          await response.json();
+
+
+        if (!response.ok) {
+          throw new Error(
+            data.error ||
+              "Unable to load notifications"
+          );
         }
+
+
+        const rawNotifications =
+          Array.isArray(data)
+            ? data
+            : Array.isArray(
+                data.notifications
+              )
+            ? data.notifications
+            : [];
+
+
+        const normalized =
+          rawNotifications.map(
+            normalizeNotification
+          );
+
+
+        setNotifications(
+          normalized
+        );
+
       } catch (err) {
-        console.warn("Notifications using fallback data:", err);
+
+        console.error(
+          "Notification bell load error:",
+          err
+        );
+
+
+        setError(
+          err.message ||
+            "Unable to load notifications"
+        );
+
       } finally {
+
         setLoading(false);
       }
-    }
 
+    }, [studentRoll]);
+
+
+  // =====================================================
+  // INITIAL LOAD
+  // =====================================================
+
+  useEffect(() => {
     loadNotifications();
-  }, [studentRoll]);
+  }, [loadNotifications]);
 
-  const handleMarkAsRead = async (id) => {
-    setNotifications((prev) =>
-      prev.map((item) => (item.NOTIFICATION_ID === id ? { ...item, IS_READ: 1 } : item))
+
+  // =====================================================
+  // POLLING
+  //
+  // Refresh every 30 seconds so new academic
+  // notifications appear without a page reload.
+  // =====================================================
+
+  useEffect(() => {
+
+    if (!studentRoll) {
+      return;
+    }
+
+
+    const interval =
+      window.setInterval(
+        () => {
+          loadNotifications();
+        },
+        30000
+      );
+
+
+    return () => {
+      window.clearInterval(
+        interval
+      );
+    };
+
+  }, [
+    studentRoll,
+    loadNotifications,
+  ]);
+
+
+  // =====================================================
+  // REFRESH WHEN DROPDOWN OPENS
+  // =====================================================
+
+  useEffect(() => {
+
+    if (open) {
+      loadNotifications();
+    }
+
+  }, [
+    open,
+    loadNotifications,
+  ]);
+
+
+  // =====================================================
+  // CLOSE DROPDOWN WHEN CLICKING OUTSIDE
+  // =====================================================
+
+  useEffect(() => {
+
+    const handleOutsideClick =
+      (event) => {
+
+        if (
+          containerRef.current &&
+          !containerRef.current.contains(
+            event.target
+          )
+        ) {
+          setOpen(false);
+        }
+      };
+
+
+    const handleEscape =
+      (event) => {
+
+        if (
+          event.key === "Escape"
+        ) {
+          setOpen(false);
+        }
+      };
+
+
+    document.addEventListener(
+      "mousedown",
+      handleOutsideClick
     );
 
-    try {
-      await fetch(`${API_URL}/api/notifications/${id}/read`, {
-        method: "PATCH",
-      });
-    } catch (err) {
-      console.warn("Could not sync read status with backend:", err);
-    }
-  };
 
-  const handleMarkAllRead = async () => {
-    setNotifications((prev) => prev.map((item) => ({ ...item, IS_READ: 1 })));
-
-    try {
-      await fetch(`${API_URL}/api/notifications/${encodeURIComponent(studentRoll)}/read-all`, {
-        method: "PATCH",
-      });
-    } catch (err) {
-      console.warn("Could not sync mark-all-read status with backend:", err);
-    }
-  };
-
-  const handleDelete = async (e, id) => {
-    e.stopPropagation();
-    setNotifications((prev) => prev.filter((item) => item.NOTIFICATION_ID !== id));
-
-    try {
-      await fetch(`${API_URL}/api/notifications/${id}`, {
-        method: "DELETE",
-      });
-    } catch (err) {
-      console.warn("Could not sync delete with backend:", err);
-    }
-  };
-
-  // Group notifications into Today and Yesterday / Earlier
-  const isNotificationToday = (item) => {
-    if (item.isToday !== undefined) return item.isToday;
-    if (!item.CREATED_AT) return true;
-    const itemDate = new Date(item.CREATED_AT);
-    const today = new Date();
-    return (
-      itemDate.getDate() === today.getDate() &&
-      itemDate.getMonth() === today.getMonth() &&
-      itemDate.getFullYear() === today.getFullYear()
+    document.addEventListener(
+      "keydown",
+      handleEscape
     );
-  };
 
-  const todayList = notifications.filter((n) => isNotificationToday(n));
-  const olderList = notifications.filter((n) => !isNotificationToday(n));
 
-  const formatRelativeTime = (isoString, fallback) => {
-    if (!isoString) return fallback || "Recently";
-    try {
-      const diffMs = Date.now() - new Date(isoString).getTime();
-      const diffMins = Math.floor(diffMs / 60000);
-      if (diffMins < 1) return "Just now";
-      if (diffMins < 60) return `${diffMins}m ago`;
-      const diffHours = Math.floor(diffMins / 60);
-      if (diffHours < 24) return `${diffHours}h ago`;
-      if (diffHours < 48) return "Yesterday";
-      return new Date(isoString).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-    } catch (e) {
-      return fallback || "Recently";
-    }
-  };
+    return () => {
 
-  const getNotificationIcon = (type) => {
-    switch (type) {
-      case "SYSTEM":
-        return (
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-secondary to-tertiary flex items-center justify-center shrink-0 text-white shadow-sm">
-            <span className="material-symbols-outlined text-[20px]">auto_awesome</span>
-          </div>
+      document.removeEventListener(
+        "mousedown",
+        handleOutsideClick
+      );
+
+
+      document.removeEventListener(
+        "keydown",
+        handleEscape
+      );
+    };
+
+  }, []);
+
+
+  // =====================================================
+  // MARK ONE AS READ
+  // =====================================================
+
+  const markAsRead =
+    async (notificationId) => {
+
+      try {
+
+        const response =
+          await fetch(
+            `${API_URL}/api/notifications/${notificationId}/read`,
+            {
+              method: "PATCH",
+            }
+          );
+
+
+        const data =
+          await response.json();
+
+
+        if (!response.ok) {
+          throw new Error(
+            data.error ||
+              "Unable to mark notification as read"
+          );
+        }
+
+
+        setNotifications(
+          (previous) =>
+            previous.map(
+              (item) =>
+                item.id ===
+                notificationId
+                  ? {
+                      ...item,
+                      isRead: true,
+                    }
+                  : item
+            )
         );
-      case "ASSIGNMENT":
-        return (
-          <div className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center shrink-0 text-primary border border-outline-variant/50">
-            <span className="material-symbols-outlined text-[20px]">schedule</span>
-          </div>
+
+
+        return true;
+
+      } catch (err) {
+
+        console.error(
+          "Notification read error:",
+          err
         );
-      case "EXAM":
-        return (
-          <div className="w-10 h-10 rounded-full bg-error/10 flex items-center justify-center shrink-0 text-error border border-error/20">
-            <span className="material-symbols-outlined text-[20px]">warning</span>
-          </div>
+
+
+        return false;
+      }
+    };
+
+
+  // =====================================================
+  // MARK ALL AS READ
+  // =====================================================
+
+  const markAllAsRead =
+    async () => {
+
+      if (
+        !studentRoll ||
+        unreadCount === 0
+      ) {
+        return;
+      }
+
+
+      try {
+
+        const response =
+          await fetch(
+            `${API_URL}/api/notifications/${encodeURIComponent(
+              studentRoll
+            )}/read-all`,
+            {
+              method: "PATCH",
+            }
+          );
+
+
+        const data =
+          await response.json();
+
+
+        if (!response.ok) {
+          throw new Error(
+            data.error ||
+              "Unable to mark notifications as read"
+          );
+        }
+
+
+        setNotifications(
+          (previous) =>
+            previous.map(
+              (item) => ({
+                ...item,
+                isRead: true,
+              })
+            )
         );
-      case "NOTICE":
-        return (
-          <div className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center shrink-0 text-secondary border border-outline-variant/50">
-            <span className="material-symbols-outlined text-[20px]">campaign</span>
-          </div>
+
+      } catch (err) {
+
+        console.error(
+          "Mark all notifications error:",
+          err
         );
-      case "ATTENDANCE":
-        return (
-          <div className="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center shrink-0 text-on-secondary-container border border-outline-variant/50">
-            <span className="material-symbols-outlined text-[20px]">fact_check</span>
-          </div>
+      }
+    };
+
+
+  // =====================================================
+  // OPEN NOTIFICATION
+  // =====================================================
+
+  const handleNotificationClick =
+    async (notification) => {
+
+      if (!notification.isRead) {
+        await markAsRead(
+          notification.id
         );
-      default:
-        return (
-          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-primary border border-primary/20">
-            <span className="material-symbols-outlined text-[20px]">notifications</span>
-          </div>
-        );
-    }
-  };
+      }
 
-  const renderNotificationCard = (item) => {
-    const isUnread = item.IS_READ === 0;
 
-    return (
-      <article
-        key={item.NOTIFICATION_ID}
-        onClick={() => handleMarkAsRead(item.NOTIFICATION_ID)}
-        className={`bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex gap-md relative overflow-hidden group hover:shadow-sm transition-all cursor-pointer ${
-          !isUnread ? "opacity-80 hover:opacity-100" : ""
-        }`}
-      >
-        {/* Unread Indicator */}
-        {isUnread && (
-          <div className="absolute top-md left-3 w-2 h-2 rounded-full bg-primary-container" />
-        )}
+      setOpen(false);
 
-        {getNotificationIcon(item.NOTIFICATION_TYPE)}
 
-        <div className="flex flex-col gap-1 w-full">
-          <div className="flex justify-between items-start w-full">
-            <h4 className="font-title-md text-title-md text-on-surface font-semibold">
-              {item.TITLE}
-            </h4>
-            <div className="flex items-center gap-2">
-              <span className="font-body-sm text-body-sm text-outline whitespace-nowrap text-xs">
-                {formatRelativeTime(item.CREATED_AT)}
-              </span>
-              <button
-                type="button"
-                onClick={(e) => handleDelete(e, item.NOTIFICATION_ID)}
-                title="Dismiss"
-                className="opacity-0 group-hover:opacity-100 text-outline hover:text-error transition-all p-1 rounded-lg hover:bg-surface-container-high cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[16px]">close</span>
-              </button>
-            </div>
-          </div>
+      navigate(
+        notification.actionUrl ||
+          "/notifications"
+      );
+    };
 
-          <p className="font-body-sm text-body-sm text-on-surface-variant text-sm">
-            {item.MESSAGE_TEXT}
-          </p>
 
-          {item.ACTION_URL && (
-            <div className="mt-2 flex gap-2">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleMarkAsRead(item.NOTIFICATION_ID);
-                  navigate(item.ACTION_URL);
-                }}
-                className="bg-primary text-on-primary font-body-sm text-xs font-semibold px-4 py-1.5 rounded-full hover:bg-primary-container transition-colors shadow-xs cursor-pointer"
-              >
-                {item.NOTIFICATION_TYPE === "SYSTEM"
-                  ? "Review Plan"
-                  : item.NOTIFICATION_TYPE === "ASSIGNMENT"
-                  ? "View Assignment"
-                  : item.NOTIFICATION_TYPE === "EXAM"
-                  ? "Exam Details"
-                  : "View Details"}
-              </button>
-            </div>
-          )}
-        </div>
-      </article>
+  // =====================================================
+  // DISPLAY ONLY MOST RECENT 5
+  // =====================================================
+
+  const recentNotifications =
+    notifications.slice(
+      0,
+      5
     );
-  };
+
+
+  // =====================================================
+  // RENDER
+  // =====================================================
 
   return (
-    <div className="bg-background text-on-background font-body-md antialiased min-h-screen flex flex-col pt-16 pb-20 md:pb-12">
-      {/* TopAppBar */}
-      <header className="flex items-center px-margin-mobile h-16 w-full fixed top-0 z-50 bg-surface border-b border-outline-variant">
-        <button
-          onClick={() => navigate(-1)}
-          className="mr-4 hover:bg-surface-container-high transition-colors active:scale-95 p-2 rounded-full flex items-center justify-center text-primary cursor-pointer"
+    <div
+      ref={containerRef}
+      className="relative"
+    >
+
+      {/* =================================================
+          NOTIFICATION BELL
+      ================================================= */}
+
+      <button
+        type="button"
+        onClick={() =>
+          setOpen(
+            (previous) =>
+              !previous
+          )
+        }
+        aria-label={
+          unreadCount > 0
+            ? `${unreadCount} unread notifications`
+            : "Notifications"
+        }
+        className="relative w-10 h-10 rounded-full md:rounded-xl flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-surface-container-high border border-transparent md:border-outline-variant/60 md:bg-surface-container-lowest transition-all active:scale-95 cursor-pointer md:shadow-sm"
+      >
+
+        <span
+          className="material-symbols-outlined text-[22px]"
+          style={{
+            fontVariationSettings:
+              unreadCount > 0
+                ? "'FILL' 1"
+                : "'FILL' 0",
+          }}
         >
-          <span className="material-symbols-outlined">arrow_back</span>
-        </button>
-        <h1 className="font-headline-lg-mobile text-headline-lg-mobile text-primary font-bold tracking-tight">
-          Notifications
-        </h1>
-      </header>
+          notifications
+        </span>
 
-      {/* Main Canvas */}
-      <main className="grow w-full max-w-[1440px] mx-auto px-margin-mobile md:px-margin-desktop py-md flex flex-col gap-lg">
-        {/* Header Actions */}
-        <div className="flex justify-between items-center w-full">
-          <h2 className="font-title-md text-title-md text-on-surface font-bold">
-            Your Updates
-          </h2>
-          <button
-            onClick={handleMarkAllRead}
-            className="font-label-caps text-label-caps text-primary hover:text-primary-container transition-colors py-2 px-4 rounded-full border border-primary/20 hover:bg-primary/5 active:scale-95 cursor-pointer font-semibold"
-          >
-            Mark all as read
-          </button>
-        </div>
 
-        {/* Notification List */}
-        <div className="flex flex-col gap-md">
-          {notifications.length === 0 ? (
-            <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-10 text-center flex flex-col items-center">
-              <span className="material-symbols-outlined text-5xl text-outline mb-2">
-                notifications_off
-              </span>
-              <h3 className="font-title-md font-bold text-on-surface">No notifications</h3>
-              <p className="font-body-sm text-outline text-xs mt-1">
-                You're all caught up with your classes, assignments, and announcements.
+        {/* Unread badge */}
+
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-[19px] h-[19px] px-1 rounded-full bg-error text-white border-2 border-background flex items-center justify-center text-[9px] font-bold shadow-sm">
+            {unreadCount > 99
+              ? "99+"
+              : unreadCount}
+          </span>
+        )}
+
+      </button>
+
+
+      {/* =================================================
+          DROPDOWN
+      ================================================= */}
+
+      {open && (
+        <div className="absolute right-0 mt-2 w-[min(92vw,390px)] bg-surface-container-lowest border border-outline-variant/70 rounded-2xl shadow-2xl overflow-hidden z-[100]">
+
+          {/* Header */}
+
+          <div className="px-4 py-4 border-b border-outline-variant/50 flex items-start justify-between gap-3">
+
+            <div>
+
+              <div className="flex items-center gap-2">
+
+                <h3 className="font-title-md text-on-surface font-bold">
+                  Notifications
+                </h3>
+
+
+                {unreadCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-secondary-container text-on-secondary-container font-label-caps text-[10px] font-bold">
+                    {unreadCount} NEW
+                  </span>
+                )}
+
+              </div>
+
+
+              <p className="font-body-sm text-on-surface-variant mt-1">
+                Your latest academic updates
               </p>
+
             </div>
-          ) : (
-            <>
-              {/* Group: Today */}
-              {todayList.length > 0 && (
-                <section className="flex flex-col gap-xs">
-                  <h3 className="font-label-caps text-label-caps text-outline ml-2 text-xs font-bold uppercase tracking-wider">
-                    Today
-                  </h3>
-                  <div className="flex flex-col gap-3">
-                    {todayList.map((item) => renderNotificationCard(item))}
-                  </div>
-                </section>
+
+
+            {unreadCount > 0 && (
+              <button
+                type="button"
+                onClick={
+                  markAllAsRead
+                }
+                className="font-label-caps text-[10px] text-primary font-bold hover:underline cursor-pointer whitespace-nowrap mt-1"
+              >
+                MARK ALL READ
+              </button>
+            )}
+
+          </div>
+
+
+          {/* =================================================
+              LOADING
+          ================================================= */}
+
+          {loading &&
+            notifications.length ===
+              0 && (
+              <div className="py-10 px-5 text-center">
+
+                <div className="w-12 h-12 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
+
+                  <span className="material-symbols-outlined text-primary text-[26px] animate-pulse">
+                    notifications
+                  </span>
+
+                </div>
+
+
+                <p className="font-body-sm text-on-surface-variant mt-3">
+                  Loading notifications...
+                </p>
+
+              </div>
+            )}
+
+
+          {/* =================================================
+              ERROR
+          ================================================= */}
+
+          {!loading &&
+            error &&
+            notifications.length ===
+              0 && (
+              <div className="py-8 px-5 text-center">
+
+                <div className="w-12 h-12 mx-auto rounded-full bg-error/10 flex items-center justify-center">
+
+                  <span className="material-symbols-outlined text-error">
+                    error
+                  </span>
+
+                </div>
+
+
+                <p className="font-body-sm text-on-surface-variant mt-3">
+                  {error}
+                </p>
+
+
+                <button
+                  type="button"
+                  onClick={
+                    loadNotifications
+                  }
+                  className="font-body-sm text-primary font-semibold mt-2 hover:underline cursor-pointer"
+                >
+                  Try again
+                </button>
+
+              </div>
+            )}
+
+
+          {/* =================================================
+              EMPTY STATE
+          ================================================= */}
+
+          {!loading &&
+            !error &&
+            notifications.length ===
+              0 && (
+              <div className="py-10 px-5 text-center">
+
+                <div className="w-12 h-12 mx-auto rounded-full bg-surface-container-high flex items-center justify-center">
+
+                  <span className="material-symbols-outlined text-outline text-[26px]">
+                    notifications_none
+                  </span>
+
+                </div>
+
+
+                <h4 className="font-title-md text-on-surface font-semibold mt-3">
+                  You're all caught up
+                </h4>
+
+
+                <p className="font-body-sm text-on-surface-variant mt-1">
+                  New academic updates will appear here.
+                </p>
+
+              </div>
+            )}
+
+
+          {/* =================================================
+              NOTIFICATION LIST
+          ================================================= */}
+
+          {recentNotifications.length >
+            0 && (
+            <div className="max-h-[390px] overflow-y-auto">
+
+              {recentNotifications.map(
+                (notification) => {
+
+                  const meta =
+                    NOTIFICATION_META[
+                      notification.type
+                    ] ||
+                    NOTIFICATION_META.SYSTEM;
+
+
+                  return (
+                    <button
+                      type="button"
+                      key={
+                        notification.id
+                      }
+                      onClick={() =>
+                        handleNotificationClick(
+                          notification
+                        )
+                      }
+                      className={`w-full px-4 py-3.5 text-left flex items-start gap-3 border-b border-outline-variant/30 last:border-b-0 transition-colors cursor-pointer ${
+                        notification.isRead
+                          ? "bg-surface-container-lowest hover:bg-surface-container-low"
+                          : "bg-secondary-container/10 hover:bg-secondary-container/20"
+                      }`}
+                    >
+
+                      {/* Icon */}
+
+                      <div
+                        className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${meta.iconClass}`}
+                      >
+
+                        <span className="material-symbols-outlined text-[20px]">
+                          {meta.icon}
+                        </span>
+
+                      </div>
+
+
+                      {/* Content */}
+
+                      <div className="flex-1 min-w-0">
+
+                        <div className="flex items-start justify-between gap-3">
+
+                          <h4
+                            className={`font-body-md text-on-surface text-sm ${
+                              notification.isRead
+                                ? "font-semibold"
+                                : "font-bold"
+                            }`}
+                          >
+                            {
+                              notification.title
+                            }
+                          </h4>
+
+
+                          {!notification.isRead && (
+                            <span className="w-2 h-2 rounded-full bg-secondary shrink-0 mt-1.5" />
+                          )}
+
+                        </div>
+
+
+                        <p className="font-body-sm text-on-surface-variant text-xs mt-1 leading-relaxed max-h-[40px] overflow-hidden">
+                          {
+                            notification.message
+                          }
+                        </p>
+
+
+                        <div className="flex items-center gap-2 mt-2">
+
+                          <span className="font-label-caps text-primary text-[9px] font-bold">
+                            {meta.label}
+                          </span>
+
+
+                          <span className="w-1 h-1 rounded-full bg-outline-variant" />
+
+
+                          <span className="font-body-sm text-outline text-[11px]">
+                            {formatRelativeTime(
+                              notification.createdAt
+                            )}
+                          </span>
+
+                        </div>
+
+                      </div>
+
+                    </button>
+                  );
+                }
               )}
 
-              {/* Group: Yesterday / Earlier */}
-              {olderList.length > 0 && (
-                <section className="flex flex-col gap-xs mt-4">
-                  <h3 className="font-label-caps text-label-caps text-outline ml-2 text-xs font-bold uppercase tracking-wider">
-                    Yesterday & Earlier
-                  </h3>
-                  <div className="flex flex-col gap-3">
-                    {olderList.map((item) => renderNotificationCard(item))}
-                  </div>
-                </section>
-              )}
-            </>
+            </div>
           )}
-        </div>
-      </main>
 
-      {/* BottomNavBar for Mobile */}
-      <nav className="fixed bottom-0 w-full h-16 z-50 flex justify-around items-center px-4 bg-surface border-t border-outline-variant md:hidden">
-        <Link
-          to="/dashboard"
-          className="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container-low transition-colors active:scale-90 p-2 rounded-lg w-16 h-14"
-        >
-          <span className="material-symbols-outlined">home</span>
-          <span className="font-label-caps text-[10px] mt-0.5">Home</span>
-        </Link>
-        <Link
-          to="/timetable"
-          className="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container-low transition-colors active:scale-90 p-2 rounded-lg w-16 h-14"
-        >
-          <span className="material-symbols-outlined">calendar_month</span>
-          <span className="font-label-caps text-[10px] mt-0.5">Schedule</span>
-        </Link>
-        <Link
-          to="/notifications"
-          className="flex flex-col items-center justify-center text-primary font-bold hover:bg-surface-container-low transition-colors active:scale-90 p-2 rounded-lg w-16 h-14 relative"
-        >
-          <span className="material-symbols-outlined">notifications</span>
-          <span className="font-label-caps text-[10px] mt-0.5">Alerts</span>
-          {/* Active Indicator Dot */}
-          <div className="absolute bottom-1 w-1 h-1 rounded-full bg-primary" />
-        </Link>
-        <Link
-          to="/profile"
-          className="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container-low transition-colors active:scale-90 p-2 rounded-lg w-16 h-14"
-        >
-          <span className="material-symbols-outlined">person</span>
-          <span className="font-label-caps text-[10px] mt-0.5">Profile</span>
-        </Link>
-      </nav>
+
+          {/* =================================================
+              FOOTER
+          ================================================= */}
+
+          {notifications.length >
+            0 && (
+            <div className="p-3 border-t border-outline-variant/50 bg-surface-container-low/50">
+
+              <Link
+                to="/notifications"
+                onClick={() =>
+                  setOpen(false)
+                }
+                className="w-full py-2.5 rounded-xl flex items-center justify-center gap-1.5 text-primary font-body-sm font-semibold hover:bg-primary/5 transition-colors"
+              >
+
+                View all notifications
+
+                <span className="material-symbols-outlined text-[17px]">
+                  arrow_forward
+                </span>
+
+              </Link>
+
+            </div>
+          )}
+
+        </div>
+      )}
+
     </div>
   );
 }

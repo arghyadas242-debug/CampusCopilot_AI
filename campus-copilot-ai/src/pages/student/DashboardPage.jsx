@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router";
 import { authService } from "../../services/api";
+import StudentNotificationBell from "./StudentNotificationBell";
 
 const API_URL = "http://localhost:5000";
 
@@ -235,9 +236,7 @@ export default function DashboardPage() {
           </Link>
           <span className="font-headline-lg-mobile font-bold text-primary">CampusCopilot</span>
         </div>
-        <Link to="/notices" className="text-on-surface-variant hover:opacity-80">
-          <span className="material-symbols-outlined">notifications</span>
-        </Link>
+        <StudentNotificationBell />
       </header>
 
       {/* Main Content Layout (Desktop Grid / Mobile Stack) */}
@@ -347,9 +346,12 @@ export default function DashboardPage() {
         {/* Main Canvas */}
         <main className="flex-1 p-margin-mobile md:p-margin-desktop overflow-y-auto pb-[90px] md:pb-margin-desktop">
           {/* Header */}
-          <div className="mb-lg hidden md:block">
-            <h1 className="font-display-lg text-on-background">Good Morning, {firstName}</h1>
-            <p className="font-body-md text-on-surface-variant mt-1">Here is your academic overview for today.</p>
+          <div className="mb-lg hidden md:flex items-start justify-between gap-4">
+            <div>
+              <h1 className="font-display-lg text-on-background">Good Morning, {firstName}</h1>
+              <p className="font-body-md text-on-surface-variant mt-1">Here is your academic overview for today.</p>
+            </div>
+            <StudentNotificationBell />
           </div>
           <div className="mb-md md:hidden">
             <h1 className="font-headline-lg-mobile text-on-background">Good Morning, {firstName}</h1>

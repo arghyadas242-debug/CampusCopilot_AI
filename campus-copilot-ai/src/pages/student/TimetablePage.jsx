@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { authService } from "../../services/api";
+import StudentNotificationBell from "./StudentNotificationBell";
 
 export default function TimetablePage() {
   const [selectedDay, setSelectedDay] = useState("Monday");
@@ -280,14 +281,7 @@ export default function TimetablePage() {
           </Link>
         </nav>
 
-        <Link
-          to="/notices"
-          className="text-on-surface-variant hover:opacity-80 p-2 rounded-full hover:bg-surface-container"
-        >
-          <span className="material-symbols-outlined">
-            notifications
-          </span>
-        </Link>
+        <StudentNotificationBell />
       </header>
 
       {/* Main Content */}

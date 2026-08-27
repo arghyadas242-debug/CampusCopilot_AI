@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router";
+import StudentNotificationBell from "./StudentNotificationBell";
 
 export default function CampusPage() {
   const [filter, setFilter] = useState("all");
@@ -101,6 +102,7 @@ export default function CampusPage() {
             </div>
             <span className="font-headline-lg-mobile font-bold text-primary">CampusCopilot</span>
           </div>
+          <StudentNotificationBell />
         </header>
 
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
@@ -109,21 +111,26 @@ export default function CampusPage() {
             <p className="font-body-md text-on-surface-variant mt-1">Official circulars, events, and AI-generated TL;DR summaries.</p>
           </div>
 
-          {/* Filter buttons */}
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {["all", "exam", "event", "academic"].map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setFilter(cat)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer ${
-                  filter === cat
-                    ? "bg-primary text-on-primary shadow-sm"
-                    : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high"
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            {/* Filter buttons */}
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {["all", "exam", "event", "academic"].map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setFilter(cat)}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer ${
+                    filter === cat
+                      ? "bg-primary text-on-primary shadow-sm"
+                      : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high"
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+            <div className="hidden md:block shrink-0">
+              <StudentNotificationBell />
+            </div>
           </div>
         </div>
 
@@ -210,4 +217,3 @@ export default function CampusPage() {
     </div>
   );
 }
-

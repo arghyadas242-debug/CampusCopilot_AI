@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
+import StudentNotificationBell from "./StudentNotificationBell";
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -25,9 +26,12 @@ export default function ProfilePage() {
           </Link>
           <span className="font-headline-lg-mobile md:font-headline-lg font-bold text-primary">CampusCopilot</span>
         </div>
-        <Link to="/dashboard" className="text-xs font-semibold text-primary px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20">
-          Back to Dashboard
-        </Link>
+        <div className="flex items-center gap-2">
+          <StudentNotificationBell />
+          <Link to="/dashboard" className="hidden sm:block text-xs font-semibold text-primary px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20">
+            Back to Dashboard
+          </Link>
+        </div>
       </header>
 
       {/* Main Container */}
@@ -175,4 +179,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-

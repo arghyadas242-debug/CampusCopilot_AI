@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { authService } from "../../services/api";
+import StudentNotificationBell from "./StudentNotificationBell";
 
 export default function ExamsPage() {
   const [exams, setExams] = useState([]);
@@ -451,14 +452,7 @@ export default function ExamsPage() {
 
           </div>
 
-          <Link
-            to="/notices"
-            className="text-on-surface-variant hover:opacity-80"
-          >
-            <span className="material-symbols-outlined">
-              notifications
-            </span>
-          </Link>
+          <StudentNotificationBell />
 
         </header>
 
@@ -466,17 +460,23 @@ export default function ExamsPage() {
 
         <div className="p-margin-mobile md:p-margin-desktop flex-1 max-w-[1100px] w-full mx-auto space-y-md">
 
-          <header className="mb-lg">
+          <header className="mb-lg flex items-start justify-between gap-4">
 
-            <h1 className="font-headline-lg md:font-display-lg text-primary font-bold">
-              Examination Schedule
-            </h1>
+            <div>
+              <h1 className="font-headline-lg md:font-display-lg text-primary font-bold">
+                Examination Schedule
+              </h1>
 
-            <p className="font-body-md text-on-surface-variant mt-1">
-              Seating allocation,
-              dates, syllabus scopes,
-              and preparation guides.
-            </p>
+              <p className="font-body-md text-on-surface-variant mt-1">
+                Seating allocation,
+                dates, syllabus scopes,
+                and preparation guides.
+              </p>
+            </div>
+
+            <div className="hidden md:block">
+              <StudentNotificationBell />
+            </div>
 
           </header>
 
