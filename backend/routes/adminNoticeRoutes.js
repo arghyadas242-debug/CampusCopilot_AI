@@ -50,6 +50,7 @@ router.get("/", async (req, res) => {
     return res.json(result.rows);
 
   } catch (error) {
+
     console.error(
       "Admin notices load error:",
       error
@@ -61,6 +62,7 @@ router.get("/", async (req, res) => {
     });
 
   } finally {
+
     if (connection) {
       try {
         await connection.close();
@@ -137,63 +139,138 @@ router.post("/", async (req, res) => {
 
 
     // -------------------------------------------------
-    // INSERT
-    //
-    // ID is omitted because Oracle generates it.
-    // CREATED_AT uses SYSTIMESTAMP.
+    // INSERT NOTICE
+    // RETURN GENERATED NOTICE ID
     // -------------------------------------------------
 
-    await connection.execute(
-      `
-      INSERT INTO notices (
-        title,
-        author,
-        tag,
-        tag_color,
-        category,
-        content,
-        ai_summary,
-        created_at
-      )
-      VALUES (
-        :title,
-        :author,
-        :tag,
-        :tagColor,
-        :category,
-        :content,
-        :aiSummary,
-        SYSTIMESTAMP
-      )
-      `,
-      {
-        title:
-          cleanTitle,
+    const noticeResult =
+      await connection.execute(
+        `
+        INSERT INTO notices (
+          title,
+          author,
+          tag,
+          tag_color,
+          category,
+          content,
+          ai_summary,
+          created_at
+        )
+        VALUES (
+          :title,
+          :author,
+          :tag,
+          :tagColor,
+          :category,
+          :content,
+          :aiSummary,
+          SYSTIMESTAMP
+        )
+        RETURNING id
+        INTO :noticeId
+        `,
+        {
+          title:
+            cleanTitle,
 
-        author:
-          cleanAuthor,
+          author:
+            cleanAuthor,
 
-        tag:
-          cleanTag,
+          tag:
+            cleanTag,
 
-        tagColor:
-          cleanTagColor,
+          tagColor:
+            cleanTagColor,
 
-        category:
-          cleanCategory,
+          category:
+            cleanCategory,
 
-        content: {
-          val: cleanContent,
-          type: oracledb.CLOB,
-        },
+          content: {
+            val: cleanContent,
+            type: oracledb.CLOB,
+          },
 
-        aiSummary: {
-          val: cleanAiSummary,
-          type: oracledb.CLOB,
-        },
-      }
-    );
+          aiSummary: {
+            val: cleanAiSummary,
+            type: oracledb.CLOB,
+          },
 
+          noticeId: {
+            dir: oracledb.BIND_OUT,
+            type: oracledb.NUMBER,
+          },
+        }
+      );
+
+
+    // -------------------------------------------------
+    // GET GENERATED NOTICE ID
+    // -------------------------------------------------
+
+    const noticeId =
+      noticeResult.outBinds
+        .noticeId[0];
+
+
+    // -------------------------------------------------
+    // BUILD NOTIFICATION
+    // -------------------------------------------------
+
+    const notificationTitle =
+      "New Campus Notice";
+
+    const notificationMessage =
+      `${cleanCategory} notice published: ${cleanTitle}`;
+
+
+    // -------------------------------------------------
+    // CREATE NOTIFICATION FOR ALL STUDENTS
+    //
+    // One notification row is created for every
+    // student currently in the STUDENTS table.
+    // -------------------------------------------------
+
+    const notificationResult =
+      await connection.execute(
+        `
+        INSERT INTO notifications (
+          student_roll,
+          notification_type,
+          title,
+          message_text,
+          related_type,
+          related_id,
+          action_url,
+          is_read
+        )
+
+        SELECT
+          student_roll,
+          'NOTICE',
+          :notificationTitle,
+          :messageText,
+          'NOTICE',
+          :relatedId,
+          '/notices',
+          0
+        FROM students
+        `,
+        {
+          notificationTitle:
+            notificationTitle,
+
+          messageText:
+            notificationMessage,
+
+          relatedId:
+            noticeId,
+        }
+      );
+
+
+    // -------------------------------------------------
+    // COMMIT NOTICE + ALL NOTIFICATIONS TOGETHER
+    // -------------------------------------------------
 
     await connection.commit();
 
@@ -201,9 +278,18 @@ router.post("/", async (req, res) => {
     return res.status(201).json({
       message:
         "Notice published successfully",
+
+      noticeId,
+
+      notificationsCreated:
+        notificationResult.rowsAffected || 0,
     });
 
   } catch (error) {
+
+    // -------------------------------------------------
+    // ROLLBACK NOTICE + NOTIFICATIONS IF ANYTHING FAILS
+    // -------------------------------------------------
 
     if (connection) {
       try {
@@ -317,7 +403,9 @@ router.put("/:id", async (req, res) => {
       );
 
 
-    if (existing.rows.length === 0) {
+    if (
+      existing.rows.length === 0
+    ) {
       return res.status(404).json({
         error: "Notice not found",
       });
@@ -325,7 +413,7 @@ router.put("/:id", async (req, res) => {
 
 
     // -------------------------------------------------
-    // UPDATE
+    // UPDATE NOTICE
     // -------------------------------------------------
 
     await connection.execute(
@@ -464,7 +552,9 @@ router.delete("/:id", async (req, res) => {
       );
 
 
-    if (result.rowsAffected === 0) {
+    if (
+      result.rowsAffected === 0
+    ) {
       await connection.rollback();
 
       return res.status(404).json({

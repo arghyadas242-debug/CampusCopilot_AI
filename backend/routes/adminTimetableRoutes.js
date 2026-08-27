@@ -4,6 +4,7 @@ const getConnection = require("../db");
 
 const router = express.Router();
 
+
 const VALID_DAYS = [
   "Monday",
   "Tuesday",
@@ -64,24 +65,30 @@ router.get("/", async (req, res) => {
       `,
       [],
       {
-        outFormat: oracledb.OUT_FORMAT_OBJECT,
+        outFormat:
+          oracledb.OUT_FORMAT_OBJECT,
       }
     );
 
     return res.json(result.rows);
 
   } catch (error) {
+
     console.error(
       "Admin timetable load error:",
       error
     );
 
     return res.status(500).json({
-      error: "Unable to load timetable",
-      details: error.message,
+      error:
+        "Unable to load timetable",
+
+      details:
+        error.message,
     });
 
   } finally {
+
     if (connection) {
       try {
         await connection.close();
@@ -137,7 +144,9 @@ router.post("/", async (req, res) => {
       studentRoll.trim();
 
     const cleanSubjectCode =
-      subjectCode.trim().toUpperCase();
+      subjectCode
+        .trim()
+        .toUpperCase();
 
     const cleanDay =
       dayOfWeek.trim();
@@ -156,19 +165,26 @@ router.post("/", async (req, res) => {
     // VALIDATE DAY
     // -------------------------------------------------
 
-    if (!VALID_DAYS.includes(cleanDay)) {
+    if (
+      !VALID_DAYS.includes(
+        cleanDay
+      )
+    ) {
       return res.status(400).json({
-        error: "Invalid day of week",
+        error:
+          "Invalid day of week",
       });
     }
 
 
     // -------------------------------------------------
     // VALIDATE TIME
-    // HH:MM strings can be compared safely
     // -------------------------------------------------
 
-    if (cleanEndTime <= cleanStartTime) {
+    if (
+      cleanEndTime <=
+      cleanStartTime
+    ) {
       return res.status(400).json({
         error:
           "End time must be later than start time",
@@ -202,21 +218,27 @@ router.post("/", async (req, res) => {
       );
 
 
-    if (studentResult.rows.length === 0) {
+    if (
+      studentResult.rows.length === 0
+    ) {
       return res.status(404).json({
-        error: "Student not found",
+        error:
+          "Student not found",
       });
     }
 
 
     // -------------------------------------------------
     // CHECK SUBJECT EXISTS
+    // ALSO GET SUBJECT NAME
     // -------------------------------------------------
 
     const subjectResult =
       await connection.execute(
         `
-        SELECT subject_code
+        SELECT
+          subject_code,
+          subject_name
         FROM subjects
         WHERE UPPER(subject_code) =
               UPPER(:subjectCode)
@@ -232,20 +254,24 @@ router.post("/", async (req, res) => {
       );
 
 
-    if (subjectResult.rows.length === 0) {
+    if (
+      subjectResult.rows.length === 0
+    ) {
       return res.status(404).json({
-        error: "Subject not found",
+        error:
+          "Subject not found",
       });
     }
 
 
+    const subjectName =
+      subjectResult.rows[0]
+        .SUBJECT_NAME ||
+      cleanSubjectCode;
+
+
     // -------------------------------------------------
     // CHECK FOR TIME CONFLICT
-    //
-    // Example:
-    // Existing: 10:00 - 11:00
-    // New:      10:30 - 11:30
-    // => conflict
     // -------------------------------------------------
 
     const conflictResult =
@@ -278,7 +304,9 @@ router.post("/", async (req, res) => {
       );
 
 
-    if (conflictResult.rows.length > 0) {
+    if (
+      conflictResult.rows.length > 0
+    ) {
       return res.status(409).json({
         error:
           "This student already has a class during the selected time",
@@ -287,50 +315,129 @@ router.post("/", async (req, res) => {
 
 
     // -------------------------------------------------
-    // INSERT
-    // ID omitted because Oracle generates it
+    // INSERT TIMETABLE ENTRY
+    // GET GENERATED ID
+    // -------------------------------------------------
+
+    const timetableResult =
+      await connection.execute(
+        `
+        INSERT INTO timetable (
+          student_roll,
+          subject_code,
+          day_of_week,
+          start_time,
+          end_time,
+          room
+        )
+        VALUES (
+          :studentRoll,
+          :subjectCode,
+          :dayOfWeek,
+          :startTime,
+          :endTime,
+          :room
+        )
+        RETURNING id
+        INTO :timetableId
+        `,
+        {
+          studentRoll:
+            cleanStudentRoll,
+
+          subjectCode:
+            cleanSubjectCode,
+
+          dayOfWeek:
+            cleanDay,
+
+          startTime:
+            cleanStartTime,
+
+          endTime:
+            cleanEndTime,
+
+          room:
+            cleanRoom,
+
+          timetableId: {
+            dir:
+              oracledb.BIND_OUT,
+            type:
+              oracledb.NUMBER,
+          },
+        }
+      );
+
+
+    const timetableId =
+      timetableResult.outBinds
+        .timetableId[0];
+
+
+    // -------------------------------------------------
+    // BUILD NOTIFICATION MESSAGE
+    // -------------------------------------------------
+
+    let notificationMessage =
+      `${subjectName} has been scheduled on ${cleanDay} from ${cleanStartTime} to ${cleanEndTime}`;
+
+
+    if (cleanRoom) {
+      notificationMessage +=
+        ` in ${cleanRoom}`;
+    }
+
+
+    notificationMessage += ".";
+
+
+    // -------------------------------------------------
+    // CREATE TIMETABLE NOTIFICATION
     // -------------------------------------------------
 
     await connection.execute(
       `
-      INSERT INTO timetable (
+      INSERT INTO notifications (
         student_roll,
-        subject_code,
-        day_of_week,
-        start_time,
-        end_time,
-        room
+        notification_type,
+        title,
+        message_text,
+        related_type,
+        related_id,
+        action_url,
+        is_read
       )
       VALUES (
         :studentRoll,
-        :subjectCode,
-        :dayOfWeek,
-        :startTime,
-        :endTime,
-        :room
+        'TIMETABLE',
+        :notificationTitle,
+        :messageText,
+        'TIMETABLE',
+        :relatedId,
+        '/timetable',
+        0
       )
       `,
       {
         studentRoll:
           cleanStudentRoll,
 
-        subjectCode:
-          cleanSubjectCode,
+        notificationTitle:
+          "New Timetable Entry",
 
-        dayOfWeek:
-          cleanDay,
+        messageText:
+          notificationMessage,
 
-        startTime:
-          cleanStartTime,
-
-        endTime:
-          cleanEndTime,
-
-        room:
-          cleanRoom,
+        relatedId:
+          timetableId,
       }
     );
 
+
+    // -------------------------------------------------
+    // COMMIT TIMETABLE + NOTIFICATION
+    // -------------------------------------------------
 
     await connection.commit();
 
@@ -338,6 +445,11 @@ router.post("/", async (req, res) => {
     return res.status(201).json({
       message:
         "Timetable entry created successfully",
+
+      timetableId,
+
+      notificationCreated:
+        true,
     });
 
   } catch (error) {
@@ -398,7 +510,9 @@ router.put("/:id", async (req, res) => {
 
 
     if (
-      !Number.isInteger(timetableId) ||
+      !Number.isInteger(
+        timetableId
+      ) ||
       timetableId <= 0
     ) {
       return res.status(400).json({
@@ -418,6 +532,10 @@ router.put("/:id", async (req, res) => {
     } = req.body;
 
 
+    // -------------------------------------------------
+    // REQUIRED FIELDS
+    // -------------------------------------------------
+
     if (
       !studentRoll?.trim() ||
       !subjectCode?.trim() ||
@@ -436,7 +554,9 @@ router.put("/:id", async (req, res) => {
       studentRoll.trim();
 
     const cleanSubjectCode =
-      subjectCode.trim().toUpperCase();
+      subjectCode
+        .trim()
+        .toUpperCase();
 
     const cleanDay =
       dayOfWeek.trim();
@@ -451,14 +571,30 @@ router.put("/:id", async (req, res) => {
       room?.trim() || null;
 
 
-    if (!VALID_DAYS.includes(cleanDay)) {
+    // -------------------------------------------------
+    // VALIDATE DAY
+    // -------------------------------------------------
+
+    if (
+      !VALID_DAYS.includes(
+        cleanDay
+      )
+    ) {
       return res.status(400).json({
-        error: "Invalid day of week",
+        error:
+          "Invalid day of week",
       });
     }
 
 
-    if (cleanEndTime <= cleanStartTime) {
+    // -------------------------------------------------
+    // VALIDATE TIME
+    // -------------------------------------------------
+
+    if (
+      cleanEndTime <=
+      cleanStartTime
+    ) {
       return res.status(400).json({
         error:
           "End time must be later than start time",
@@ -481,7 +617,8 @@ router.put("/:id", async (req, res) => {
         WHERE id = :id
         `,
         {
-          id: timetableId,
+          id:
+            timetableId,
         },
         {
           outFormat:
@@ -490,7 +627,9 @@ router.put("/:id", async (req, res) => {
       );
 
 
-    if (existingResult.rows.length === 0) {
+    if (
+      existingResult.rows.length === 0
+    ) {
       return res.status(404).json({
         error:
           "Timetable entry not found",
@@ -499,7 +638,7 @@ router.put("/:id", async (req, res) => {
 
 
     // -------------------------------------------------
-    // CHECK STUDENT
+    // CHECK STUDENT EXISTS
     // -------------------------------------------------
 
     const studentResult =
@@ -521,21 +660,27 @@ router.put("/:id", async (req, res) => {
       );
 
 
-    if (studentResult.rows.length === 0) {
+    if (
+      studentResult.rows.length === 0
+    ) {
       return res.status(404).json({
-        error: "Student not found",
+        error:
+          "Student not found",
       });
     }
 
 
     // -------------------------------------------------
-    // CHECK SUBJECT
+    // CHECK SUBJECT EXISTS
+    // ALSO GET SUBJECT NAME
     // -------------------------------------------------
 
     const subjectResult =
       await connection.execute(
         `
-        SELECT subject_code
+        SELECT
+          subject_code,
+          subject_name
         FROM subjects
         WHERE UPPER(subject_code) =
               UPPER(:subjectCode)
@@ -551,16 +696,26 @@ router.put("/:id", async (req, res) => {
       );
 
 
-    if (subjectResult.rows.length === 0) {
+    if (
+      subjectResult.rows.length === 0
+    ) {
       return res.status(404).json({
-        error: "Subject not found",
+        error:
+          "Subject not found",
       });
     }
 
 
+    const subjectName =
+      subjectResult.rows[0]
+        .SUBJECT_NAME ||
+      cleanSubjectCode;
+
+
     // -------------------------------------------------
     // CHECK TIME CONFLICT
-    // Ignore the timetable row currently being edited
+    //
+    // Ignore current timetable row
     // -------------------------------------------------
 
     const conflictResult =
@@ -597,7 +752,9 @@ router.put("/:id", async (req, res) => {
       );
 
 
-    if (conflictResult.rows.length > 0) {
+    if (
+      conflictResult.rows.length > 0
+    ) {
       return res.status(409).json({
         error:
           "This student already has a class during the selected time",
@@ -606,7 +763,7 @@ router.put("/:id", async (req, res) => {
 
 
     // -------------------------------------------------
-    // UPDATE
+    // UPDATE TIMETABLE ENTRY
     // -------------------------------------------------
 
     await connection.execute(
@@ -646,12 +803,79 @@ router.put("/:id", async (req, res) => {
     );
 
 
+    // -------------------------------------------------
+    // BUILD UPDATE NOTIFICATION
+    // -------------------------------------------------
+
+    let notificationMessage =
+      `${subjectName} timetable has been updated to ${cleanDay} from ${cleanStartTime} to ${cleanEndTime}`;
+
+
+    if (cleanRoom) {
+      notificationMessage +=
+        ` in ${cleanRoom}`;
+    }
+
+
+    notificationMessage += ".";
+
+
+    // -------------------------------------------------
+    // CREATE UPDATE NOTIFICATION
+    // -------------------------------------------------
+
+    await connection.execute(
+      `
+      INSERT INTO notifications (
+        student_roll,
+        notification_type,
+        title,
+        message_text,
+        related_type,
+        related_id,
+        action_url,
+        is_read
+      )
+      VALUES (
+        :studentRoll,
+        'TIMETABLE',
+        :notificationTitle,
+        :messageText,
+        'TIMETABLE',
+        :relatedId,
+        '/timetable',
+        0
+      )
+      `,
+      {
+        studentRoll:
+          cleanStudentRoll,
+
+        notificationTitle:
+          "Timetable Updated",
+
+        messageText:
+          notificationMessage,
+
+        relatedId:
+          timetableId,
+      }
+    );
+
+
+    // -------------------------------------------------
+    // COMMIT UPDATE + NOTIFICATION
+    // -------------------------------------------------
+
     await connection.commit();
 
 
     return res.json({
       message:
         "Timetable entry updated successfully",
+
+      notificationCreated:
+        true,
     });
 
   } catch (error) {
@@ -712,7 +936,9 @@ router.delete("/:id", async (req, res) => {
 
 
     if (
-      !Number.isInteger(timetableId) ||
+      !Number.isInteger(
+        timetableId
+      ) ||
       timetableId <= 0
     ) {
       return res.status(400).json({
@@ -732,13 +958,18 @@ router.delete("/:id", async (req, res) => {
         WHERE id = :id
         `,
         {
-          id: timetableId,
+          id:
+            timetableId,
         }
       );
 
 
-    if (result.rowsAffected === 0) {
+    if (
+      result.rowsAffected === 0
+    ) {
+
       await connection.rollback();
+
 
       return res.status(404).json({
         error:

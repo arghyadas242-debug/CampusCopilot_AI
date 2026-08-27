@@ -6,8 +6,36 @@ export default function AssignmentsPage() {
   const [activeTab, setActiveTab] = useState("upcoming");
 
   const [assignments, setAssignments] = useState([]);
+  const [studentProfile, setStudentProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const currentUser = authService.getCurrentUser();
+
+  const displayName =
+    studentProfile?.NAME ||
+    currentUser?.name ||
+    currentUser?.fullName ||
+    "Student";
+
+  const displayDepartment =
+    studentProfile?.DEPARTMENT ||
+    currentUser?.department ||
+    "Department not set";
+
+  const displayRoll =
+    studentProfile?.STUDENT_ROLL ||
+    currentUser?.rollNumber ||
+    currentUser?.studentRoll ||
+    "--";
+
+  const getInitials = (name) =>
+    String(name || "Student")
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join("");
 
   // =====================================================
   // LOAD ASSIGNMENTS FROM ORACLE DATABASE
@@ -19,24 +47,52 @@ export default function AssignmentsPage() {
         setLoading(true);
         setError("");
 
-        const currentUser = authService.getCurrentUser();
+        const loggedInUser = authService.getCurrentUser();
 
-        // Logged-in student's roll number
-        // Fallback used only while testing
         const roll =
-          currentUser?.rollNumber || "12024002037008";
+          loggedInUser?.rollNumber ||
+          loggedInUser?.studentRoll;
 
-        const response = await fetch(
-          `http://localhost:5000/api/assignments/${encodeURIComponent(
-            roll
-          )}`
-        );
+        if (!roll) {
+          throw new Error(
+            "Student roll number was not found. Please log in again."
+          );
+        }
 
-        if (!response.ok) {
+        const [assignmentResponse, profileResponse] =
+          await Promise.all([
+            fetch(
+              `http://localhost:5000/api/assignments/${encodeURIComponent(
+                roll
+              )}`
+            ),
+            fetch(
+              `http://localhost:5000/api/students/${encodeURIComponent(
+                roll
+              )}`
+            ),
+          ]);
+
+        if (!assignmentResponse.ok) {
           throw new Error("Failed to load assignments");
         }
 
-        const data = await response.json();
+        const data = await assignmentResponse.json();
+
+        if (profileResponse.ok) {
+          const profileData = await profileResponse.json();
+          setStudentProfile(profileData);
+        } else {
+          setStudentProfile({
+            NAME:
+              loggedInUser?.name ||
+              loggedInUser?.fullName ||
+              "",
+            STUDENT_ROLL: roll,
+            DEPARTMENT:
+              loggedInUser?.department || "",
+          });
+        }
 
         if (!Array.isArray(data)) {
           throw new Error("Invalid assignment data received");
@@ -224,20 +280,20 @@ export default function AssignmentsPage() {
           className="px-md mb-md flex items-center gap-sm hover:opacity-80"
         >
           <div className="w-10 h-10 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold">
-            RD
+            {getInitials(displayName)}
           </div>
 
           <div>
             <p className="font-title-md text-on-surface">
-              Ratul Das
+              {displayName}
             </p>
 
             <p className="font-body-sm text-on-surface-variant">
-              Computer Science Dept.
+              {displayDepartment}
             </p>
 
             <p className="font-mono-sm text-outline">
-              ID: 2026-001
+              ID: {displayRoll}
             </p>
           </div>
         </Link>
@@ -340,7 +396,7 @@ export default function AssignmentsPage() {
           <div className="flex items-center gap-sm">
 
             <div className="w-8 h-8 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold text-xs">
-              RD
+              {getInitials(displayName)}
             </div>
 
             <span className="font-headline-lg-mobile font-bold text-primary">

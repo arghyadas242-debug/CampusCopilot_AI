@@ -96,6 +96,7 @@ router.post("/", async (req, res) => {
       status,
     } = req.body;
 
+
     // -------------------------------------------------
     // VALIDATION
     // -------------------------------------------------
@@ -112,6 +113,7 @@ router.post("/", async (req, res) => {
       });
     }
 
+
     const cleanStudentRoll =
       studentRoll.trim();
 
@@ -125,11 +127,17 @@ router.post("/", async (req, res) => {
       description?.trim() || null;
 
     const cleanPriority =
-      priority?.trim().toLowerCase() || "medium";
+      priority?.trim().toLowerCase() ||
+      "medium";
 
     const cleanStatus =
-      status?.trim().toLowerCase() || "pending";
+      status?.trim().toLowerCase() ||
+      "pending";
 
+
+    // -------------------------------------------------
+    // PRIORITY VALIDATION
+    // -------------------------------------------------
 
     if (
       !["low", "medium", "high"].includes(
@@ -142,6 +150,10 @@ router.post("/", async (req, res) => {
       });
     }
 
+
+    // -------------------------------------------------
+    // STATUS VALIDATION
+    // -------------------------------------------------
 
     if (
       ![
@@ -156,6 +168,10 @@ router.post("/", async (req, res) => {
       });
     }
 
+
+    // -------------------------------------------------
+    // DATABASE CONNECTION
+    // -------------------------------------------------
 
     connection = await getConnection();
 
@@ -199,7 +215,9 @@ router.post("/", async (req, res) => {
     const subjectResult =
       await connection.execute(
         `
-        SELECT subject_code
+        SELECT
+          subject_code,
+          subject_name
         FROM subjects
         WHERE UPPER(subject_code) =
               UPPER(:subjectCode)
@@ -224,56 +242,129 @@ router.post("/", async (req, res) => {
     }
 
 
+    const subjectName =
+      subjectResult.rows[0]
+        .SUBJECT_NAME ||
+      cleanSubjectCode;
+
+
     // -------------------------------------------------
     // INSERT ASSIGNMENT
-    //
-    // ID is omitted so Oracle generates it.
+    // RETURN GENERATED ASSIGNMENT ID
     // -------------------------------------------------
+
+    const assignmentResult =
+      await connection.execute(
+        `
+        INSERT INTO assignments (
+          student_roll,
+          subject_code,
+          title,
+          description,
+          due_date,
+          priority,
+          status
+        )
+        VALUES (
+          :studentRoll,
+          :subjectCode,
+          :title,
+          :description,
+          TO_DATE(:dueDate, 'YYYY-MM-DD'),
+          :priority,
+          :status
+        )
+        RETURNING id
+        INTO :assignmentId
+        `,
+        {
+          studentRoll:
+            cleanStudentRoll,
+
+          subjectCode:
+            cleanSubjectCode,
+
+          title:
+            cleanTitle,
+
+          description:
+            cleanDescription,
+
+          dueDate,
+
+          priority:
+            cleanPriority,
+
+          status:
+            cleanStatus,
+
+          assignmentId: {
+            dir: oracledb.BIND_OUT,
+            type: oracledb.NUMBER,
+          },
+        }
+      );
+
+
+    // -------------------------------------------------
+    // GET GENERATED ASSIGNMENT ID
+    // -------------------------------------------------
+
+    const assignmentId =
+      assignmentResult.outBinds
+        .assignmentId[0];
+
+
+    // -------------------------------------------------
+    // CREATE NOTIFICATION
+    // -------------------------------------------------
+
+    const notificationMessage =
+      `${cleanTitle} for ${subjectName} is due on ${dueDate}.`;
+
 
     await connection.execute(
       `
-      INSERT INTO assignments (
+      INSERT INTO notifications (
         student_roll,
-        subject_code,
+        notification_type,
         title,
-        description,
-        due_date,
-        priority,
-        status
+        message_text,
+        related_type,
+        related_id,
+        action_url,
+        is_read
       )
       VALUES (
         :studentRoll,
-        :subjectCode,
-        :title,
-        :description,
-        TO_DATE(:dueDate, 'YYYY-MM-DD'),
-        :priority,
-        :status
+        'ASSIGNMENT',
+        :notificationTitle,
+        :messageText,
+        'ASSIGNMENT',
+        :relatedId,
+        '/assignments',
+        0
       )
       `,
       {
         studentRoll:
           cleanStudentRoll,
 
-        subjectCode:
-          cleanSubjectCode,
+        notificationTitle:
+          "New Assignment",
 
-        title:
-          cleanTitle,
+        messageText:
+          notificationMessage,
 
-        description:
-          cleanDescription,
-
-        dueDate,
-
-        priority:
-          cleanPriority,
-
-        status:
-          cleanStatus,
+        relatedId:
+          assignmentId,
       }
     );
 
+
+    // -------------------------------------------------
+    // COMMIT ASSIGNMENT + NOTIFICATION TOGETHER
+    // -------------------------------------------------
 
     await connection.commit();
 
@@ -281,9 +372,17 @@ router.post("/", async (req, res) => {
     return res.status(201).json({
       message:
         "Assignment created successfully",
+
+      assignmentId,
+
+      notificationCreated: true,
     });
 
   } catch (error) {
+
+    // -------------------------------------------------
+    // ROLLBACK BOTH IF ANYTHING FAILS
+    // -------------------------------------------------
 
     if (connection) {
       try {
@@ -339,6 +438,7 @@ router.put("/:id", async (req, res) => {
     const assignmentId =
       Number(req.params.id);
 
+
     if (
       !Number.isInteger(assignmentId) ||
       assignmentId <= 0
@@ -375,10 +475,12 @@ router.put("/:id", async (req, res) => {
 
 
     const cleanPriority =
-      priority?.trim().toLowerCase() || "medium";
+      priority?.trim().toLowerCase() ||
+      "medium";
 
     const cleanStatus =
-      status?.trim().toLowerCase() || "pending";
+      status?.trim().toLowerCase() ||
+      "pending";
 
 
     if (
@@ -508,7 +610,7 @@ router.put("/:id", async (req, res) => {
 
 
     // -------------------------------------------------
-    // UPDATE
+    // UPDATE ASSIGNMENT
     // -------------------------------------------------
 
     await connection.execute(

@@ -136,11 +136,15 @@ router.post("/", async (req, res) => {
       examType.trim();
 
 
+    // -------------------------------------------------
+    // DATABASE CONNECTION
+    // -------------------------------------------------
+
     connection = await getConnection();
 
 
     // -------------------------------------------------
-    // CHECK STUDENT
+    // CHECK STUDENT EXISTS
     // -------------------------------------------------
 
     const studentResult =
@@ -172,13 +176,16 @@ router.post("/", async (req, res) => {
 
 
     // -------------------------------------------------
-    // CHECK SUBJECT
+    // CHECK SUBJECT EXISTS
+    // ALSO GET SUBJECT NAME FOR NOTIFICATION
     // -------------------------------------------------
 
     const subjectResult =
       await connection.execute(
         `
-        SELECT subject_code
+        SELECT
+          subject_code,
+          subject_name
         FROM subjects
         WHERE UPPER(subject_code) =
               UPPER(:subjectCode)
@@ -203,55 +210,139 @@ router.post("/", async (req, res) => {
     }
 
 
+    const subjectName =
+      subjectResult.rows[0]
+        .SUBJECT_NAME ||
+      cleanSubjectCode;
+
+
     // -------------------------------------------------
     // INSERT EXAM
-    // ID omitted so Oracle generates it
+    // RETURN GENERATED EXAM ID
+    // -------------------------------------------------
+
+    const examResult =
+      await connection.execute(
+        `
+        INSERT INTO exams (
+          student_roll,
+          subject_code,
+          exam_date,
+          start_time,
+          end_time,
+          room,
+          exam_type
+        )
+        VALUES (
+          :studentRoll,
+          :subjectCode,
+          TO_DATE(:examDate, 'YYYY-MM-DD'),
+          :startTime,
+          :endTime,
+          :room,
+          :examType
+        )
+        RETURNING id
+        INTO :examId
+        `,
+        {
+          studentRoll:
+            cleanStudentRoll,
+
+          subjectCode:
+            cleanSubjectCode,
+
+          examDate,
+
+          startTime:
+            cleanStartTime,
+
+          endTime:
+            cleanEndTime,
+
+          room:
+            cleanRoom,
+
+          examType:
+            cleanExamType,
+
+          examId: {
+            dir: oracledb.BIND_OUT,
+            type: oracledb.NUMBER,
+          },
+        }
+      );
+
+
+    // -------------------------------------------------
+    // GET GENERATED EXAM ID
+    // -------------------------------------------------
+
+    const examId =
+      examResult.outBinds.examId[0];
+
+
+    // -------------------------------------------------
+    // BUILD NOTIFICATION MESSAGE
+    // -------------------------------------------------
+
+    let notificationMessage =
+      `${cleanExamType} for ${subjectName} is scheduled on ${examDate} from ${cleanStartTime} to ${cleanEndTime}`;
+
+    if (cleanRoom) {
+      notificationMessage +=
+        ` in ${cleanRoom}`;
+    }
+
+    notificationMessage += ".";
+
+
+    // -------------------------------------------------
+    // CREATE EXAM NOTIFICATION
     // -------------------------------------------------
 
     await connection.execute(
       `
-      INSERT INTO exams (
+      INSERT INTO notifications (
         student_roll,
-        subject_code,
-        exam_date,
-        start_time,
-        end_time,
-        room,
-        exam_type
+        notification_type,
+        title,
+        message_text,
+        related_type,
+        related_id,
+        action_url,
+        is_read
       )
       VALUES (
         :studentRoll,
-        :subjectCode,
-        TO_DATE(:examDate, 'YYYY-MM-DD'),
-        :startTime,
-        :endTime,
-        :room,
-        :examType
+        'EXAM',
+        :notificationTitle,
+        :messageText,
+        'EXAM',
+        :relatedId,
+        '/exams',
+        0
       )
       `,
       {
         studentRoll:
           cleanStudentRoll,
 
-        subjectCode:
-          cleanSubjectCode,
+        notificationTitle:
+          "New Exam Scheduled",
 
-        examDate,
+        messageText:
+          notificationMessage,
 
-        startTime:
-          cleanStartTime,
-
-        endTime:
-          cleanEndTime,
-
-        room:
-          cleanRoom,
-
-        examType:
-          cleanExamType,
+        relatedId:
+          examId,
       }
     );
 
+
+    // -------------------------------------------------
+    // COMMIT EXAM + NOTIFICATION TOGETHER
+    // -------------------------------------------------
 
     await connection.commit();
 
@@ -259,9 +350,17 @@ router.post("/", async (req, res) => {
     return res.status(201).json({
       message:
         "Exam created successfully",
+
+      examId,
+
+      notificationCreated: true,
     });
 
   } catch (error) {
+
+    // -------------------------------------------------
+    // ROLLBACK BOTH IF ANYTHING FAILS
+    // -------------------------------------------------
 
     if (connection) {
       try {
