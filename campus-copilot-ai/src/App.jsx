@@ -24,6 +24,7 @@ import StudentIDPage from "./pages/student/StudentIDPage";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import UpdateAttendance from "./pages/admin/UpdateAttendance";
 import UpdateStudent from "./pages/admin/UpdateStudent";
+import NotificationsPage from "./pages/student/NotificationsPage";
 
 function App() {
   return (
@@ -36,6 +37,7 @@ function App() {
 
         {/* Student Portal */}
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/ai-chat" element={<AIChatPage />} />
         <Route path="/notices" element={<NoticesPage />} />
         <Route path="/notices/:id" element={<NoticesPage />} />

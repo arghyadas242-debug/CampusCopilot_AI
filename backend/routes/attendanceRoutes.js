@@ -39,7 +39,8 @@ router.get("/", async (req, res) => {
       `,
       [],
       {
-        outFormat: oracledb.OUT_FORMAT_OBJECT,
+        outFormat:
+          oracledb.OUT_FORMAT_OBJECT,
       }
     );
 
@@ -53,8 +54,11 @@ router.get("/", async (req, res) => {
     );
 
     return res.status(500).json({
-      error: "Unable to load attendance",
-      details: error.message,
+      error:
+        "Unable to load attendance",
+
+      details:
+        error.message,
     });
 
   } finally {
@@ -94,7 +98,8 @@ router.get("/subjects", async (req, res) => {
       `,
       [],
       {
-        outFormat: oracledb.OUT_FORMAT_OBJECT,
+        outFormat:
+          oracledb.OUT_FORMAT_OBJECT,
       }
     );
 
@@ -108,8 +113,11 @@ router.get("/subjects", async (req, res) => {
     );
 
     return res.status(500).json({
-      error: "Unable to load subjects",
-      details: error.message,
+      error:
+        "Unable to load subjects",
+
+      details:
+        error.message,
     });
 
   } finally {
@@ -148,7 +156,8 @@ router.get("/sections", async (req, res) => {
       `,
       [],
       {
-        outFormat: oracledb.OUT_FORMAT_OBJECT,
+        outFormat:
+          oracledb.OUT_FORMAT_OBJECT,
       }
     );
 
@@ -162,8 +171,11 @@ router.get("/sections", async (req, res) => {
     );
 
     return res.status(500).json({
-      error: "Unable to load sections",
-      details: error.message,
+      error:
+        "Unable to load sections",
+
+      details:
+        error.message,
     });
 
   } finally {
@@ -196,7 +208,8 @@ router.get("/roster", async (req, res) => {
 
     if (!section) {
       return res.status(400).json({
-        error: "Section is required",
+        error:
+          "Section is required",
       });
     }
 
@@ -220,7 +233,8 @@ router.get("/roster", async (req, res) => {
         section,
       },
       {
-        outFormat: oracledb.OUT_FORMAT_OBJECT,
+        outFormat:
+          oracledb.OUT_FORMAT_OBJECT,
       }
     );
 
@@ -234,8 +248,11 @@ router.get("/roster", async (req, res) => {
     );
 
     return res.status(500).json({
-      error: "Unable to load student roster",
-      details: error.message,
+      error:
+        "Unable to load student roster",
+
+      details:
+        error.message,
     });
 
   } finally {
@@ -270,39 +287,48 @@ router.post("/mark", async (req, res) => {
       records,
     } = req.body;
 
-    // ---------------------------------------------
+
+    // -------------------------------------------------
     // VALIDATION
-    // ---------------------------------------------
+    // -------------------------------------------------
 
     if (!subjectCode?.trim()) {
       return res.status(400).json({
-        error: "Subject code is required",
+        error:
+          "Subject code is required",
       });
     }
+
 
     if (!section?.trim()) {
       return res.status(400).json({
-        error: "Section is required",
+        error:
+          "Section is required",
       });
     }
 
+
     if (!sessionType?.trim()) {
       return res.status(400).json({
-        error: "Session type is required",
+        error:
+          "Session type is required",
       });
     }
+
 
     if (
       !Array.isArray(records) ||
       records.length === 0
     ) {
       return res.status(400).json({
-        error: "Attendance records are required",
+        error:
+          "Attendance records are required",
       });
     }
 
+
     const cleanSubjectCode =
-      subjectCode.trim();
+      subjectCode.trim().toUpperCase();
 
     const cleanSection =
       section.trim();
@@ -310,10 +336,18 @@ router.post("/mark", async (req, res) => {
     const cleanSessionType =
       sessionType.trim();
 
+
+    // -------------------------------------------------
+    // VALIDATE EVERY ATTENDANCE RECORD
+    // -------------------------------------------------
+
     for (const record of records) {
+
       if (
         !record.studentRoll?.trim() ||
-        !["present", "absent"].includes(record.status)
+        !["present", "absent"].includes(
+          record.status
+        )
       ) {
         return res.status(400).json({
           error:
@@ -322,22 +356,28 @@ router.post("/mark", async (req, res) => {
       }
     }
 
+
     connection = await getConnection();
 
-    // ---------------------------------------------
+
+    // -------------------------------------------------
     // CHECK SUBJECT
-    // ---------------------------------------------
+    // ALSO GET SUBJECT NAME FOR NOTIFICATION
+    // -------------------------------------------------
 
     const subjectResult =
       await connection.execute(
         `
-        SELECT subject_code
+        SELECT
+          subject_code,
+          subject_name
         FROM subjects
         WHERE UPPER(subject_code) =
               UPPER(:subjectCode)
         `,
         {
-          subjectCode: cleanSubjectCode,
+          subjectCode:
+            cleanSubjectCode,
         },
         {
           outFormat:
@@ -345,20 +385,37 @@ router.post("/mark", async (req, res) => {
         }
       );
 
-    if (subjectResult.rows.length === 0) {
+
+    if (
+      subjectResult.rows.length === 0
+    ) {
       return res.status(404).json({
-        error: "Subject not found",
+        error:
+          "Subject not found",
       });
     }
 
-    // ---------------------------------------------
-    // CREATE SESSION
+
+    const subjectName =
+      subjectResult.rows[0]
+        .SUBJECT_NAME ||
+      cleanSubjectCode;
+
+
+    // -------------------------------------------------
+    // CREATE ATTENDANCE SESSION
     //
-    // UNIQUE constraint prevents duplicate
-    // subject + section + session type + date
-    // ---------------------------------------------
+    // UNIQUE constraint prevents:
+    // same subject
+    // same section
+    // same session type
+    // same day
+    //
+    // from being submitted twice.
+    // -------------------------------------------------
 
     try {
+
       await connection.execute(
         `
         INSERT INTO attendance_sessions (
@@ -375,14 +432,26 @@ router.post("/mark", async (req, res) => {
         )
         `,
         {
-          subjectCode: cleanSubjectCode,
-          section: cleanSection,
-          sessionType: cleanSessionType,
+          subjectCode:
+            cleanSubjectCode,
+
+          section:
+            cleanSection,
+
+          sessionType:
+            cleanSessionType,
         }
       );
+
     } catch (sessionError) {
-      // ORA-00001 = unique constraint violation
-      if (sessionError.errorNum === 1) {
+
+      // ORA-00001
+      // Unique constraint violation
+
+      if (
+        sessionError.errorNum === 1
+      ) {
+
         await connection.rollback();
 
         return res.status(409).json({
@@ -394,18 +463,33 @@ router.post("/mark", async (req, res) => {
       throw sessionError;
     }
 
-    // ---------------------------------------------
-    // UPDATE ATTENDANCE
-    // ---------------------------------------------
+
+    // -------------------------------------------------
+    // TRACK HOW MANY NOTIFICATIONS ARE CREATED
+    // -------------------------------------------------
+
+    let notificationsCreated = 0;
+
+
+    // -------------------------------------------------
+    // UPDATE ATTENDANCE FOR EACH STUDENT
+    // -------------------------------------------------
 
     for (const record of records) {
+
       const studentRoll =
         record.studentRoll.trim();
+
 
       const presentIncrement =
         record.status === "present"
           ? 1
           : 0;
+
+
+      // -------------------------------------------------
+      // MERGE ATTENDANCE
+      // -------------------------------------------------
 
       await connection.execute(
         `
@@ -457,17 +541,202 @@ router.post("/mark", async (req, res) => {
         `,
         {
           studentRoll,
-          subjectCode: cleanSubjectCode,
+
+          subjectCode:
+            cleanSubjectCode,
+
           presentIncrement,
         }
       );
+
+
+      // -------------------------------------------------
+      // GET UPDATED ATTENDANCE
+      // -------------------------------------------------
+
+      const updatedAttendanceResult =
+        await connection.execute(
+          `
+          SELECT
+            id,
+            attended_classes,
+            total_classes
+          FROM attendance
+          WHERE UPPER(student_roll) =
+                UPPER(:studentRoll)
+
+            AND UPPER(subject_code) =
+                UPPER(:subjectCode)
+          `,
+          {
+            studentRoll,
+
+            subjectCode:
+              cleanSubjectCode,
+          },
+          {
+            outFormat:
+              oracledb.OUT_FORMAT_OBJECT,
+          }
+        );
+
+
+      if (
+        updatedAttendanceResult
+          .rows.length === 0
+      ) {
+        throw new Error(
+          `Attendance record could not be loaded for ${studentRoll}`
+        );
+      }
+
+
+      const attendanceRow =
+        updatedAttendanceResult.rows[0];
+
+
+      const attendanceId =
+        attendanceRow.ID;
+
+
+      const attendedClasses =
+        Number(
+          attendanceRow
+            .ATTENDED_CLASSES || 0
+        );
+
+
+      const totalClasses =
+        Number(
+          attendanceRow
+            .TOTAL_CLASSES || 0
+        );
+
+
+      const attendancePercentage =
+        totalClasses > 0
+          ? (
+              attendedClasses /
+              totalClasses
+            ) * 100
+          : 0;
+
+
+      // -------------------------------------------------
+      // LOW ATTENDANCE ALERT
+      // -------------------------------------------------
+
+      if (
+        attendancePercentage < 75
+      ) {
+
+        // ---------------------------------------------
+        // CHECK WHETHER AN UNREAD ALERT
+        // ALREADY EXISTS FOR THIS
+        // STUDENT + SUBJECT ATTENDANCE ROW
+        // ---------------------------------------------
+
+        const existingAlertResult =
+          await connection.execute(
+            `
+            SELECT notification_id
+            FROM notifications
+            WHERE student_roll =
+                  :studentRoll
+
+              AND notification_type =
+                  'ATTENDANCE'
+
+              AND related_type =
+                  'ATTENDANCE'
+
+              AND related_id =
+                  :attendanceId
+
+              AND is_read = 0
+            `,
+            {
+              studentRoll,
+
+              attendanceId,
+            },
+            {
+              outFormat:
+                oracledb.OUT_FORMAT_OBJECT,
+            }
+          );
+
+
+        // ---------------------------------------------
+        // CREATE ALERT ONLY IF THERE IS
+        // NO EXISTING UNREAD ALERT
+        // ---------------------------------------------
+
+        if (
+          existingAlertResult
+            .rows.length === 0
+        ) {
+
+          const percentageText =
+            attendancePercentage
+              .toFixed(1);
+
+
+          const notificationMessage =
+            `Your ${subjectName} attendance is ${percentageText}% (${attendedClasses}/${totalClasses}). This is below the required 75% attendance.`;
+
+
+          await connection.execute(
+            `
+            INSERT INTO notifications (
+              student_roll,
+              notification_type,
+              title,
+              message_text,
+              related_type,
+              related_id,
+              action_url,
+              is_read
+            )
+            VALUES (
+              :studentRoll,
+              'ATTENDANCE',
+              :notificationTitle,
+              :messageText,
+              'ATTENDANCE',
+              :relatedId,
+              '/attendance',
+              0
+            )
+            `,
+            {
+              studentRoll,
+
+              notificationTitle:
+                "Low Attendance Alert",
+
+              messageText:
+                notificationMessage,
+
+              relatedId:
+                attendanceId,
+            }
+          );
+
+
+          notificationsCreated++;
+        }
+      }
     }
 
-    // ---------------------------------------------
-    // SAVE SESSION + ATTENDANCE TOGETHER
-    // ---------------------------------------------
+
+    // -------------------------------------------------
+    // SAVE SESSION + ATTENDANCE + NOTIFICATIONS
+    // TOGETHER
+    // -------------------------------------------------
 
     await connection.commit();
+
 
     return res.json({
       message:
@@ -484,14 +753,19 @@ router.post("/mark", async (req, res) => {
 
       studentsUpdated:
         records.length,
+
+      notificationsCreated,
     });
 
   } catch (error) {
 
     if (connection) {
       try {
+
         await connection.rollback();
+
       } catch (rollbackError) {
+
         console.error(
           "Attendance rollback error:",
           rollbackError
@@ -499,10 +773,12 @@ router.post("/mark", async (req, res) => {
       }
     }
 
+
     console.error(
       "Mark attendance error:",
       error
     );
+
 
     return res.status(500).json({
       error:
@@ -516,8 +792,11 @@ router.post("/mark", async (req, res) => {
 
     if (connection) {
       try {
+
         await connection.close();
+
       } catch (closeError) {
+
         console.error(
           "Connection close error:",
           closeError
@@ -527,12 +806,20 @@ router.post("/mark", async (req, res) => {
   }
 });
 
+
 // =====================================================
 // GET ATTENDANCE OF ONE STUDENT
 // GET /api/attendance/:studentRoll
 //
 // IMPORTANT:
-// Keep this AFTER /subjects, /sections and /roster.
+// Keep this AFTER:
+//
+// /subjects
+// /sections
+// /roster
+// /mark
+//
+// because this is the dynamic route.
 // =====================================================
 
 router.get("/:studentRoll", async (req, res) => {
@@ -542,41 +829,45 @@ router.get("/:studentRoll", async (req, res) => {
     const studentRoll =
       req.params.studentRoll;
 
+
     connection = await getConnection();
 
-    const result = await connection.execute(
-      `
-      SELECT
-        s.name,
-        s.student_roll,
-        sub.subject_code,
-        sub.subject_name,
-        a.attended_classes,
-        a.total_classes
-      FROM attendance a
 
-      JOIN students s
-        ON a.student_roll =
-           s.student_roll
+    const result =
+      await connection.execute(
+        `
+        SELECT
+          s.name,
+          s.student_roll,
+          sub.subject_code,
+          sub.subject_name,
+          a.attended_classes,
+          a.total_classes
+        FROM attendance a
 
-      JOIN subjects sub
-        ON a.subject_code =
-           sub.subject_code
+        JOIN students s
+          ON a.student_roll =
+             s.student_roll
 
-      WHERE s.student_roll =
-            :studentRoll
+        JOIN subjects sub
+          ON a.subject_code =
+             sub.subject_code
 
-      ORDER BY
-        sub.subject_code
-      `,
-      {
-        studentRoll,
-      },
-      {
-        outFormat:
-          oracledb.OUT_FORMAT_OBJECT,
-      }
-    );
+        WHERE s.student_roll =
+              :studentRoll
+
+        ORDER BY
+          sub.subject_code
+        `,
+        {
+          studentRoll,
+        },
+        {
+          outFormat:
+            oracledb.OUT_FORMAT_OBJECT,
+        }
+      );
+
 
     return res.json(result.rows);
 
@@ -586,6 +877,7 @@ router.get("/:studentRoll", async (req, res) => {
       "Student attendance error:",
       error
     );
+
 
     return res.status(500).json({
       error:
@@ -599,8 +891,11 @@ router.get("/:studentRoll", async (req, res) => {
 
     if (connection) {
       try {
+
         await connection.close();
+
       } catch (closeError) {
+
         console.error(
           "Connection close error:",
           closeError
