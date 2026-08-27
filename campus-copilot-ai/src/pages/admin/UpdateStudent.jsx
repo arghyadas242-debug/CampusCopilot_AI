@@ -1,13 +1,64 @@
-import { useState } from "react";
-import { Link } from "react-router";
+import { useCallback, useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router";
 import AdminSidebar from "../../components/admin/AdminSidebar";
 
 const API_URL = "http://localhost:5000";
 
+const fetchStudentSearchResults = async (query) => {
+  const response = await fetch(
+    `${API_URL}/api/students/search?q=${encodeURIComponent(
+      query
+    )}`
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.error || "Unable to search student"
+    );
+  }
+
+  return data;
+};
+
+const findExactStudent = (students, query) =>
+  students.find(
+    (student) =>
+      String(student.STUDENT_ROLL).toLowerCase() ===
+      query.toLowerCase()
+  ) || (students.length === 1 ? students[0] : null);
+
+const fetchAllStudents = async () => {
+  const response = await fetch(`${API_URL}/api/students`);
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.error || "Unable to load students"
+    );
+  }
+
+  return Array.isArray(data) ? data : [];
+};
+
+const getStudentManagementPath = (studentRoll) =>
+  studentRoll
+    ? `/admin/students?student=${encodeURIComponent(
+        studentRoll
+      )}`
+    : "/admin/students";
+
 export default function UpdateStudent() {
+  const [searchParams] = useSearchParams();
+  const selectedStudentRoll =
+    searchParams.get("student") || "";
+
   const [mode, setMode] = useState("search");
 
-  const [searchId, setSearchId] = useState("");
+  const [searchId, setSearchId] = useState(
+    selectedStudentRoll
+  );
   const [searchResults, setSearchResults] = useState([]);
 
   const [studentData, setStudentData] = useState({
@@ -32,7 +83,9 @@ export default function UpdateStudent() {
 
   const [studentLoaded, setStudentLoaded] = useState(false);
 
-  const [searching, setSearching] = useState(false);
+  const [searching, setSearching] = useState(
+    Boolean(selectedStudentRoll)
+  );
   const [saving, setSaving] = useState(false);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -40,81 +93,79 @@ export default function UpdateStudent() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  const [students, setStudents] = useState([]);
+  const [studentsLoading, setStudentsLoading] =
+    useState(true);
+  const [studentsError, setStudentsError] =
+    useState("");
+
   // =====================================================
   // CLEAR MESSAGES
   // =====================================================
 
-  const clearMessages = () => {
+  const clearMessages = useCallback(() => {
     setError("");
     setSuccess("");
-  };
+  }, []);
 
-  // =====================================================
-  // SEARCH STUDENT
-  // =====================================================
-
-  const handleSearch = async (e) => {
-    e.preventDefault();
-
-    if (!searchId.trim()) {
-      setError("Enter a student name or roll number.");
-      return;
-    }
-
+  const loadStudents = useCallback(async () => {
     try {
-      setSearching(true);
-      clearMessages();
+      setStudentsLoading(true);
+      setStudentsError("");
 
-      setSearchResults([]);
-      setStudentLoaded(false);
-
-      const response = await fetch(
-        `${API_URL}/api/students/search?q=${encodeURIComponent(
-          searchId.trim()
-        )}`
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.error || "Unable to search student"
-        );
-      }
-
-      if (!Array.isArray(data) || data.length === 0) {
-        setError("No student found.");
-        return;
-      }
-
-      const exactStudent =
-        data.find(
-          (student) =>
-            String(student.STUDENT_ROLL).toLowerCase() ===
-            searchId.trim().toLowerCase()
-        ) || (data.length === 1 ? data[0] : null);
-
-      if (exactStudent) {
-        loadStudent(exactStudent);
-      } else {
-        setSearchResults(data);
-      }
+      const data = await fetchAllStudents();
+      setStudents(data);
     } catch (err) {
-      console.error("Search error:", err);
-
-      setError(
-        err.message || "Unable to search student."
+      console.error("Students directory error:", err);
+      setStudents([]);
+      setStudentsError(
+        err.message || "Unable to load students."
       );
     } finally {
-      setSearching(false);
+      setStudentsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadInitialStudents = async () => {
+      try {
+        const data = await fetchAllStudents();
+
+        if (!cancelled) {
+          setStudents(data);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error(
+            "Students directory error:",
+            err
+          );
+          setStudents([]);
+          setStudentsError(
+            err.message || "Unable to load students."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setStudentsLoading(false);
+        }
+      }
+    };
+
+    loadInitialStudents();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // =====================================================
   // LOAD STUDENT
   // =====================================================
 
-  const loadStudent = (student) => {
+  const loadStudent = useCallback((student) => {
     setStudentData({
       studentId: student.STUDENT_ID || null,
       fullName: student.NAME || "",
@@ -134,7 +185,114 @@ export default function UpdateStudent() {
     setMode("edit");
 
     clearMessages();
+  }, [clearMessages]);
+
+  // =====================================================
+  // SEARCH STUDENT
+  // =====================================================
+
+  const searchStudent = useCallback(async (query) => {
+    const normalizedQuery = query.trim();
+
+    if (!normalizedQuery) {
+      setError("Enter a student name or roll number.");
+      return;
+    }
+
+    try {
+      setSearching(true);
+      clearMessages();
+
+      setSearchResults([]);
+      setStudentLoaded(false);
+
+      const data = await fetchStudentSearchResults(
+        normalizedQuery
+      );
+
+      if (!Array.isArray(data) || data.length === 0) {
+        setError("No student found.");
+        return;
+      }
+
+      const exactStudent = findExactStudent(
+        data,
+        normalizedQuery
+      );
+
+      if (exactStudent) {
+        loadStudent(exactStudent);
+      } else {
+        setSearchResults(data);
+      }
+    } catch (err) {
+      console.error("Search error:", err);
+
+      setError(
+        err.message || "Unable to search student."
+      );
+    } finally {
+      setSearching(false);
+    }
+  }, [clearMessages, loadStudent]);
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    searchStudent(searchId);
   };
+
+  useEffect(() => {
+    if (!selectedStudentRoll) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const loadSelectedStudent = async () => {
+      try {
+        const data = await fetchStudentSearchResults(
+          selectedStudentRoll
+        );
+
+        if (cancelled) {
+          return;
+        }
+
+        if (!Array.isArray(data) || data.length === 0) {
+          setError("No student found.");
+          return;
+        }
+
+        const exactStudent = findExactStudent(
+          data,
+          selectedStudentRoll
+        );
+
+        if (exactStudent) {
+          loadStudent(exactStudent);
+        } else {
+          setSearchResults(data);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error("Search error:", err);
+          setError(
+            err.message || "Unable to search student."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setSearching(false);
+        }
+      }
+    };
+
+    loadSelectedStudent();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadStudent, selectedStudentRoll]);
 
   // =====================================================
   // EDIT FORM CHANGE
@@ -193,6 +351,8 @@ export default function UpdateStudent() {
           data.error || "Unable to update student"
         );
       }
+
+      await loadStudents();
 
       setSuccess(
         "Student profile updated successfully."
@@ -265,6 +425,8 @@ export default function UpdateStudent() {
       setStudentLoaded(false);
 
       setMode("search");
+
+      await loadStudents();
 
       setSuccess(
         "Student deleted successfully."
@@ -378,6 +540,8 @@ export default function UpdateStudent() {
       setStudentLoaded(true);
       setMode("edit");
 
+      await loadStudents();
+
       setSuccess(
         "Student created successfully. The student can now log in using the email and password you provided."
       );
@@ -463,7 +627,9 @@ export default function UpdateStudent() {
 
         {/* HEADER */}
 
-        <header className="sticky top-0 bg-surface z-30 border-b border-outline-variant/50 px-6 py-4 flex items-center justify-between">
+        <header className="sticky top-0 w-full bg-surface z-30 border-b border-outline-variant/50">
+
+          <div className="px-4 md:px-8 py-4 max-w-[1440px] mx-auto w-full flex items-center justify-between">
 
           <div className="flex items-center gap-3">
 
@@ -502,9 +668,11 @@ export default function UpdateStudent() {
             Add Student
           </button>
 
+          </div>
+
         </header>
 
-        <div className="px-margin-mobile md:px-margin-desktop py-6 max-w-4xl mx-auto w-full">
+        <div className="flex-1 max-w-[1440px] mx-auto w-full p-4 md:p-8 flex flex-col gap-6 pt-6">
 
           {/* MODE SWITCH */}
 
@@ -1089,6 +1257,191 @@ export default function UpdateStudent() {
             </>
 
           )}
+
+          {/* STUDENT DIRECTORY */}
+
+          <section className="w-full bg-surface-container-lowest border border-outline-variant/70 rounded-2xl shadow-sm overflow-hidden">
+
+            <div className="p-5 flex items-center justify-between gap-4 border-b border-outline-variant/70">
+
+              <div>
+
+                <h2 className="font-title-md font-bold text-on-surface">
+                  Student Directory
+                </h2>
+
+                <p className="font-body-sm text-xs text-on-surface-variant mt-1">
+                  All registered students
+                </p>
+
+              </div>
+
+              <span className="px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full text-xs font-bold whitespace-nowrap">
+                {students.length}{" "}
+                {students.length === 1
+                  ? "Student"
+                  : "Students"}
+              </span>
+
+            </div>
+
+            {studentsLoading ? (
+
+              <div className="p-10 text-center text-on-surface-variant">
+
+                <span className="material-symbols-outlined text-3xl text-primary">
+                  progress_activity
+                </span>
+
+                <p className="font-body-sm text-sm mt-2">
+                  Loading students...
+                </p>
+
+              </div>
+
+            ) : studentsError ? (
+
+              <div className="p-10 text-center">
+
+                <span className="material-symbols-outlined text-4xl text-error">
+                  error
+                </span>
+
+                <p className="font-title-md font-bold text-on-surface mt-2">
+                  Unable to load students.
+                </p>
+
+                <p className="font-body-sm text-xs text-on-surface-variant mt-1">
+                  {studentsError}
+                </p>
+
+                <button
+                  type="button"
+                  onClick={loadStudents}
+                  className="mt-4 px-4 py-2 border border-primary text-primary rounded-xl font-semibold text-sm hover:bg-primary-container transition-colors"
+                >
+                  Retry
+                </button>
+
+              </div>
+
+            ) : students.length === 0 ? (
+
+              <div className="p-10 text-center">
+
+                <span className="material-symbols-outlined text-4xl text-outline">
+                  group_off
+                </span>
+
+                <p className="font-title-md font-bold text-on-surface mt-2">
+                  No students found.
+                </p>
+
+                <p className="font-body-sm text-xs text-on-surface-variant mt-1">
+                  Students added to CampusCopilot will appear here.
+                </p>
+
+              </div>
+
+            ) : (
+
+              <div className="overflow-x-auto">
+
+                <table className="w-full text-left text-sm border-collapse">
+
+                  <thead>
+
+                    <tr className="border-b border-outline-variant/70 text-outline font-label-caps text-xs uppercase">
+
+                      <th className="py-2.5 px-3">
+                        Student
+                      </th>
+
+                      <th className="py-2.5 px-3">
+                        Roll ID
+                      </th>
+
+                      <th className="py-2.5 px-3">
+                        Department
+                      </th>
+
+                      <th className="py-2.5 px-3">
+                        Semester
+                      </th>
+
+                      <th className="py-2.5 px-3">
+                        Section
+                      </th>
+
+                      <th className="py-2.5 px-3 text-right">
+                        Actions
+                      </th>
+
+                    </tr>
+
+                  </thead>
+
+                  <tbody className="divide-y divide-outline-variant/70">
+
+                    {students.map((student, index) => (
+
+                      <tr
+                        key={
+                          student.STUDENT_ID ||
+                          student.STUDENT_ROLL ||
+                          index
+                        }
+                        className="hover:bg-surface-container-low transition-colors"
+                      >
+
+                        <td className="py-3 px-3 font-semibold text-on-surface">
+                          {student.NAME ||
+                            "Unknown Student"}
+                        </td>
+
+                        <td className="py-3 px-3 font-mono-sm text-xs text-outline">
+                          {student.STUDENT_ROLL || "-"}
+                        </td>
+
+                        <td className="py-3 px-3 text-on-surface-variant">
+                          {student.DEPARTMENT ||
+                            "Not assigned"}
+                        </td>
+
+                        <td className="py-3 px-3 text-on-surface-variant">
+                          {student.SEMESTER || "-"}
+                        </td>
+
+                        <td className="py-3 px-3 text-on-surface-variant">
+                          {student.SECTION || "-"}
+                        </td>
+
+                        <td className="py-3 px-3 text-right">
+
+                          <Link
+                            to={getStudentManagementPath(
+                              student.STUDENT_ROLL
+                            )}
+                            className="text-primary hover:underline font-semibold text-xs"
+                          >
+                            Edit
+                          </Link>
+
+                        </td>
+
+                      </tr>
+
+                    ))}
+
+                  </tbody>
+
+                </table>
+
+              </div>
+
+            )}
+
+          </section>
 
         </div>
 

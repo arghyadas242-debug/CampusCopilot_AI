@@ -5,6 +5,16 @@ import AdminSidebar from "../../components/admin/AdminSidebar";
 
 const API_URL = "http://localhost:5000";
 
+const getStudentManagementPath = (student) => {
+  const studentRoll = student.STUDENT_ROLL;
+
+  return studentRoll
+    ? `/admin/students?student=${encodeURIComponent(
+        studentRoll
+      )}`
+    : "/admin/students";
+};
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
 
@@ -116,24 +126,28 @@ export default function AdminDashboard() {
       value: stats.totalStudents,
       icon: "group",
       color: "text-secondary",
+      path: "/admin/students",
     },
     {
       label: "Total Subjects",
       value: stats.totalSubjects,
       icon: "book",
       color: "text-primary",
+      path: "/admin/subjects",
     },
     {
       label: "Active Assignments",
       value: stats.activeAssignments,
       icon: "assignment",
       color: "text-tertiary",
+      path: "/admin/assignments",
     },
     {
       label: "Published Notices",
       value: stats.publishedNotices,
       icon: "campaign",
       color: "text-secondary",
+      path: "/admin/notices",
     },
   ];
 
@@ -196,8 +210,7 @@ export default function AdminDashboard() {
             </Link>
 
             <Link
-              to="/notices"
-              state={{ from: "/admin" }}
+              to="/admin/notices"
               className="font-body-md text-on-surface-variant hover:text-primary px-3 py-1.5"
             >
               Notices
@@ -255,8 +268,7 @@ export default function AdminDashboard() {
             </Link>
 
             <Link
-              to="/notices"
-              state={{ from: "/admin" }}
+              to="/admin/notices"
               className="px-4 py-2 bg-primary-container/40 text-on-primary border border-on-primary/30 font-semibold text-xs rounded-xl hover:bg-primary-container/60 transition-colors"
             >
               View Notices
@@ -300,8 +312,9 @@ export default function AdminDashboard() {
 
           {statCards.map((stat) => (
 
-            <div
+            <Link
               key={stat.label}
+              to={stat.path}
               className="bg-surface-container-lowest border border-outline-variant/70 rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow"
             >
 
@@ -327,7 +340,7 @@ export default function AdminDashboard() {
 
               </div>
 
-            </div>
+            </Link>
           ))}
 
         </section>
@@ -401,8 +414,7 @@ export default function AdminDashboard() {
           {/* Notices */}
 
           <Link
-            to="/notices"
-            state={{ from: "/admin" }}
+            to="/admin/notices"
             className="p-5 bg-surface-container-lowest border border-outline-variant/70 rounded-2xl hover:border-primary transition-all shadow-sm flex items-start gap-4 group"
           >
 
@@ -556,7 +568,30 @@ export default function AdminDashboard() {
                             student.STUDENT_ROLL ||
                             index
                           }
-                          className="hover:bg-surface-container-low transition-colors"
+                          onClick={() =>
+                            navigate(
+                              getStudentManagementPath(
+                                student
+                              )
+                            )
+                          }
+                          onKeyDown={(event) => {
+                            if (
+                              event.target ===
+                                event.currentTarget &&
+                              (event.key === "Enter" ||
+                                event.key === " ")
+                            ) {
+                              event.preventDefault();
+                              navigate(
+                                getStudentManagementPath(
+                                  student
+                                )
+                              );
+                            }
+                          }}
+                          tabIndex={0}
+                          className="hover:bg-surface-container-low transition-colors cursor-pointer"
                         >
 
                           {/* Student Name */}
@@ -614,10 +649,12 @@ export default function AdminDashboard() {
                           <td className="py-3 px-3 text-right">
 
                             <Link
-                              to={`/admin/students?student=${
-                                student.STUDENT_ID ||
-                                student.STUDENT_ROLL
-                              }`}
+                              to={getStudentManagementPath(
+                                student
+                              )}
+                              onClick={(event) =>
+                                event.stopPropagation()
+                              }
                               className="text-primary hover:underline font-semibold text-xs"
                             >
                               Edit
