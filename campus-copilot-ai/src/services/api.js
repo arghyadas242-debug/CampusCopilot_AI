@@ -61,10 +61,52 @@ export const aiService = {
       },
       body: JSON.stringify({ message, history, context }),
     });
+
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Failed to get AI response");
+
+    if (!res.ok) {
+      throw new Error(
+        data.error ||
+          "Failed to get AI response"
+      );
+    }
+
     return data;
   },
+
+
+  async getPerformanceAnalytics(studentRoll) {
+    const res = await fetch(
+      `${API_BASE_URL}/ai/analytics`,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+
+          ...getAuthHeader(),
+        },
+
+        body: JSON.stringify({
+          studentRoll,
+        }),
+      }
+    );
+
+    const data =
+      await res.json();
+
+    if (!res.ok) {
+      throw new Error(
+        data.error ||
+          "Failed to load AI performance analytics"
+      );
+    }
+
+    return data;
+  },
+
 
   async summarizeNotice(title, noticeText) {
     const res = await fetch(`${API_BASE_URL}/ai/summarize-notice`, {
@@ -75,10 +117,19 @@ export const aiService = {
       },
       body: JSON.stringify({ title, noticeText }),
     });
+
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Failed to summarize notice");
+
+    if (!res.ok) {
+      throw new Error(
+        data.error ||
+          "Failed to summarize notice"
+      );
+    }
+
     return data;
   },
+
 
   async generateStudyPlan(subjects, daysUntilExam, dailyHours) {
     const res = await fetch(`${API_BASE_URL}/ai/study-plan`, {
@@ -87,10 +138,22 @@ export const aiService = {
         "Content-Type": "application/json",
         ...getAuthHeader(),
       },
-      body: JSON.stringify({ subjects, daysUntilExam, dailyHours }),
+      body: JSON.stringify({
+        subjects,
+        daysUntilExam,
+        dailyHours,
+      }),
     });
+
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Failed to generate study plan");
+
+    if (!res.ok) {
+      throw new Error(
+        data.error ||
+          "Failed to generate study plan"
+      );
+    }
+
     return data;
   },
 };
