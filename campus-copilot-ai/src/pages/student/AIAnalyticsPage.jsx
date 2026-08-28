@@ -273,7 +273,10 @@ export default function AIAnalyticsPage() {
   // LOADING
   // =====================================================
 
-  if (loading) {
+  if (
+    loading &&
+    !analytics
+  ) {
     return (
       <div className="bg-background text-on-background min-h-screen pb-[80px] md:pb-12 font-body-md">
 
@@ -466,6 +469,28 @@ export default function AIAnalyticsPage() {
       ?.nextExam;
 
 
+  const primaryInsight =
+    insights?.[0];
+
+
+  const primaryInsightBadge =
+    primaryInsight
+      ? getInsightBadge(
+          primaryInsight.type
+        )
+      : null;
+
+
+  const askCopilotQuery =
+    "Review my current attendance, pending assignments, upcoming exams and timetable and tell me what I should focus on this week.";
+
+
+  const askCopilotHref =
+    `/ai-chat?q=${encodeURIComponent(
+      askCopilotQuery
+    )}`;
+
+
   return (
     <div className="bg-background text-on-background min-h-screen pb-[80px] md:pb-12 font-body-md">
 
@@ -517,7 +542,7 @@ export default function AIAnalyticsPage() {
           MAIN CONTENT
       ================================================= */}
 
-      <main className="pt-6 px-margin-mobile md:px-margin-desktop max-w-[1440px] mx-auto md:grid md:grid-cols-12 md:gap-lg">
+      <main className="pt-6 px-margin-mobile md:px-margin-desktop max-w-[1440px] mx-auto md:grid md:grid-cols-12 md:gap-6">
 
         {/* Header */}
 
@@ -558,7 +583,7 @@ export default function AIAnalyticsPage() {
             LEFT COLUMN
         ================================================= */}
 
-        <div className="col-span-12 md:col-span-4 flex flex-col gap-md">
+        <div className="col-span-12 md:col-span-4 min-w-0 flex flex-col gap-6">
 
           {/* Readiness */}
 
@@ -648,7 +673,7 @@ export default function AIAnalyticsPage() {
 
           {/* Subject readiness */}
 
-          <div className="grid grid-cols-2 gap-sm">
+          <div className="min-w-0 grid grid-cols-2 gap-4">
 
             {subjectScores.length >
             0 ? (
@@ -659,12 +684,12 @@ export default function AIAnalyticsPage() {
                     key={
                       subject.subjectCode
                     }
-                    className={`bg-surface-container-lowest border border-outline-variant/70 rounded-xl p-3 shadow-sm border-t-4 ${getSubjectAccent(
+                    className={`min-w-0 bg-surface-container-lowest border border-outline-variant/70 rounded-xl p-3 shadow-sm border-t-4 ${getSubjectAccent(
                       subject.readinessScore
                     )}`}
                   >
 
-                    <span className="font-mono-sm text-on-surface-variant text-xs block mb-0.5">
+                    <span className="font-mono-sm text-on-surface-variant text-xs block mb-0.5 break-words">
                       {subject.subjectCode}
                     </span>
 
@@ -677,7 +702,7 @@ export default function AIAnalyticsPage() {
                     </span>
 
 
-                    <span className="text-[11px] font-semibold text-outline">
+                    <span className="text-[11px] font-semibold text-outline break-words">
                       {subject.status}
                     </span>
 
@@ -699,6 +724,109 @@ export default function AIAnalyticsPage() {
 
           </div>
 
+
+          {/* Primary Copilot recommendation */}
+
+          <div className="min-w-0 bg-tertiary-container/10 border border-outline-variant/70 rounded-xl p-md shadow-sm flex flex-col gap-4">
+
+            <div className="min-w-0 flex items-center gap-2">
+
+              <span className="material-symbols-outlined text-tertiary shrink-0">
+                smart_toy
+              </span>
+
+
+              <h3 className="min-w-0 font-title-md text-on-surface font-bold">
+                Copilot Recommendation
+              </h3>
+
+            </div>
+
+
+            {primaryInsight ? (
+
+              <div className="min-w-0 flex flex-col gap-3">
+
+                <div>
+
+                  <span
+                    className={`inline-flex px-2.5 py-0.5 rounded-full font-label-caps text-xs font-semibold ${primaryInsightBadge.className}`}
+                  >
+                    {primaryInsightBadge.label}
+                  </span>
+
+                </div>
+
+
+                <div className="min-w-0">
+
+                  <h4 className="font-title-md text-on-surface font-semibold text-base break-words">
+                    {primaryInsight.title}
+                  </h4>
+
+
+                  <p className="font-body-sm text-on-surface-variant text-sm mt-1 break-words">
+                    {primaryInsight.description}
+                  </p>
+
+                </div>
+
+              </div>
+
+            ) : (
+
+              <p className="font-body-sm text-on-surface-variant text-sm break-words">
+                Your academic data is available, but CampusCopilot does not have a new recommendation right now.
+              </p>
+
+            )}
+
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+
+              <Link
+                to={askCopilotHref}
+                className="min-w-0 px-3 py-2 bg-primary text-on-primary rounded-lg font-semibold text-xs flex items-center justify-center gap-1.5 text-center hover:opacity-90 transition-opacity"
+              >
+
+                <span className="material-symbols-outlined text-[17px] shrink-0">
+                  smart_toy
+                </span>
+
+                Ask Copilot
+
+              </Link>
+
+
+              <button
+                type="button"
+                onClick={
+                  loadAnalytics
+                }
+                disabled={loading}
+                className="min-w-0 px-3 py-2 border border-primary text-primary bg-transparent rounded-lg font-semibold text-xs flex items-center justify-center gap-1.5 text-center cursor-pointer hover:bg-primary/10 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+
+                <span
+                  className={`material-symbols-outlined text-[17px] shrink-0 ${
+                    loading
+                      ? "animate-spin"
+                      : ""
+                  }`}
+                >
+                  refresh
+                </span>
+
+                {loading
+                  ? "Refreshing..."
+                  : "Refresh Insight"}
+
+              </button>
+
+            </div>
+
+          </div>
+
         </div>
 
 
@@ -706,13 +834,13 @@ export default function AIAnalyticsPage() {
             RIGHT COLUMN
         ================================================= */}
 
-        <div className="col-span-12 md:col-span-8 flex flex-col gap-md mt-md md:mt-0">
+        <div className="col-span-12 md:col-span-8 min-w-0 flex flex-col gap-6 mt-md md:mt-0">
 
           {/* Academic milestone instead of fake SGPA */}
 
-          <div className="bg-gradient-to-r from-primary-container to-tertiary-container text-white rounded-xl p-6 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="min-w-0 bg-gradient-to-r from-primary-container to-tertiary-container text-white rounded-xl p-6 shadow-md flex flex-col md:flex-row md:items-center md:justify-between gap-4">
 
-            <div>
+            <div className="min-w-0 flex-1">
 
               <span className="text-xs uppercase font-bold tracking-widest text-teal-300">
                 Academic Outlook
@@ -770,7 +898,7 @@ export default function AIAnalyticsPage() {
 
             <Link
               to="/ai-chat?q=Give me an academic overview and tell me what I should focus on based on my attendance, assignments and exams"
-              className="px-4 py-2 bg-white text-primary rounded-lg font-semibold text-xs whitespace-nowrap hover:bg-slate-100 transition-colors shadow-sm self-start md:self-center"
+              className="shrink-0 px-4 py-2 bg-white text-primary rounded-lg font-semibold text-xs whitespace-nowrap hover:bg-slate-100 transition-colors shadow-sm self-start md:self-center"
             >
               Optimize Study Schedule
             </Link>
@@ -782,7 +910,7 @@ export default function AIAnalyticsPage() {
               AI INSIGHTS
           ================================================= */}
 
-          <div className="bg-surface-container-lowest border border-outline-variant/70 rounded-xl p-md shadow-sm">
+          <div className="min-w-0 bg-surface-container-lowest border border-outline-variant/70 rounded-xl p-md shadow-sm">
 
             <div className="flex items-center justify-between mb-4">
 
@@ -806,7 +934,7 @@ export default function AIAnalyticsPage() {
             </div>
 
 
-            <div className="flex flex-col gap-3">
+            <div className="min-w-0 flex flex-col gap-4">
 
               {insights.map(
                 (
@@ -825,7 +953,7 @@ export default function AIAnalyticsPage() {
                       key={
                         `${recommendation.type}-${index}`
                       }
-                      className="p-4 rounded-xl bg-surface-container-low border border-outline-variant/40 flex flex-col gap-1"
+                      className="min-w-0 p-4 rounded-xl bg-surface-container-low border border-outline-variant/40 flex flex-col gap-1"
                     >
 
                       <div className="flex items-center justify-between">
@@ -839,12 +967,12 @@ export default function AIAnalyticsPage() {
                       </div>
 
 
-                      <h4 className="font-title-md text-on-surface font-semibold text-base mt-1">
+                      <h4 className="font-title-md text-on-surface font-semibold text-base mt-1 break-words">
                         {recommendation.title}
                       </h4>
 
 
-                      <p className="font-body-sm text-on-surface-variant text-sm">
+                      <p className="font-body-sm text-on-surface-variant text-sm break-words">
                         {recommendation.description}
                       </p>
 
