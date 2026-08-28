@@ -357,7 +357,7 @@ export default function AIChatPage() {
 
 
                 <span className="bg-secondary-container text-on-secondary-container text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  Gemini 2.5 Flash
+                  CampusCopilot Intelligence
                 </span>
 
               </div>

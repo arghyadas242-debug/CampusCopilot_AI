@@ -5,6 +5,10 @@ const { GoogleGenAI } = require("@google/genai");
 
 const router = express.Router();
 
+const GEMINI_MODEL =
+  process.env.GEMINI_MODEL ||
+  "gemini-3.6-flash";
+
 // Get all notices
 router.get("/", async (req, res) => {
   let connection;
@@ -76,7 +80,7 @@ Return ONLY valid JSON:
 {"summary": ["point 1", "point 2", "point 3"], "urgency": "URGENT"|"ACADEMIC"|"EVENT"}`;
 
       const aiRes = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: GEMINI_MODEL,
         contents: [{ role: "user", parts: [{ text: prompt }] }],
         config: { responseMimeType: "application/json" },
       });
@@ -135,4 +139,3 @@ Return ONLY valid JSON:
 });
 
 module.exports = router;
-
