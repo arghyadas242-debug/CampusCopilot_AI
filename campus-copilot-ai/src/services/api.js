@@ -304,6 +304,43 @@ export const attendanceService = {
   },
 };
 
+async function getStudentCollection(resource, rollNumber) {
+  const cleanRoll = String(rollNumber || "").trim();
+
+  if (!cleanRoll) {
+    throw new Error("Student roll number is required.");
+  }
+
+  const res = await fetch(
+    `${API_BASE_URL}/${resource}/${encodeURIComponent(cleanRoll)}`,
+    {
+      headers: getAuthHeader(),
+    }
+  );
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(
+      data.error || `Failed to fetch ${resource}`
+    );
+  }
+
+  return data;
+}
+
+export const assignmentService = {
+  getAssignments(rollNumber) {
+    return getStudentCollection("assignments", rollNumber);
+  },
+};
+
+export const timetableService = {
+  getTimetable(rollNumber) {
+    return getStudentCollection("timetable", rollNumber);
+  },
+};
+
 export const noticeService = {
   async getNotices() {
     try {
