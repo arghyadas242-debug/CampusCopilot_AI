@@ -1,162 +1,973 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router";
-import { authService } from "../../services/api";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+import {
+  Link,
+  useNavigate,
+} from "react-router";
+
+import {
+  authService,
+} from "../../services/api";
+
 import StudentNotificationBell from "./StudentNotificationBell";
 
-export default function TimetablePage() {
-  const [selectedDay, setSelectedDay] = useState("Monday");
-  const [scheduleData, setScheduleData] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+const API_URL = "http://localhost:5000";
 
-  const days = [
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-  ];
+const DAYS = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
+
+const START_HOUR = 8;
+const END_HOUR = 18;
+const HOUR_HEIGHT = 72;
+
+const SUBJECT_THEMES = [
+  {
+    bg: "bg-blue-50",
+    border: "border-blue-200",
+    accent: "bg-primary",
+    text: "text-primary",
+    icon: "database",
+  },
+  {
+    bg: "bg-emerald-50",
+    border: "border-emerald-200",
+    accent: "bg-secondary",
+    text: "text-secondary",
+    icon: "lan",
+  },
+  {
+    bg: "bg-violet-50",
+    border: "border-violet-200",
+    accent: "bg-tertiary",
+    text: "text-tertiary",
+    icon: "data_object",
+  },
+  {
+    bg: "bg-amber-50",
+    border: "border-amber-200",
+    accent: "bg-amber-500",
+    text: "text-amber-800",
+    icon: "engineering",
+  },
+  {
+    bg: "bg-rose-50",
+    border: "border-rose-200",
+    accent: "bg-rose-500",
+    text: "text-rose-800",
+    icon: "memory",
+  },
+];
+
+// =====================================================
+// DATE HELPERS
+// =====================================================
+
+function startOfDay(date) {
+  const copy = new Date(date);
+
+  copy.setHours(0, 0, 0, 0);
+
+  return copy;
+}
+
+function getMonday(date) {
+  const copy = startOfDay(date);
+
+  const day = copy.getDay();
+
+  const difference =
+    day === 0 ? -6 : 1 - day;
+
+  copy.setDate(
+    copy.getDate() + difference
+  );
+
+  return copy;
+}
+
+function addDays(date, amount) {
+  const copy = new Date(date);
+
+  copy.setDate(
+    copy.getDate() + amount
+  );
+
+  return copy;
+}
+
+function sameDate(first, second) {
+  return (
+    first.getFullYear() ===
+      second.getFullYear() &&
+    first.getMonth() ===
+      second.getMonth() &&
+    first.getDate() ===
+      second.getDate()
+  );
+}
+
+function formatDayDate(date) {
+  return date.toLocaleDateString(
+    "en-GB",
+    {
+      day: "2-digit",
+      month: "short",
+    }
+  );
+}
+
+// =====================================================
+// TIME HELPERS
+// =====================================================
+
+function timeToMinutes(value) {
+  if (!value) {
+    return null;
+  }
+
+  const parts = String(value)
+    .trim()
+    .split(":");
+
+  if (parts.length < 2) {
+    return null;
+  }
+
+  const hour = Number(parts[0]);
+  const minute = Number(parts[1]);
+
+  if (
+    Number.isNaN(hour) ||
+    Number.isNaN(minute)
+  ) {
+    return null;
+  }
+
+  return hour * 60 + minute;
+}
+
+function formatTime(value) {
+  if (!value) {
+    return "";
+  }
+
+  const minutes =
+    timeToMinutes(value);
+
+  if (minutes === null) {
+    return value;
+  }
+
+  let hour = Math.floor(
+    minutes / 60
+  );
+
+  const minute =
+    minutes % 60;
+
+  const period =
+    hour >= 12 ? "PM" : "AM";
+
+  hour = hour % 12;
+
+  if (hour === 0) {
+    hour = 12;
+  }
+
+  return `${hour}:${String(
+    minute
+  ).padStart(2, "0")} ${period}`;
+}
+
+// =====================================================
+// INITIALS
+// =====================================================
+
+function getInitials(name) {
+  const parts = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (parts.length === 0) {
+    return "ST";
+  }
+
+  return parts
+    .slice(0, 2)
+    .map((part) =>
+      part[0]?.toUpperCase()
+    )
+    .join("");
+}
+
+// =====================================================
+// DAY INDEX
+// =====================================================
+
+function getDayIndex(day) {
+  return DAYS.findIndex(
+    (item) =>
+      item.toLowerCase() ===
+      String(day || "")
+        .trim()
+        .toLowerCase()
+  );
+}
+
+// =====================================================
+// CALENDAR CELLS
+// =====================================================
+
+function buildCalendar(monthDate) {
+  const year =
+    monthDate.getFullYear();
+
+  const month =
+    monthDate.getMonth();
+
+  const firstDay = new Date(
+    year,
+    month,
+    1
+  );
+
+  const firstWeekday =
+    firstDay.getDay();
+
+  const mondayOffset =
+    firstWeekday === 0
+      ? 6
+      : firstWeekday - 1;
+
+  const start = new Date(
+    year,
+    month,
+    1 - mondayOffset
+  );
+
+  const cells = [];
+
+  for (
+    let index = 0;
+    index < 42;
+    index += 1
+  ) {
+    const date = addDays(
+      start,
+      index
+    );
+
+    cells.push({
+      date,
+
+      currentMonth:
+        date.getMonth() ===
+        month,
+    });
+  }
+
+  return cells;
+}
+
+// =====================================================
+// COMPONENT
+// =====================================================
+
+export default function TimetablePage() {
+  const navigate =
+    useNavigate();
+
+  const currentUser =
+    authService.getCurrentUser();
+
+  const studentName =
+    currentUser?.name ||
+    "Student";
+
+  const department =
+    currentUser?.department ||
+    "Department unavailable";
+
+  const studentRoll =
+    String(
+      currentUser?.rollNumber ||
+        currentUser?.studentRoll ||
+        currentUser?.roll_number ||
+        ""
+    ).trim();
+
+  const now = new Date();
+
+  const currentDayName =
+    now.toLocaleDateString(
+      "en-US",
+      {
+        weekday: "long",
+      }
+    );
+
+  const [
+    selectedDay,
+    setSelectedDay,
+  ] = useState(
+    DAYS.includes(currentDayName)
+      ? currentDayName
+      : "Monday"
+  );
+
+  const [
+    weekStart,
+    setWeekStart,
+  ] = useState(
+    getMonday(new Date())
+  );
+
+  const [
+    calendarMonth,
+    setCalendarMonth,
+  ] = useState(
+    new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      1
+    )
+  );
+
+  const [
+    timetableRows,
+    setTimetableRows,
+  ] = useState([]);
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
+
+  const [
+    error,
+    setError,
+  ] = useState("");
+
+  const [
+    attendancePercentage,
+    setAttendancePercentage,
+  ] = useState(null);
+
+  const [
+    pendingAssignments,
+    setPendingAssignments,
+  ] = useState(0);
 
   // =====================================================
-  // LOAD TIMETABLE FROM ORACLE
+  // AUTH HEADER
+  // =====================================================
+
+  function authHeaders() {
+    const token =
+      localStorage.getItem(
+        "campus_token"
+      );
+
+    return token
+      ? {
+          Authorization:
+            `Bearer ${token}`,
+        }
+      : {};
+  }
+
+  // =====================================================
+  // LOAD DATA
   // =====================================================
 
   useEffect(() => {
-    async function loadTimetable() {
+    if (!studentRoll) {
+      setError(
+        "Student roll number is unavailable. Please log in again."
+      );
+
+      setLoading(false);
+
+      return;
+    }
+
+    async function loadData() {
       try {
         setLoading(true);
         setError("");
 
-        const currentUser = authService.getCurrentUser();
+        const [
+          timetableResult,
+          attendanceResult,
+          assignmentResult,
+        ] =
+          await Promise.allSettled([
+            fetch(
+              `${API_URL}/api/timetable/${encodeURIComponent(
+                studentRoll
+              )}`,
+              {
+                headers:
+                  authHeaders(),
+              }
+            ).then(
+              async (response) => {
+                if (!response.ok) {
+                  throw new Error(
+                    "Failed to load timetable"
+                  );
+                }
 
-        const roll =
-          currentUser?.rollNumber || "12024002037008";
+                return response.json();
+              }
+            ),
 
-        const response = await fetch(
-          `http://localhost:5000/api/timetable/${encodeURIComponent(
-            roll
-          )}`
+            fetch(
+              `${API_URL}/api/attendance/${encodeURIComponent(
+                studentRoll
+              )}`,
+              {
+                headers:
+                  authHeaders(),
+              }
+            ).then(
+              async (response) => {
+                if (!response.ok) {
+                  return null;
+                }
+
+                return response.json();
+              }
+            ),
+
+            fetch(
+              `${API_URL}/api/assignments/${encodeURIComponent(
+                studentRoll
+              )}`,
+              {
+                headers:
+                  authHeaders(),
+              }
+            ).then(
+              async (response) => {
+                if (!response.ok) {
+                  return null;
+                }
+
+                return response.json();
+              }
+            ),
+          ]);
+
+        // ===============================================
+        // TIMETABLE
+        // ===============================================
+
+        if (
+          timetableResult.status !==
+          "fulfilled"
+        ) {
+          throw timetableResult.reason;
+        }
+
+        const timetable =
+          timetableResult.value;
+
+        if (
+          !Array.isArray(
+            timetable
+          )
+        ) {
+          throw new Error(
+            "Invalid timetable data received"
+          );
+        }
+
+        const normalized =
+          timetable.map(
+            (item, index) => {
+              const subjectName =
+                item.SUBJECT_NAME ||
+                item.subject_name ||
+                item.SUBJECT_CODE ||
+                item.subject_code ||
+                "Class";
+
+              const subjectCode =
+                item.SUBJECT_CODE ||
+                item.subject_code ||
+                "";
+
+              const startTime =
+                item.START_TIME ||
+                item.start_time ||
+                "";
+
+              const endTime =
+                item.END_TIME ||
+                item.end_time ||
+                "";
+
+              const day =
+                item.DAY_OF_WEEK ||
+                item.day_of_week ||
+                "";
+
+              const startMinutes =
+                timeToMinutes(
+                  startTime
+                );
+
+              const endMinutes =
+                timeToMinutes(
+                  endTime
+                );
+
+              const themeIndex =
+                Math.abs(
+                  String(subjectCode)
+                    .split("")
+                    .reduce(
+                      (
+                        total,
+                        character
+                      ) =>
+                        total +
+                        character.charCodeAt(
+                          0
+                        ),
+                      0
+                    )
+                ) %
+                SUBJECT_THEMES.length;
+
+              return {
+                id:
+                  item.ID ||
+                  item.id ||
+                  index,
+
+                subjectName,
+
+                subjectCode,
+
+                day,
+
+                startTime,
+
+                endTime,
+
+                startMinutes,
+
+                endMinutes,
+
+                room:
+                  item.ROOM ||
+                  item.room ||
+                  "Room not assigned",
+
+                faculty:
+                  item.FACULTY_NAME ||
+                  item.faculty_name ||
+                  "Faculty not assigned",
+
+                theme:
+                  SUBJECT_THEMES[
+                    themeIndex
+                  ],
+              };
+            }
+          );
+
+        setTimetableRows(
+          normalized
         );
 
-        if (!response.ok) {
-          throw new Error("Failed to load timetable");
-        }
+        // ===============================================
+        // ATTENDANCE
+        // ===============================================
 
-        const data = await response.json();
+        if (
+          attendanceResult.status ===
+            "fulfilled" &&
+          Array.isArray(
+            attendanceResult.value
+          )
+        ) {
+          let attended = 0;
+          let total = 0;
 
-        if (!Array.isArray(data)) {
-          throw new Error("Invalid timetable data received");
-        }
+          attendanceResult.value.forEach(
+            (row) => {
+              attended +=
+                Number(
+                  row.ATTENDED_CLASSES
+                ) || 0;
 
-        // Group database records by day
-        const groupedSchedule = {};
+              total +=
+                Number(
+                  row.TOTAL_CLASSES
+                ) || 0;
+            }
+          );
 
-        days.forEach((day) => {
-          groupedSchedule[day] = [];
-        });
-
-        data.forEach((item) => {
-          const day = item.DAY_OF_WEEK;
-
-          if (!groupedSchedule[day]) {
-            groupedSchedule[day] = [];
+          if (total > 0) {
+            setAttendancePercentage(
+              Number(
+                (
+                  (attended /
+                    total) *
+                  100
+                ).toFixed(1)
+              )
+            );
           }
+        }
 
-          const subjectName =
-            item.SUBJECT_NAME || "Unknown Subject";
+        // ===============================================
+        // ASSIGNMENTS
+        // ===============================================
 
-          const subjectCode =
-            item.SUBJECT_CODE || "";
+        if (
+          assignmentResult.status ===
+            "fulfilled" &&
+          assignmentResult.value
+        ) {
+          const assignments =
+            Array.isArray(
+              assignmentResult.value
+            )
+              ? assignmentResult.value
+              : assignmentResult.value
+                  .assignments;
 
-          let type = "Lecture";
-          let color = "bg-primary";
-          let badgeColor =
-            "bg-primary-container text-on-primary-container";
-
-          // Automatically detect practical/lab subjects
           if (
-            subjectName.toLowerCase().includes("lab") ||
-            subjectCode.toLowerCase().includes("lab") ||
-            subjectCode.toLowerCase().endsWith("p")
+            Array.isArray(
+              assignments
+            )
           ) {
-            type = "Practical";
-            color = "bg-tertiary";
-            badgeColor =
-              "bg-tertiary-container text-on-tertiary";
+            const pending =
+              assignments.filter(
+                (assignment) =>
+                  String(
+                    assignment.STATUS ||
+                      assignment.status ||
+                      ""
+                  )
+                    .trim()
+                    .toLowerCase() ===
+                  "pending"
+              );
+
+            setPendingAssignments(
+              pending.length
+            );
           }
-
-          groupedSchedule[day].push({
-            id: item.ID,
-
-            time: `${formatTime(
-              item.START_TIME
-            )} - ${formatTime(item.END_TIME)}`,
-
-            subject: `${subjectName} (${subjectCode})`,
-
-            room: item.ROOM || "Room not assigned",
-
-            faculty:
-              item.FACULTY_NAME ||
-              "Faculty not assigned",
-
-            type,
-            color,
-            badgeColor,
-          });
-        });
-
-        setScheduleData(groupedSchedule);
+        }
       } catch (err) {
-        console.error("Timetable loading error:", err);
+        console.error(
+          "Timetable loading error:",
+          err
+        );
 
         setError(
-          err.message || "Unable to load timetable."
+          err.message ||
+            "Unable to load timetable."
         );
       } finally {
         setLoading(false);
       }
     }
 
-    loadTimetable();
-  }, []);
+    loadData();
+  }, [studentRoll]);
 
   // =====================================================
-  // FORMAT TIME
-  // Converts 10:00 -> 10:00 AM
-  // 14:30 -> 02:30 PM
+  // WEEK DATES
   // =====================================================
 
-  function formatTime(time) {
-    if (!time) {
-      return "";
+  const weekDates =
+    useMemo(
+      () =>
+        DAYS.map(
+          (day, index) => ({
+            day,
+
+            date:
+              addDays(
+                weekStart,
+                index
+              ),
+          })
+        ),
+      [weekStart]
+    );
+
+  // =====================================================
+  // CLASSES BY DAY
+  // =====================================================
+
+  const scheduleByDay =
+    useMemo(() => {
+      const grouped = {};
+
+      DAYS.forEach((day) => {
+        grouped[day] = [];
+      });
+
+      timetableRows.forEach(
+        (row) => {
+          const day =
+            DAYS.find(
+              (item) =>
+                item.toLowerCase() ===
+                String(row.day)
+                  .trim()
+                  .toLowerCase()
+            );
+
+          if (day) {
+            grouped[day].push(
+              row
+            );
+          }
+        }
+      );
+
+      DAYS.forEach((day) => {
+        grouped[day].sort(
+          (first, second) =>
+            (first.startMinutes ||
+              0) -
+            (second.startMinutes ||
+              0)
+        );
+      });
+
+      return grouped;
+    }, [timetableRows]);
+
+  // =====================================================
+  // SELECTED DAY
+  // =====================================================
+
+  const selectedDate =
+    weekDates.find(
+      (item) =>
+        item.day ===
+        selectedDay
+    )?.date || weekStart;
+
+  // =====================================================
+  // TODAY CLASSES
+  // =====================================================
+
+  const todaySchedule =
+    scheduleByDay[
+      currentDayName
+    ] || [];
+
+  // =====================================================
+  // UPCOMING CLASSES
+  // =====================================================
+
+  const upcomingClasses =
+    useMemo(() => {
+      const current =
+        new Date();
+
+      const currentMonday =
+        getMonday(current);
+
+      const results = [];
+
+      timetableRows.forEach(
+        (row) => {
+          const dayIndex =
+            getDayIndex(row.day);
+
+          if (
+            dayIndex < 0 ||
+            row.startMinutes ===
+              null
+          ) {
+            return;
+          }
+
+          let occurrence =
+            addDays(
+              currentMonday,
+              dayIndex
+            );
+
+          occurrence.setHours(
+            Math.floor(
+              row.startMinutes /
+                60
+            ),
+
+            row.startMinutes %
+              60,
+
+            0,
+            0
+          );
+
+          if (
+            occurrence <
+            current
+          ) {
+            occurrence =
+              addDays(
+                occurrence,
+                7
+              );
+          }
+
+          results.push({
+            ...row,
+            occurrence,
+          });
+        }
+      );
+
+      return results
+        .sort(
+          (
+            first,
+            second
+          ) =>
+            first.occurrence -
+            second.occurrence
+        )
+        .slice(0, 4);
+    }, [timetableRows]);
+
+  // =====================================================
+  // HOURS
+  // =====================================================
+
+  const hours =
+    useMemo(() => {
+      const list = [];
+
+      for (
+        let hour =
+          START_HOUR;
+        hour <= END_HOUR;
+        hour += 1
+      ) {
+        list.push(hour);
+      }
+
+      return list;
+    }, []);
+
+  const timelineHeight =
+    (END_HOUR -
+      START_HOUR) *
+    HOUR_HEIGHT;
+
+  // =====================================================
+  // CALENDAR
+  // =====================================================
+
+  const calendarCells =
+    useMemo(
+      () =>
+        buildCalendar(
+          calendarMonth
+        ),
+      [calendarMonth]
+    );
+
+  // =====================================================
+  // SELECT CALENDAR DATE
+  // =====================================================
+
+  function selectCalendarDate(
+    date
+  ) {
+    const name =
+      date.toLocaleDateString(
+        "en-US",
+        {
+          weekday: "long",
+        }
+      );
+
+    if (
+      DAYS.includes(name)
+    ) {
+      setSelectedDay(name);
     }
 
-    const parts = String(time).split(":");
-
-    let hour = Number(parts[0]);
-    const minute = parts[1] || "00";
-
-    if (Number.isNaN(hour)) {
-      return time;
-    }
-
-    const period = hour >= 12 ? "PM" : "AM";
-
-    hour = hour % 12;
-
-    if (hour === 0) {
-      hour = 12;
-    }
-
-    return `${String(hour).padStart(
-      2,
-      "0"
-    )}:${minute} ${period}`;
+    setWeekStart(
+      getMonday(date)
+    );
   }
 
-  const currentSchedule =
-    scheduleData[selectedDay] || [];
+  // =====================================================
+  // TODAY BUTTON
+  // =====================================================
+
+  function goToToday() {
+    const today =
+      new Date();
+
+    const name =
+      today.toLocaleDateString(
+        "en-US",
+        {
+          weekday: "long",
+        }
+      );
+
+    setWeekStart(
+      getMonday(today)
+    );
+
+    setCalendarMonth(
+      new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        1
+      )
+    );
+
+    if (
+      DAYS.includes(name)
+    ) {
+      setSelectedDay(name);
+    }
+  }
+
+  // =====================================================
+  // LOGOUT
+  // =====================================================
+
+  function handleLogout() {
+    authService.logout();
+
+    navigate(
+      "/login",
+      {
+        replace: true,
+      }
+    );
+  }
 
   // =====================================================
   // LOADING
@@ -165,15 +976,19 @@ export default function TimetablePage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
+
         <div className="text-center">
-          <span className="material-symbols-outlined text-4xl text-primary">
+
+          <span className="material-symbols-outlined text-5xl text-primary animate-pulse">
             calendar_month
           </span>
 
-          <p className="mt-2 text-on-surface-variant">
+          <p className="font-body-md text-on-surface-variant mt-3">
             Loading timetable...
           </p>
+
         </div>
+
       </div>
     );
   }
@@ -184,61 +999,97 @@ export default function TimetablePage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <span className="material-symbols-outlined text-4xl text-error">
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+
+        <div className="text-center max-w-md">
+
+          <span className="material-symbols-outlined text-5xl text-error">
             error
           </span>
 
-          <h2 className="font-bold text-error mt-2">
+          <h2 className="font-title-md font-bold text-error mt-3">
             Unable to Load Timetable
           </h2>
 
-          <p className="text-on-surface-variant mt-1">
+          <p className="font-body-sm text-on-surface-variant mt-2">
             {error}
           </p>
+
         </div>
+
       </div>
     );
   }
 
   return (
-    <div className="bg-background text-on-background font-body-sm min-h-screen flex flex-col">
-      {/* TopAppBar */}
+    <div className="bg-background text-on-background min-h-screen font-body-md flex">
 
-      <header className="sticky top-0 w-full z-40 bg-background border-b border-surface-container-high flex justify-between items-center px-margin-mobile py-sm md:px-margin-desktop md:py-md">
-        <div className="flex items-center gap-sm">
-          <Link
-            to="/profile"
-            className="w-9 h-9 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold"
-          >
-            RD
-          </Link>
+      {/* =================================================
+          DESKTOP SIDEBAR
+      ================================================= */}
 
-          <span className="font-headline-lg-mobile md:font-headline-lg font-bold text-primary">
+      <aside className="hidden lg:flex w-[280px] shrink-0 h-screen sticky top-0 bg-surface border-r border-outline-variant flex-col">
+
+        <div className="px-md pt-md pb-sm">
+          <span className="font-headline-lg-mobile font-bold text-primary">
             CampusCopilot
           </span>
         </div>
 
-        <nav className="hidden md:flex items-center gap-md">
+        <Link
+          to="/profile"
+          className="px-md py-md hover:bg-surface-container-low transition-colors"
+        >
+          <div className="flex items-center gap-sm">
+
+            <div className="w-12 h-12 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold text-lg shrink-0">
+              {getInitials(
+                studentName
+              )}
+            </div>
+
+            <div className="min-w-0">
+
+              <div className="font-title-md font-semibold text-on-surface">
+                {studentName}
+              </div>
+
+              <div className="font-body-sm text-on-surface-variant leading-5">
+                {department}
+              </div>
+
+              <div className="font-label-caps text-outline mt-0.5">
+                ID:{" "}
+                {studentRoll}
+              </div>
+
+            </div>
+
+          </div>
+        </Link>
+
+        <div className="px-2 flex flex-col gap-1">
+
           <Link
             to="/dashboard"
-            className="font-body-md text-on-surface-variant hover:text-primary flex items-center gap-xs"
+            className="text-on-surface-variant px-4 py-2.5 rounded-xl hover:bg-surface-container-low flex items-center gap-sm transition-colors"
           >
-            <span className="material-symbols-outlined text-[20px]">
+            <span className="material-symbols-outlined">
               dashboard
             </span>
+
             Home
           </Link>
 
           <Link
             to="/timetable"
-            className="font-body-md text-primary font-bold flex items-center gap-xs"
+            className="bg-secondary-container text-on-secondary-container px-4 py-2.5 rounded-xl font-semibold flex items-center gap-sm"
           >
             <span
-              className="material-symbols-outlined text-[20px]"
+              className="material-symbols-outlined"
               style={{
-                fontVariationSettings: "'FILL' 1",
+                fontVariationSettings:
+                  "'FILL' 1",
               }}
             >
               calendar_month
@@ -249,9 +1100,9 @@ export default function TimetablePage() {
 
           <Link
             to="/attendance"
-            className="font-body-md text-on-surface-variant hover:text-primary flex items-center gap-xs"
+            className="text-on-surface-variant px-4 py-2.5 rounded-xl hover:bg-surface-container-low flex items-center gap-sm transition-colors"
           >
-            <span className="material-symbols-outlined text-[20px]">
+            <span className="material-symbols-outlined">
               analytics
             </span>
 
@@ -259,228 +1110,1083 @@ export default function TimetablePage() {
           </Link>
 
           <Link
-            to="/ai-chat"
-            className="font-body-md text-on-surface-variant hover:text-primary flex items-center gap-xs"
-          >
-            <span className="material-symbols-outlined text-[20px]">
-              smart_toy
-            </span>
-
-            Copilot
-          </Link>
-
-          <Link
             to="/assignments"
-            className="font-body-md text-on-surface-variant hover:text-primary flex items-center gap-xs"
+            className="text-on-surface-variant px-4 py-2.5 rounded-xl hover:bg-surface-container-low flex items-center gap-sm transition-colors"
           >
-            <span className="material-symbols-outlined text-[20px]">
+            <span className="material-symbols-outlined">
               assignment
             </span>
 
-            Tasks
+            Assignments
           </Link>
-        </nav>
 
-        <StudentNotificationBell />
-      </header>
-
-      {/* Main Content */}
-
-      <main className="flex-1 w-full max-w-[1440px] mx-auto px-margin-mobile md:px-margin-desktop pt-md pb-[96px] md:pb-xl flex flex-col gap-md">
-        <div>
-          <h1 className="font-headline-lg md:font-display-lg text-primary tracking-tight font-bold">
-            Class Timetable
-          </h1>
-
-          <p className="font-body-md text-on-surface-variant mt-1">
-            Weekly schedule, venue navigation, and
-            faculty assignments.
-          </p>
-        </div>
-
-        {/* Day Selector */}
-
-        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-          {days.map((day) => (
-            <button
-              key={day}
-              onClick={() => setSelectedDay(day)}
-              className={`px-5 py-2 rounded-full font-title-md text-sm transition-all cursor-pointer ${
-                selectedDay === day
-                  ? "bg-primary text-on-primary shadow-md"
-                  : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high"
-              }`}
-            >
-              {day}
-            </button>
-          ))}
-        </div>
-
-        {/* Empty Day */}
-
-        {currentSchedule.length === 0 && (
-          <div className="bg-surface-container-lowest border border-outline-variant/70 rounded-xl p-8 text-center">
-            <span className="material-symbols-outlined text-5xl text-outline">
-              event_available
+          <Link
+            to="/exams"
+            className="text-on-surface-variant px-4 py-2.5 rounded-xl hover:bg-surface-container-low flex items-center gap-sm transition-colors"
+          >
+            <span className="material-symbols-outlined">
+              description
             </span>
 
-            <h2 className="font-bold text-on-surface mt-2">
-              No Classes
-            </h2>
+            Exams
+          </Link>
 
-            <p className="text-on-surface-variant mt-1">
-              There are no classes scheduled for{" "}
-              {selectedDay}.
-            </p>
-          </div>
-        )}
+          <Link
+            to="/notices"
+            className="text-on-surface-variant px-4 py-2.5 rounded-xl hover:bg-surface-container-low flex items-center gap-sm transition-colors"
+          >
+            <span className="material-symbols-outlined">
+              campaign
+            </span>
 
-        {/* Schedule Timeline */}
+            Notices
+          </Link>
 
-        <div className="flex flex-col gap-4 mt-2">
-          {currentSchedule.map((slot) => (
-            <div
-              key={slot.id}
-              className="bg-surface-container-lowest border border-outline-variant/70 rounded-xl p-md shadow-sm relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-4 hover:shadow-md transition-all"
-            >
-              {/* Left Color Indicator */}
+          <Link
+            to="/ai-analytics"
+            className="text-on-surface-variant px-4 py-2.5 rounded-xl hover:bg-surface-container-low flex items-center gap-sm transition-colors"
+          >
+            <span className="material-symbols-outlined">
+              insights
+            </span>
 
-              <div
-                className={`absolute top-0 left-0 w-1.5 h-full ${slot.color}`}
-              />
+            AI Analytics
+          </Link>
 
-              <div className="flex-1 pl-2">
-                <div className="flex items-center gap-2 mb-1">
-                  <span
-                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${slot.badgeColor}`}
-                  >
-                    {slot.type}
-                  </span>
+          <Link
+            to="/resources"
+            className="text-on-surface-variant px-4 py-2.5 rounded-xl hover:bg-surface-container-low flex items-center gap-sm transition-colors"
+          >
+            <span className="material-symbols-outlined">
+              folder_open
+            </span>
 
-                  <span className="font-mono-sm text-xs text-outline flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[14px]">
-                      schedule
-                    </span>
+            Resources
+          </Link>
 
-                    {slot.time}
-                  </span>
-                </div>
+          <Link
+            to="/student-id"
+            className="text-on-surface-variant px-4 py-2.5 rounded-xl hover:bg-surface-container-low flex items-center gap-sm transition-colors"
+          >
+            <span className="material-symbols-outlined">
+              badge
+            </span>
 
-                <h3 className="font-title-md font-bold text-on-surface text-lg">
-                  {slot.subject}
-                </h3>
+            Digital ID
+          </Link>
 
-                <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-on-surface-variant">
-                  <div className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[16px] text-secondary">
-                      location_on
-                    </span>
-
-                    <span>{slot.room}</span>
-                  </div>
-
-                  <div className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[16px] text-primary">
-                      person
-                    </span>
-
-                    <span>{slot.faculty}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 self-end md:self-center">
-                <Link
-                  to="/ai-chat"
-                  className="px-3.5 py-1.5 rounded-lg border border-secondary text-secondary hover:bg-secondary-container font-semibold text-xs transition-colors flex items-center gap-1"
-                >
-                  <span className="material-symbols-outlined text-[16px]">
-                    smart_toy
-                  </span>
-
-                  Ask Copilot
-                </Link>
-              </div>
-            </div>
-          ))}
         </div>
-      </main>
 
-      {/* Bottom Nav Bar */}
+        {/* TODAY SUMMARY */}
 
-      <nav className="fixed bottom-0 w-full z-50 h-[64px] bg-surface border-t border-surface-container-high shadow-lg md:hidden">
-        <div className="flex justify-around items-center px-margin-mobile w-full h-full">
+        <div className="mx-4 mt-md border border-outline-variant rounded-xl bg-surface-container-lowest p-sm">
+
+          <div className="font-label-caps text-outline mb-sm">
+            TODAY SUMMARY
+          </div>
+
+          <div className="space-y-3">
+
+            <Link
+              to="/attendance"
+              className="flex items-center justify-between"
+            >
+              <div className="flex items-center gap-2">
+
+                <div className="w-7 h-7 rounded-lg bg-secondary-container text-secondary flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[16px]">
+                    monitoring
+                  </span>
+                </div>
+
+                <span className="font-body-sm text-on-surface">
+                  Attendance
+                </span>
+
+              </div>
+
+              <span className="font-body-sm font-bold text-secondary">
+                {attendancePercentage !==
+                null
+                  ? `${attendancePercentage}%`
+                  : "--"}
+              </span>
+            </Link>
+
+            <Link
+              to="/assignments"
+              className="flex items-center justify-between"
+            >
+              <div className="flex items-center gap-2">
+
+                <div className="w-7 h-7 rounded-lg bg-tertiary-fixed text-tertiary flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[16px]">
+                    assignment
+                  </span>
+                </div>
+
+                <span className="font-body-sm text-on-surface">
+                  Pending Tasks
+                </span>
+
+              </div>
+
+              <span className="font-body-sm font-bold text-error">
+                {pendingAssignments}
+              </span>
+            </Link>
+
+            <div className="flex items-center justify-between">
+
+              <div className="flex items-center gap-2">
+
+                <div className="w-7 h-7 rounded-lg bg-primary-fixed text-primary flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[16px]">
+                    school
+                  </span>
+                </div>
+
+                <span className="font-body-sm text-on-surface">
+                  Classes Today
+                </span>
+
+              </div>
+
+              <span className="font-body-sm font-bold text-primary">
+                {todaySchedule.length}
+              </span>
+
+            </div>
+
+          </div>
+
+        </div>
+
+        <div className="flex-1" />
+
+        <div className="mx-2 px-2 py-sm border-t border-outline-variant">
+
+          <Link
+            to="/profile"
+            className="text-on-surface-variant px-4 py-2.5 rounded-xl hover:bg-surface-container-low flex items-center gap-sm"
+          >
+            <span className="material-symbols-outlined">
+              account_circle
+            </span>
+
+            Profile
+          </Link>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="w-full text-error px-4 py-2.5 rounded-xl hover:bg-error-container/20 flex items-center gap-sm text-left"
+          >
+            <span className="material-symbols-outlined">
+              logout
+            </span>
+
+            Logout
+          </button>
+
+        </div>
+
+      </aside>
+
+      {/* =================================================
+          MAIN AREA
+      ================================================= */}
+
+      <div className="flex-1 min-w-0">
+
+        <header className="lg:hidden sticky top-0 z-50 h-[64px] bg-surface border-b border-outline-variant px-margin-mobile flex items-center justify-between">
+
+          <div className="flex items-center gap-sm">
+
+            <Link
+              to="/profile"
+              className="w-9 h-9 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold"
+            >
+              {getInitials(
+                studentName
+              )}
+            </Link>
+
+            <span className="font-headline-lg-mobile font-bold text-primary">
+              CampusCopilot
+            </span>
+
+          </div>
+
+          <StudentNotificationBell />
+
+        </header>
+
+        <main className="w-full px-margin-mobile md:px-lg py-md pb-[90px] lg:pb-lg">
+
+          {/* TITLE */}
+
+          <section className="flex items-start justify-between gap-4 mb-md">
+
+            <div>
+
+              <h1 className="font-headline-lg md:font-display-lg font-bold text-on-surface">
+                Class Timetable
+              </h1>
+
+              <p className="font-body-md text-on-surface-variant mt-1">
+                View your weekly class schedule, venue details and faculty assignments.
+              </p>
+
+            </div>
+
+            <div className="hidden lg:block">
+              <StudentNotificationBell />
+            </div>
+
+          </section>
+
+          {/* DAY SELECTOR */}
+
+          <section className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-sm mb-md">
+
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+
+              {weekDates.map(
+                ({
+                  day,
+                }) => {
+                  const active =
+                    selectedDay ===
+                    day;
+
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() =>
+                        setSelectedDay(
+                          day
+                        )
+                      }
+                      className={`shrink-0 rounded-full px-5 py-2.5 font-title-md text-sm transition-all ${
+                        active
+                          ? "bg-primary text-on-primary shadow-sm"
+                          : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high"
+                      }`}
+                    >
+                      {day}
+                    </button>
+                  );
+                }
+              )}
+
+            </div>
+
+            <div className="flex items-center gap-2">
+
+              <button
+                type="button"
+                onClick={goToToday}
+                className="h-10 px-4 border border-outline-variant rounded-lg bg-surface-container-lowest text-on-surface flex items-center gap-2 font-semibold text-sm hover:bg-surface-container-low"
+              >
+                <span className="material-symbols-outlined text-[18px]">
+                  today
+                </span>
+
+                Today
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setWeekStart(
+                    addDays(
+                      weekStart,
+                      -7
+                    )
+                  )
+                }
+                className="w-10 h-10 border border-outline-variant rounded-lg bg-surface-container-lowest flex items-center justify-center text-on-surface hover:bg-surface-container-low"
+              >
+                <span className="material-symbols-outlined">
+                  chevron_left
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setWeekStart(
+                    addDays(
+                      weekStart,
+                      7
+                    )
+                  )
+                }
+                className="w-10 h-10 border border-outline-variant rounded-lg bg-surface-container-lowest flex items-center justify-center text-on-surface hover:bg-surface-container-low"
+              >
+                <span className="material-symbols-outlined">
+                  chevron_right
+                </span>
+              </button>
+
+            </div>
+
+          </section>
+
+          {/* =================================================
+              MAIN GRID
+          ================================================= */}
+
+          <div className="grid grid-cols-1 2xl:grid-cols-[minmax(0,1fr)_320px] gap-md">
+
+            {/* =================================================
+                WEEKLY TIMETABLE
+            ================================================= */}
+
+            <section className="min-w-0">
+
+              <div className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
+
+                <div className="overflow-x-auto">
+
+                  <div className="min-w-[1120px]">
+
+                    {/* HEADER */}
+
+                    <div className="grid grid-cols-[72px_repeat(7,minmax(145px,1fr))] border-b border-outline-variant">
+
+                      <div className="px-2 py-sm flex items-center justify-center font-label-caps text-outline">
+                        TIME
+                      </div>
+
+                      {weekDates.map(
+                        ({
+                          day,
+                          date,
+                        }) => {
+                          const active =
+                            selectedDay ===
+                            day;
+
+                          const today =
+                            sameDate(
+                              date,
+                              now
+                            );
+
+                          return (
+                            <button
+                              type="button"
+                              key={day}
+                              onClick={() =>
+                                setSelectedDay(
+                                  day
+                                )
+                              }
+                              className={`py-sm px-2 border-l border-surface-container-high text-center transition-colors ${
+                                active
+                                  ? "bg-primary/5"
+                                  : "hover:bg-surface-container-low"
+                              }`}
+                            >
+
+                              <div
+                                className={`font-title-md text-sm font-semibold ${
+                                  active
+                                    ? "text-primary"
+                                    : "text-on-surface"
+                                }`}
+                              >
+                                {day}
+                              </div>
+
+                              <div
+                                className={`font-mono-sm text-xs mt-0.5 ${
+                                  today
+                                    ? "text-primary font-bold"
+                                    : "text-on-surface-variant"
+                                }`}
+                              >
+                                {formatDayDate(
+                                  date
+                                )}
+                              </div>
+
+                            </button>
+                          );
+                        }
+                      )}
+
+                    </div>
+
+                    {/* TIMELINE */}
+
+                    <div className="relative">
+
+                      <div
+                        className="absolute left-[72px] right-0 top-0 pointer-events-none"
+                        style={{
+                          height:
+                            `${timelineHeight}px`,
+                        }}
+                      >
+
+                        {hours.map(
+                          (
+                            hour,
+                            index
+                          ) => (
+                            <div
+                              key={hour}
+                              className="absolute left-0 right-0 border-t border-surface-container-high"
+                              style={{
+                                top:
+                                  `${index *
+                                  HOUR_HEIGHT}px`,
+                              }}
+                            />
+                          )
+                        )}
+
+                      </div>
+
+                      <div className="grid grid-cols-[72px_repeat(7,minmax(145px,1fr))]">
+
+                        {/* TIME LABELS */}
+
+                        <div
+                          className="relative"
+                          style={{
+                            height:
+                              `${timelineHeight}px`,
+                          }}
+                        >
+
+                          {hours
+                            .slice(
+                              0,
+                              -1
+                            )
+                            .map(
+                              (
+                                hour,
+                                index
+                              ) => (
+                                <div
+                                  key={hour}
+                                  className="absolute left-0 right-0 px-2 text-right font-body-sm text-xs text-on-surface-variant"
+                                  style={{
+                                    top:
+                                      `${index *
+                                      HOUR_HEIGHT +
+                                      10}px`,
+                                  }}
+                                >
+                                  {formatTime(
+                                    `${String(
+                                      hour
+                                    ).padStart(
+                                      2,
+                                      "0"
+                                    )}:00`
+                                  )}
+                                </div>
+                              )
+                            )}
+
+                        </div>
+
+                        {/* DAY COLUMNS */}
+
+                        {DAYS.map(
+                          (day) => (
+                            <div
+                              key={day}
+                              className={`relative border-l border-surface-container-high ${
+                                selectedDay ===
+                                day
+                                  ? "bg-primary/[0.015]"
+                                  : ""
+                              }`}
+                              style={{
+                                height:
+                                  `${timelineHeight}px`,
+                              }}
+                            >
+
+                              {(
+                                scheduleByDay[
+                                  day
+                                ] || []
+                              ).map(
+                                (
+                                  slot
+                                ) => {
+                                  if (
+                                    slot.startMinutes ===
+                                      null ||
+                                    slot.endMinutes ===
+                                      null
+                                  ) {
+                                    return null;
+                                  }
+
+                                  const start =
+                                    Math.max(
+                                      slot.startMinutes,
+                                      START_HOUR *
+                                        60
+                                    );
+
+                                  const end =
+                                    Math.min(
+                                      slot.endMinutes,
+                                      END_HOUR *
+                                        60
+                                    );
+
+                                  if (
+                                    end <=
+                                    start
+                                  ) {
+                                    return null;
+                                  }
+
+                                  const top =
+                                    ((start -
+                                      START_HOUR *
+                                        60) /
+                                      60) *
+                                    HOUR_HEIGHT;
+
+                                  const height =
+                                    Math.max(
+                                      50,
+
+                                      ((end -
+                                        start) /
+                                        60) *
+                                        HOUR_HEIGHT -
+                                        6
+                                    );
+
+                                  return (
+                                    <div
+                                      key={
+                                        slot.id
+                                      }
+                                      className={`absolute left-1.5 right-1.5 rounded-lg border ${slot.theme.bg} ${slot.theme.border} overflow-hidden shadow-sm`}
+                                      style={{
+                                        top:
+                                          `${top +
+                                          3}px`,
+
+                                        height:
+                                          `${height}px`,
+                                      }}
+                                    >
+
+                                      <div
+                                        className={`absolute left-0 top-0 bottom-0 w-[3px] ${slot.theme.accent}`}
+                                      />
+
+                                      <div className="h-full px-2 py-1.5 pl-3 flex flex-col">
+
+                                        {/* SMALLER SUBJECT NAME */}
+
+                                        <div
+                                          className={`font-title-md text-[10px] leading-[13px] font-semibold ${slot.theme.text}`}
+                                        >
+                                          {
+                                            slot.subjectName
+                                          }
+                                        </div>
+
+                                        {/* SMALLER SUBJECT CODE */}
+
+                                        <div
+                                          className={`font-mono-sm text-[8px] leading-[11px] mt-[2px] ${slot.theme.text}`}
+                                        >
+                                          (
+                                          {
+                                            slot.subjectCode
+                                          }
+                                          )
+                                        </div>
+
+                                        {/* SMALLER TIME */}
+
+                                        <div className="font-body-sm text-[8px] leading-[11px] text-on-surface-variant mt-1 flex items-center gap-1">
+
+                                          <span className="material-symbols-outlined text-[10px]">
+                                            schedule
+                                          </span>
+
+                                          {formatTime(
+                                            slot.startTime
+                                          )}
+
+                                          {" - "}
+
+                                          {formatTime(
+                                            slot.endTime
+                                          )}
+
+                                        </div>
+
+                                        {height >
+                                          70 && (
+                                          <>
+
+                                            {/* SMALLER ROOM */}
+
+                                            <div className="font-body-sm text-[8px] leading-[11px] text-on-surface-variant mt-[2px] flex items-center gap-1">
+
+                                              <span className="material-symbols-outlined text-[10px]">
+                                                location_on
+                                              </span>
+
+                                              {
+                                                slot.room
+                                              }
+
+                                            </div>
+
+                                            {/* SMALLER FACULTY */}
+
+                                            <div className="font-body-sm text-[8px] leading-[11px] text-on-surface-variant mt-[2px] flex items-center gap-1 truncate">
+
+                                              <span className="material-symbols-outlined text-[10px]">
+                                                person
+                                              </span>
+
+                                              {
+                                                slot.faculty
+                                              }
+
+                                            </div>
+
+                                          </>
+                                        )}
+
+                                      </div>
+
+                                    </div>
+                                  );
+                                }
+                              )}
+
+                            </div>
+                          )
+                        )}
+
+                      </div>
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+              {/* NOTE */}
+
+              <div className="mt-sm rounded-xl border border-primary-fixed bg-primary-fixed/35 px-sm py-3 flex items-start gap-2">
+
+                <span className="material-symbols-outlined text-primary text-[20px] shrink-0">
+                  info
+                </span>
+
+                <p className="font-body-sm text-on-surface-variant">
+
+                  <strong className="text-primary">
+                    Note:
+                  </strong>{" "}
+
+                  Timetable is subject to change. Please check regularly for updates and announcements.
+
+                </p>
+
+              </div>
+
+            </section>
+
+            {/* =================================================
+                RIGHT SIDE
+            ================================================= */}
+
+            <aside className="flex flex-col gap-md">
+
+              {/* CALENDAR */}
+
+              <section className="bg-surface-container-lowest border border-outline-variant rounded-xl p-md">
+
+                <h2 className="font-title-md font-bold text-on-surface">
+                  Calendar
+                </h2>
+
+                <div className="flex items-center justify-between mt-md">
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCalendarMonth(
+                        new Date(
+                          calendarMonth.getFullYear(),
+                          calendarMonth.getMonth() -
+                            1,
+                          1
+                        )
+                      )
+                    }
+                    className="w-8 h-8 rounded-lg hover:bg-surface-container-low flex items-center justify-center text-primary"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">
+                      chevron_left
+                    </span>
+                  </button>
+
+                  <div className="font-title-md font-semibold text-primary">
+                    {calendarMonth.toLocaleDateString(
+                      "en-US",
+                      {
+                        month:
+                          "long",
+
+                        year:
+                          "numeric",
+                      }
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCalendarMonth(
+                        new Date(
+                          calendarMonth.getFullYear(),
+                          calendarMonth.getMonth() +
+                            1,
+                          1
+                        )
+                      )
+                    }
+                    className="w-8 h-8 rounded-lg hover:bg-surface-container-low flex items-center justify-center text-primary"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">
+                      chevron_right
+                    </span>
+                  </button>
+
+                </div>
+
+                <div className="grid grid-cols-7 gap-1 mt-md">
+
+                  {[
+                    "M",
+                    "T",
+                    "W",
+                    "T",
+                    "F",
+                    "S",
+                    "S",
+                  ].map(
+                    (
+                      label,
+                      index
+                    ) => (
+                      <div
+                        key={`${label}-${index}`}
+                        className="text-center font-label-caps text-xs text-on-surface-variant py-1"
+                      >
+                        {label}
+                      </div>
+                    )
+                  )}
+
+                </div>
+
+                <div className="grid grid-cols-7 gap-1">
+
+                  {calendarCells.map(
+                    (
+                      cell,
+                      index
+                    ) => {
+                      const today =
+                        sameDate(
+                          cell.date,
+                          now
+                        );
+
+                      const selected =
+                        sameDate(
+                          cell.date,
+                          selectedDate
+                        );
+
+                      return (
+                        <button
+                          key={`${cell.date.toISOString()}-${index}`}
+                          type="button"
+                          onClick={() =>
+                            selectCalendarDate(
+                              cell.date
+                            )
+                          }
+                          className={`aspect-square rounded-lg flex items-center justify-center text-xs font-medium transition-colors ${
+                            today
+                              ? "bg-primary text-on-primary font-bold"
+                              : selected
+                              ? "bg-primary-fixed text-primary"
+                              : cell.currentMonth
+                              ? "text-on-surface hover:bg-surface-container-low"
+                              : "text-outline/50"
+                          }`}
+                        >
+                          {cell.date.getDate()}
+                        </button>
+                      );
+                    }
+                  )}
+
+                </div>
+
+              </section>
+
+              {/* UPCOMING CLASSES */}
+
+              <section className="bg-surface-container-lowest border border-outline-variant rounded-xl p-md">
+
+                <div className="flex items-center justify-between">
+
+                  <h2 className="font-title-md font-bold text-on-surface">
+                    Upcoming Classes
+                  </h2>
+
+                  <span className="font-label-caps text-primary">
+                    {upcomingClasses.length}{" "}
+                    upcoming
+                  </span>
+
+                </div>
+
+                {upcomingClasses.length ===
+                0 ? (
+                  <div className="py-lg text-center">
+
+                    <span className="material-symbols-outlined text-4xl text-outline">
+                      event_available
+                    </span>
+
+                    <p className="font-body-sm text-on-surface-variant mt-2">
+                      No upcoming classes.
+                    </p>
+
+                  </div>
+                ) : (
+                  <div className="mt-sm divide-y divide-surface-container-high">
+
+                    {upcomingClasses.map(
+                      (slot) => (
+                        <div
+                          key={`${slot.id}-${slot.occurrence.toISOString()}`}
+                          className="py-sm first:pt-1"
+                        >
+
+                          <div className="flex items-start gap-3">
+
+                            <div
+                              className={`w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 ${slot.theme.accent}`}
+                            />
+
+                            <div className="min-w-0 flex-1">
+
+                              <div className="font-title-md text-sm font-semibold text-on-surface">
+                                {
+                                  slot.subjectName
+                                }{" "}
+
+                                <span className="text-on-surface-variant">
+                                  (
+                                  {
+                                    slot.subjectCode
+                                  }
+                                  )
+                                </span>
+                              </div>
+
+                              <div className="font-body-sm text-xs text-on-surface-variant mt-1">
+
+                                {slot.occurrence.toLocaleDateString(
+                                  "en-US",
+                                  {
+                                    weekday:
+                                      "short",
+                                  }
+                                )}
+
+                                ,{" "}
+
+                                {formatTime(
+                                  slot.startTime
+                                )}
+
+                                {" - "}
+
+                                {formatTime(
+                                  slot.endTime
+                                )}
+
+                              </div>
+
+                              <div className="font-body-sm text-xs text-outline mt-1">
+
+                                {
+                                  slot.room
+                                }
+
+                                {" • "}
+
+                                {
+                                  slot.faculty
+                                }
+
+                              </div>
+
+                            </div>
+
+                          </div>
+
+                        </div>
+                      )
+                    )}
+
+                  </div>
+                )}
+
+              </section>
+
+              {/* NOTE */}
+
+              <section className="rounded-xl border border-primary-fixed bg-primary-fixed/30 p-md">
+
+                <div className="flex items-start gap-3">
+
+                  <span className="material-symbols-outlined text-primary">
+                    schedule
+                  </span>
+
+                  <div>
+
+                    <div className="font-body-sm font-semibold text-primary">
+                      All times are shown in your local time.
+                    </div>
+
+                    <p className="font-body-sm text-xs text-on-surface-variant mt-2 leading-5">
+                      For timetable issues or schedule corrections, contact your department office.
+                    </p>
+
+                  </div>
+
+                </div>
+
+              </section>
+
+            </aside>
+
+          </div>
+
+        </main>
+
+      </div>
+
+      {/* =================================================
+          MOBILE NAVIGATION
+      ================================================= */}
+
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 h-[64px] bg-surface border-t border-outline-variant">
+
+        <div className="h-full flex items-center justify-around">
+
           <Link
             to="/dashboard"
-            className="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary"
+            className="flex flex-col items-center text-on-surface-variant"
           >
             <span className="material-symbols-outlined">
               dashboard
             </span>
 
-            <span className="text-[10px] mt-1">
+            <span className="text-[10px]">
               Home
             </span>
           </Link>
 
           <Link
             to="/timetable"
-            className="flex flex-col items-center justify-center text-primary font-bold"
+            className="flex flex-col items-center text-primary font-semibold"
           >
             <span
               className="material-symbols-outlined"
               style={{
-                fontVariationSettings: "'FILL' 1",
+                fontVariationSettings:
+                  "'FILL' 1",
               }}
             >
               calendar_month
             </span>
 
-            <span className="text-[10px] mt-1">
+            <span className="text-[10px]">
               Timetable
             </span>
           </Link>
 
           <Link
             to="/attendance"
-            className="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary"
+            className="flex flex-col items-center text-on-surface-variant"
           >
             <span className="material-symbols-outlined">
               analytics
             </span>
 
-            <span className="text-[10px] mt-1">
+            <span className="text-[10px]">
               Attendance
             </span>
           </Link>
 
           <Link
             to="/ai-chat"
-            className="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary"
+            className="flex flex-col items-center text-on-surface-variant"
           >
             <span className="material-symbols-outlined">
               smart_toy
             </span>
 
-            <span className="text-[10px] mt-1">
+            <span className="text-[10px]">
               Copilot
             </span>
           </Link>
 
           <Link
             to="/profile"
-            className="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary"
+            className="flex flex-col items-center text-on-surface-variant"
           >
             <span className="material-symbols-outlined">
               account_circle
             </span>
 
-            <span className="text-[10px] mt-1">
+            <span className="text-[10px]">
               Profile
             </span>
           </Link>
+
         </div>
+
       </nav>
+
     </div>
   );
 }

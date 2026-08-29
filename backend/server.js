@@ -78,7 +78,9 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+const server = app.listen(PORT);
+
+server.on("listening", () => {
   console.log(
     `CampusCopilot API server running at http://localhost:${PORT}`
   );
@@ -89,4 +91,19 @@ app.listen(PORT, () => {
       err.message
     );
   });
+});
+
+server.on("error", (error) => {
+  if (error.code === "EADDRINUSE") {
+    console.error(
+      `Unable to start CampusCopilot API: port ${PORT} is already in use.`
+    );
+  } else {
+    console.error(
+      "CampusCopilot API server error:",
+      error
+    );
+  }
+
+  process.exitCode = 1;
 });

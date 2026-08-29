@@ -6,10 +6,21 @@ import StudentNotificationBell from "./StudentNotificationBell";
 const API_URL = "http://localhost:5000";
 
 export default function StudentIDPage() {
-  const [studentProfile, setStudentProfile] = useState(null);
-  const [error, setError] = useState("");
+  const [studentProfile, setStudentProfile] =
+    useState(null);
 
-  const currentUser = authService.getCurrentUser();
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState("");
+
+  // =====================================================
+  // CURRENT AUTHENTICATED USER
+  // =====================================================
+
+  const currentUser =
+    authService.getCurrentUser();
 
   // =====================================================
   // REAL STUDENT DETAILS
@@ -18,7 +29,6 @@ export default function StudentIDPage() {
   const studentName =
     studentProfile?.NAME ||
     currentUser?.name ||
-    currentUser?.fullName ||
     "Student";
 
   const studentRoll =
@@ -30,33 +40,57 @@ export default function StudentIDPage() {
   const department =
     studentProfile?.DEPARTMENT ||
     currentUser?.department ||
-    "Department not set";
+    "Department not available";
+
+  const semester =
+    studentProfile?.SEMESTER ??
+    currentUser?.semester ??
+    null;
+
+  const section =
+    studentProfile?.SECTION ||
+    currentUser?.section ||
+    "";
 
   // =====================================================
   // INITIALS
   // =====================================================
 
   const getInitials = (name) => {
-    return String(name || "Student")
-      .split(" ")
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) =>
-        part.charAt(0).toUpperCase()
-      )
-      .join("");
+    const parts = String(
+      name || "Student"
+    )
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+
+    if (parts.length >= 2) {
+      return (
+        parts[0][0] +
+        parts[1][0]
+      ).toUpperCase();
+    }
+
+    if (parts.length === 1) {
+      return parts[0]
+        .slice(0, 2)
+        .toUpperCase();
+    }
+
+    return "--";
   };
 
   const initials =
     getInitials(studentName);
 
   // =====================================================
-  // LOAD STUDENT FROM ORACLE
+  // LOAD REAL STUDENT FROM ORACLE
   // =====================================================
 
   useEffect(() => {
     async function loadStudent() {
       try {
+        setLoading(true);
         setError("");
 
         const loggedInUser =
@@ -72,22 +106,50 @@ export default function StudentIDPage() {
           );
         }
 
-        const response = await fetch(
-          `${API_URL}/api/students/${encodeURIComponent(
-            roll
-          )}`
-        );
+        const response =
+          await fetch(
+            `${API_URL}/api/students/${encodeURIComponent(
+              roll
+            )}`
+          );
 
         if (!response.ok) {
+          let message =
+            "Unable to load student profile.";
+
+          try {
+            const data =
+              await response.json();
+
+            if (data?.error) {
+              message =
+                data.error;
+            }
+          } catch {
+            // Keep generic error.
+          }
+
           throw new Error(
-            "Unable to load student profile"
+            message
           );
         }
 
         const data =
           await response.json();
 
-        setStudentProfile(data);
+        if (
+          !data ||
+          !data.STUDENT_ROLL ||
+          !data.NAME
+        ) {
+          throw new Error(
+            "Invalid student profile data received."
+          );
+        }
+
+        setStudentProfile(
+          data
+        );
       } catch (err) {
         console.error(
           "Student ID profile error:",
@@ -98,11 +160,72 @@ export default function StudentIDPage() {
           err.message ||
             "Unable to load student profile."
         );
+      } finally {
+        setLoading(false);
       }
     }
 
     loadStudent();
   }, []);
+
+  // =====================================================
+  // LOADING
+  // =====================================================
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+
+        <div className="text-center">
+
+          <span className="material-symbols-outlined text-primary text-5xl">
+            badge
+          </span>
+
+          <p className="mt-2 text-on-surface-variant">
+            Loading digital student ID...
+          </p>
+
+        </div>
+
+      </div>
+    );
+  }
+
+  // =====================================================
+  // ERROR
+  // =====================================================
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+
+        <div className="text-center max-w-md px-4">
+
+          <span className="material-symbols-outlined text-error text-5xl">
+            error
+          </span>
+
+          <h2 className="font-bold text-error mt-2">
+            Unable to Load Student ID
+          </h2>
+
+          <p className="text-on-surface-variant mt-1">
+            {error}
+          </p>
+
+          <Link
+            to="/dashboard"
+            className="inline-flex mt-4 px-4 py-2 bg-primary text-on-primary rounded-lg text-sm font-semibold"
+          >
+            Back to Dashboard
+          </Link>
+
+        </div>
+
+      </div>
+    );
+  }
 
   return (
     <div className="bg-background text-on-background min-h-screen flex flex-col font-body-md">
@@ -127,13 +250,16 @@ export default function StudentIDPage() {
         </div>
 
         <div className="flex items-center gap-2">
+
           <StudentNotificationBell />
+
           <Link
             to="/dashboard"
             className="text-xs font-semibold text-primary px-3.5 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors"
           >
             Dashboard
           </Link>
+
         </div>
 
       </header>
@@ -149,32 +275,18 @@ export default function StudentIDPage() {
           </h1>
 
           <p className="text-sm text-on-surface-variant mt-1">
-            Official verified credential for gate entry, lab access, and library issues.
+            Official student identity information from your academic profile.
           </p>
 
         </div>
 
-        {/* ERROR */}
-
-        {error && (
-          <div className="w-full max-w-[380px] mb-4 p-3 rounded-xl bg-error-container text-on-error-container text-sm flex items-center gap-2">
-
-            <span className="material-symbols-outlined text-[18px]">
-              error
-            </span>
-
-            {error}
-
-          </div>
-        )}
-
         <div className="w-full max-w-[380px] relative group">
 
-          {/* ID Card Container */}
+          {/* ID Card */}
 
           <div className="relative bg-surface rounded-2xl border border-outline-variant overflow-hidden shadow-xl transition-all duration-300 hover:shadow-2xl">
 
-            {/* Card Header Accent */}
+            {/* Accent */}
 
             <div className="h-3 w-full bg-gradient-to-r from-primary via-primary-container to-secondary" />
 
@@ -193,7 +305,7 @@ export default function StudentIDPage() {
                   </span>
 
                   <span className="font-title-md text-primary font-bold mt-0.5">
-                    National Tech University
+                    CampusCopilot
                   </span>
 
                 </div>
@@ -210,7 +322,7 @@ export default function StudentIDPage() {
 
               </div>
 
-              {/* Photo & Details */}
+              {/* Student Details */}
 
               <div className="flex flex-col items-center text-center w-full relative">
 
@@ -230,11 +342,31 @@ export default function StudentIDPage() {
 
                 </h2>
 
-                <p className="font-body-md text-on-surface-variant text-sm mb-3">
+                <p className="font-body-md text-on-surface-variant text-sm mt-1">
 
                   {department}
 
                 </p>
+
+                <div className="flex items-center justify-center gap-2 mt-2 mb-3">
+
+                  {semester !== null && (
+                    <span className="px-2.5 py-1 rounded-full bg-surface-container-high text-on-surface text-xs font-semibold">
+
+                      Semester {semester}
+
+                    </span>
+                  )}
+
+                  {section && (
+                    <span className="px-2.5 py-1 rounded-full bg-surface-container-high text-on-surface text-xs font-semibold">
+
+                      Section {section}
+
+                    </span>
+                  )}
+
+                </div>
 
                 <div className="bg-surface-container-low rounded-xl px-4 py-2 mb-4 border border-outline-variant/60 w-full text-center">
 
@@ -248,31 +380,35 @@ export default function StudentIDPage() {
 
               </div>
 
-              {/* QR Code Section */}
+              {/* Verification */}
 
               <div className="w-full flex flex-col items-center pt-4 border-t border-outline-variant/60">
 
                 <p className="font-label-caps text-on-surface-variant mb-2.5 uppercase tracking-wider text-xs font-semibold">
 
-                  Scan for Campus Gate & Library Access
+                  Campus Verification
 
                 </p>
 
                 <div className="w-48 h-48 bg-white p-3 rounded-2xl border border-outline-variant shadow-inner flex flex-col items-center justify-center">
 
-                  {/* Visual QR Pattern representation */}
+                  <div className="w-full h-full border-2 border-dashed border-primary/40 rounded-xl flex flex-col items-center justify-center text-center p-3 bg-slate-50">
 
-                  <div className="w-full h-full border-2 border-dashed border-primary/40 rounded-xl flex flex-col items-center justify-center text-center p-2 bg-slate-50">
-
-                    <span className="material-symbols-outlined text-primary text-6xl mb-1">
+                    <span className="material-symbols-outlined text-primary text-6xl mb-2">
 
                       qr_code_2
 
                     </span>
 
-                    <span className="font-mono-sm text-[11px] text-outline font-semibold">
+                    <span className="text-[11px] text-outline font-semibold">
 
-                      SECURE TOKEN: 9942-8821
+                      Verification QR not configured
+
+                    </span>
+
+                    <span className="text-[10px] text-outline mt-1">
+
+                      Student ID: {studentRoll}
 
                     </span>
 
@@ -284,17 +420,19 @@ export default function StudentIDPage() {
 
             </div>
 
-            {/* Card Footer */}
+            {/* Footer */}
 
             <div className="bg-surface-container-low p-3 text-center border-t border-outline-variant/60">
 
               <span className="font-mono-sm text-outline text-xs flex items-center justify-center gap-1.5 font-medium">
 
                 <span className="material-symbols-outlined text-[16px] text-secondary">
+
                   verified_user
+
                 </span>
 
-                Valid Academic Year: 2025–2026
+                Academic profile verified from CampusCopilot records
 
               </span>
 
@@ -302,7 +440,7 @@ export default function StudentIDPage() {
 
           </div>
 
-          {/* Background Glow */}
+          {/* Glow */}
 
           <div className="absolute -inset-1 bg-gradient-to-r from-primary to-secondary rounded-2xl blur-lg opacity-20 -z-10 group-hover:opacity-35 transition-opacity" />
 
@@ -310,7 +448,7 @@ export default function StudentIDPage() {
 
       </main>
 
-      {/* Bottom Nav Bar (Mobile) */}
+      {/* Bottom Nav */}
 
       <nav className="fixed bottom-0 w-full z-50 h-[64px] bg-surface border-t border-surface-container-high shadow-lg md:hidden">
 

@@ -1,5 +1,12 @@
 const oracledb = require("oracledb");
-require("dotenv").config();
+
+if (
+    !process.env.DB_USER ||
+    !process.env.DB_PASSWORD ||
+    !process.env.DB_CONNECT_STRING
+) {
+    require("dotenv").config();
+}
 
 async function getConnection() {
     try {

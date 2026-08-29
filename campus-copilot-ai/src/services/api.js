@@ -159,17 +159,134 @@ export const aiService = {
 };
 
 export const attendanceService = {
-  async getAttendance(rollNumber = "2026-CS-0042") {
-    try {
-      const res = await fetch(`${API_BASE_URL}/attendance/${rollNumber}`, {
-        headers: getAuthHeader(),
-      });
-      if (!res.ok) throw new Error("Failed to fetch attendance");
-      return await res.json();
-    } catch (e) {
-      console.warn("Using offline fallback attendance data:", e.message);
-      return null;
+  async getAttendance(rollNumber) {
+    const cleanRoll = String(
+      rollNumber || ""
+    ).trim();
+
+    if (!cleanRoll) {
+      throw new Error(
+        "Student roll number is required."
+      );
     }
+
+    const res = await fetch(
+      `${API_BASE_URL}/attendance/${encodeURIComponent(
+        cleanRoll
+      )}`,
+      {
+        headers: getAuthHeader(),
+      }
+    );
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(
+        data.error ||
+          "Failed to fetch attendance"
+      );
+    }
+
+    return data;
+  },
+
+  async getAttendanceTrend(
+    rollNumber,
+    weeks = 8
+  ) {
+    const cleanRoll = String(
+      rollNumber || ""
+    ).trim();
+
+    if (!cleanRoll) {
+      throw new Error(
+        "Student roll number is required."
+      );
+    }
+
+    const parsedWeeks = Number.parseInt(
+      weeks,
+      10
+    );
+
+    const safeWeeks = Number.isFinite(
+      parsedWeeks
+    )
+      ? Math.min(
+          52,
+          Math.max(1, parsedWeeks)
+        )
+      : 8;
+
+    const res = await fetch(
+      `${API_BASE_URL}/attendance/${encodeURIComponent(
+        cleanRoll
+      )}/trend?weeks=${safeWeeks}`,
+      {
+        headers: getAuthHeader(),
+      }
+    );
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(
+        data.error ||
+          "Unable to load attendance trend."
+      );
+    }
+
+    return data;
+  },
+
+  async getAttendanceTrendHistory(
+    rollNumber,
+    weeks = 8
+  ) {
+    const cleanRoll = String(
+      rollNumber || ""
+    ).trim();
+
+    if (!cleanRoll) {
+      throw new Error(
+        "Student roll number is required."
+      );
+    }
+
+    const parsedWeeks = Number.parseInt(
+      weeks,
+      10
+    );
+
+    const safeWeeks = Number.isFinite(
+      parsedWeeks
+    )
+      ? Math.min(
+          52,
+          Math.max(1, parsedWeeks)
+        )
+      : 8;
+
+    const res = await fetch(
+      `${API_BASE_URL}/attendance/${encodeURIComponent(
+        cleanRoll
+      )}/trend-history?weeks=${safeWeeks}`,
+      {
+        headers: getAuthHeader(),
+      }
+    );
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(
+        data.error ||
+          "Unable to load attendance history."
+      );
+    }
+
+    return data;
   },
 
   async updateAttendance(records) {
