@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router";
+import StudentPageLayout from "../../components/student/StudentPageLayout";
 import { authService } from "../../services/api";
-import StudentNotificationBell from "./StudentNotificationBell";
 
 const API_URL = "http://localhost:5000";
 
@@ -25,20 +24,6 @@ const SUBJECT_THEMES = [
     inactive: "bg-tertiary-fixed/40",
   },
 ];
-
-function getInitials(name) {
-  const parts = String(name || "")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-
-  if (parts.length === 0) return "ST";
-
-  return parts
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
-}
 
 function getOpenResourceUrl(value) {
   const url = String(value || "").trim();
@@ -133,8 +118,6 @@ export default function ResourceHubPage() {
       currentUser?.roll ||
       ""
   ).trim();
-
-  const studentInitials = getInitials(currentUser?.name);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [resources, setResources] = useState([]);
@@ -864,87 +847,14 @@ export default function ResourceHubPage() {
   }
 
   return (
-    <div className="bg-background text-on-background min-h-screen pb-[80px] md:pb-0 font-body-md">
+    <StudentPageLayout
+      activePath="/resources"
+      eyebrow="STUDY RESOURCES"
+      title="Resource Hub"
+      subtitle="Access subject-wise study material, notes, PDFs, and academic resources."
+    >
 
-      {/* TOP BAR */}
-
-      <header className="sticky top-0 w-full z-50 bg-surface border-b border-surface-container-high">
-        <div
-          className="
-            flex
-            justify-between
-            items-center
-            px-margin-mobile
-            md:px-margin-desktop
-            w-full
-            h-[64px]
-            max-w-[1440px]
-            mx-auto
-          "
-        >
-          <div className="flex items-center gap-xs">
-            <Link
-              to="/profile"
-              className="
-                w-8
-                h-8
-                rounded-full
-                bg-primary-container
-                text-on-primary-container
-                flex
-                items-center
-                justify-center
-                font-bold
-                text-xs
-              "
-            >
-              {studentInitials}
-            </Link>
-
-            <h1 className="font-headline-lg-mobile font-bold text-primary">
-              CampusCopilot
-            </h1>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <StudentNotificationBell />
-
-            <Link
-              to="/dashboard"
-              className="
-                hidden
-                sm:inline-flex
-                text-xs
-                font-semibold
-                text-primary
-                px-3
-                py-1.5
-                rounded-lg
-                bg-primary/10
-                hover:bg-primary/20
-                transition-colors
-              "
-            >
-              Dashboard
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      {/* MAIN */}
-
-      <main
-        className="
-          max-w-[1440px]
-          mx-auto
-          w-full
-          px-margin-mobile
-          md:px-margin-desktop
-          py-md
-          md:py-lg
-        "
-      >
-        <div className="max-w-5xl mx-auto">
+      <div className="max-w-5xl mx-auto">
 
           {/* TITLE */}
 
@@ -959,10 +869,6 @@ export default function ResourceHubPage() {
                 gap-2
               "
             >
-              <h2 className="font-headline-lg-mobile md:font-headline-lg font-semibold text-primary">
-                Resource Hub
-              </h2>
-
               {!loading &&
                 !error && (
                   <span className="font-mono-sm text-outline">
@@ -981,11 +887,6 @@ export default function ResourceHubPage() {
                 )}
             </div>
 
-            <p className="font-body-sm text-on-surface-variant mt-1">
-              Everything filed by course,
-              with CampusCopilot-powered
-              document Q&amp;A.
-            </p>
           </section>
 
           {/* SEARCH */}
@@ -1298,8 +1199,6 @@ export default function ResourceHubPage() {
               </>
             )}
         </div>
-      </main>
-
       {/* RESOURCE Q&A MODAL */}
 
       {selectedResource && (
@@ -1822,101 +1721,6 @@ export default function ResourceHubPage() {
         </div>
       )}
 
-      {/* MOBILE NAV */}
-
-      <nav className="md:hidden fixed bottom-0 w-full z-50 h-[64px] bg-surface border-t border-outline-variant">
-        <div className="flex justify-around items-center px-xs w-full h-full">
-
-          <Link
-            to="/dashboard"
-            className="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-transform duration-200 active:scale-90 w-16"
-          >
-            <span className="material-symbols-outlined text-[24px]">
-              home
-            </span>
-
-            <span className="font-label-caps text-[10px] mt-1">
-              Home
-            </span>
-          </Link>
-
-          <Link
-            to="/attendance"
-            className="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-transform duration-200 active:scale-90 w-16"
-          >
-            <span className="material-symbols-outlined text-[24px]">
-              analytics
-            </span>
-
-            <span className="font-label-caps text-[10px] mt-1">
-              Attendance
-            </span>
-          </Link>
-
-          <Link
-            to="/ai-chat"
-            className="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-transform duration-200 active:scale-90 w-16"
-          >
-            <span className="material-symbols-outlined text-[24px]">
-              smart_toy
-            </span>
-
-            <span className="font-label-caps text-[10px] mt-1">
-              Copilot
-            </span>
-          </Link>
-
-          <Link
-            to="/assignments"
-            className="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-transform duration-200 active:scale-90 w-16"
-          >
-            <span className="material-symbols-outlined text-[24px]">
-              assignment
-            </span>
-
-            <span className="font-label-caps text-[10px] mt-1">
-              Tasks
-            </span>
-          </Link>
-
-          <Link
-            to="/resources"
-            className="
-              relative
-              flex
-              flex-col
-              items-center
-              justify-center
-              text-primary
-              font-bold
-              transition-transform
-              duration-200
-              active:scale-90
-              w-16
-              after:content-['']
-              after:w-1
-              after:h-1
-              after:bg-primary
-              after:rounded-full
-              after:mt-1
-            "
-          >
-            <span
-              className="material-symbols-outlined text-[24px]"
-              style={{
-                fontVariationSettings:
-                  "'FILL' 1",
-              }}
-            >
-              menu
-            </span>
-
-            <span className="font-label-caps text-[10px] mt-1">
-              More
-            </span>
-          </Link>
-        </div>
-      </nav>
-    </div>
+    </StudentPageLayout>
   );
 }

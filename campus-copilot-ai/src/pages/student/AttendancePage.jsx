@@ -11,6 +11,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import { authService, attendanceService, assignmentService, timetableService } from "../../services/api";
+import StudentPageHero from "../../components/student/StudentPageHero";
 import StudentNotificationBell from "./StudentNotificationBell";
 
 /* ===================================================================
@@ -359,27 +360,11 @@ export default function AttendancePage() {
 
         {/* ---- Scrollable content ---- */}
         <main className="flex-1 px-4 lg:px-8 py-6 lg:py-8 pb-24 lg:pb-8 overflow-y-auto">
-          {/* Page Header */}
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
-            <div>
-              <h1 className="font-headline-lg text-on-background font-bold">Attendance Analytics</h1>
-              <p className="font-body-md text-on-surface-variant mt-1">
-                Track your attendance performance and stay in the safe zone.
-              </p>
-            </div>
-            <div className="flex items-center gap-3 shrink-0">
-              <div className="hidden lg:block">
-                <StudentNotificationBell />
-              </div>
-              <Link
-                to="/ai-chat?q=Analyze%20my%20attendance%20and%20suggest%20improvement%20strategies"
-                className="inline-flex items-center gap-2 bg-primary text-on-primary px-4 py-2.5 rounded-xl font-semibold text-sm hover:bg-primary-container hover:text-on-primary-container transition-colors"
-              >
-                <span className="material-symbols-outlined text-[18px]">smart_toy</span>
-                Ask Copilot Attendance Advice
-              </Link>
-            </div>
-          </div>
+          <StudentPageHero
+            eyebrow="ATTENDANCE ANALYTICS"
+            title="Attendance Analytics"
+            subtitle="Track your attendance performance and stay in the safe zone."
+          />
 
           {/* Error */}
           {error && (
@@ -625,6 +610,14 @@ export default function AttendancePage() {
                       Maintain consistency to stay in the safe zone.
                     </p>
                   </div>
+
+                  <Link
+                    to="/ai-chat?q=Analyze%20my%20attendance%20and%20suggest%20improvement%20strategies"
+                    className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary transition-colors hover:bg-primary-container hover:text-on-primary-container"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">smart_toy</span>
+                    Ask Copilot Attendance Advice
+                  </Link>
                 </div>
 
                 {/* ---- Subject-wise Attendance ---- */}

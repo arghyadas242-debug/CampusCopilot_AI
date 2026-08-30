@@ -39,7 +39,7 @@ router.get("/", async (req, res) => {
           ai_summary,
           created_at
         FROM notices
-        ORDER BY id DESC
+        ORDER BY created_at DESC, id DESC
       `,
       [],
       {
@@ -66,10 +66,14 @@ router.get("/", async (req, res) => {
         try {
           parsedSummary = JSON.parse(row.AI_SUMMARY);
 
-          if (!Array.isArray(parsedSummary)) {
-            parsedSummary = [
-              String(row.AI_SUMMARY),
-            ];
+          if (
+            parsedSummary &&
+            typeof parsedSummary === "object" &&
+            Array.isArray(parsedSummary.summary)
+          ) {
+            parsedSummary = parsedSummary.summary;
+          } else if (!Array.isArray(parsedSummary)) {
+            parsedSummary = [String(row.AI_SUMMARY)];
           }
         } catch {
           parsedSummary = [
@@ -83,20 +87,15 @@ router.get("/", async (req, res) => {
         title: row.TITLE,
         author: row.AUTHOR,
 
-        tag:
-          row.TAG ||
-          "ACADEMIC",
+        tag: row.TAG,
 
-        tagColor:
-          row.TAG_COLOR ||
-          "bg-primary-container text-on-primary-container",
+        tagColor: row.TAG_COLOR,
 
-        category:
-          row.CATEGORY ||
-          "academic",
+        category: row.CATEGORY,
 
-        content:
-          row.CONTENT || "",
+        content: row.CONTENT,
+
+        aiSummary: row.AI_SUMMARY,
 
         summary:
           parsedSummary,

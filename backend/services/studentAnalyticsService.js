@@ -155,6 +155,19 @@ async function loadSubjectAnalytics(connection, studentRoll) {
         SELECT subject_code
         FROM timetable
         WHERE UPPER(student_roll) = UPPER(:studentRoll)
+
+        UNION
+
+        SELECT subject_code
+        FROM exam_results
+        WHERE UPPER(student_roll) = UPPER(:studentRoll)
+
+        UNION
+
+        SELECT subject_code
+        FROM study_sessions
+        WHERE UPPER(student_roll) = UPPER(:studentRoll)
+          AND subject_code IS NOT NULL
       ),
 
       assignment_stats AS (
@@ -548,6 +561,841 @@ async function loadExamOverview(
 
 
 // =====================================================
+// EXAM RESULT ANALYTICS
+// =====================================================
+
+async function loadExamResultAnalytics(
+  connection,
+  studentRoll
+) {
+  const result = await connection.execute(
+    `
+      SELECT
+        er.result_id,
+        er.student_roll,
+        er.subject_code,
+        s.subject_name,
+        er.exam_type,
+        er.marks_obtained,
+        er.max_marks,
+        er.exam_date,
+        er.created_at,
+
+        ROUND(
+          (
+            er.marks_obtained /
+            NULLIF(er.max_marks, 0)
+          ) * 100,
+          1
+        ) AS percentage,
+
+        (
+          SELECT
+            ROUND(
+              AVG(
+                (
+                  er2.marks_obtained /
+                  NULLIF(er2.max_marks, 0)
+                ) * 100
+              ),
+              1
+            )
+
+          FROM exam_results er2
+
+          WHERE UPPER(er2.subject_code) =
+                UPPER(er.subject_code)
+
+            AND UPPER(
+                  NVL(
+                    er2.exam_type,
+                    'UNKNOWN'
+                  )
+                ) =
+                UPPER(
+                  NVL(
+                    er.exam_type,
+                    'UNKNOWN'
+                  )
+                )
+
+            AND (
+              (
+                er2.exam_date IS NULL
+                AND er.exam_date IS NULL
+              )
+              OR
+              TRUNC(er2.exam_date) =
+              TRUNC(er.exam_date)
+            )
+        ) AS class_average_percentage
+
+      FROM exam_results er
+
+      JOIN subjects s
+        ON s.subject_code =
+           er.subject_code
+
+      WHERE UPPER(er.student_roll) =
+            UPPER(:studentRoll)
+
+      ORDER BY
+        er.exam_date ASC NULLS LAST,
+        er.created_at ASC,
+        er.result_id ASC
+    `,
+    {
+      studentRoll,
+    },
+    {
+      outFormat:
+        oracledb.OUT_FORMAT_OBJECT,
+    }
+  );
+
+  const rows =
+    result.rows || [];
+
+  // ---------------------------------------------------
+  // NO REAL RESULT DATA YET
+  // ---------------------------------------------------
+
+  if (rows.length === 0) {
+    return {
+      totalAssessments: 0,
+      totalMarksObtained: 0,
+      totalMaxMarks: 0,
+      overallPercentage: null,
+      classAveragePercentage: null,
+      bestSubject: null,
+      weakestSubject: null,
+      subjects: [],
+      trend: [],
+    };
+  }
+
+  // ---------------------------------------------------
+  // OVERALL PERFORMANCE
+  // ---------------------------------------------------
+
+  let totalMarksObtained = 0;
+  let totalMaxMarks = 0;
+
+  rows.forEach((row) => {
+    totalMarksObtained +=
+      Number(
+        row.MARKS_OBTAINED || 0
+      );
+
+    totalMaxMarks +=
+      Number(
+        row.MAX_MARKS || 0
+      );
+  });
+
+  const overallPercentage =
+    totalMaxMarks > 0
+      ? round(
+          (
+            totalMarksObtained /
+            totalMaxMarks
+          ) * 100
+        )
+      : null;
+
+  // ---------------------------------------------------
+  // CLASS AVERAGE
+  // ---------------------------------------------------
+
+  const classAverageValues =
+    rows
+      .map((row) =>
+        row.CLASS_AVERAGE_PERCENTAGE === null
+          ? null
+          : Number(
+              row.CLASS_AVERAGE_PERCENTAGE
+            )
+      )
+      .filter(
+        (value) =>
+          value !== null &&
+          Number.isFinite(value)
+      );
+
+  const classAveragePercentage =
+    classAverageValues.length > 0
+      ? round(
+          classAverageValues.reduce(
+            (total, value) =>
+              total + value,
+            0
+          ) /
+            classAverageValues.length
+        )
+      : null;
+
+  // ---------------------------------------------------
+  // GROUP RESULTS BY SUBJECT
+  // ---------------------------------------------------
+
+  const subjectMap =
+    new Map();
+
+  rows.forEach((row) => {
+    const subjectCode =
+      row.SUBJECT_CODE;
+
+    if (
+      !subjectMap.has(
+        subjectCode
+      )
+    ) {
+      subjectMap.set(
+        subjectCode,
+        {
+          subjectCode,
+
+          subjectName:
+            row.SUBJECT_NAME,
+
+          totalAssessments:
+            0,
+
+          marksObtained:
+            0,
+
+          maxMarks:
+            0,
+
+          classAverages:
+            [],
+        }
+      );
+    }
+
+    const subject =
+      subjectMap.get(
+        subjectCode
+      );
+
+    subject.totalAssessments +=
+      1;
+
+    subject.marksObtained +=
+      Number(
+        row.MARKS_OBTAINED || 0
+      );
+
+    subject.maxMarks +=
+      Number(
+        row.MAX_MARKS || 0
+      );
+
+    if (
+      row.CLASS_AVERAGE_PERCENTAGE !==
+      null
+    ) {
+      subject.classAverages.push(
+        Number(
+          row.CLASS_AVERAGE_PERCENTAGE
+        )
+      );
+    }
+  });
+
+  const subjects =
+    Array.from(
+      subjectMap.values()
+    ).map((subject) => {
+      const percentage =
+        subject.maxMarks > 0
+          ? round(
+              (
+                subject.marksObtained /
+                subject.maxMarks
+              ) * 100
+            )
+          : null;
+
+      const subjectClassAverage =
+        subject.classAverages.length > 0
+          ? round(
+              subject.classAverages.reduce(
+                (total, value) =>
+                  total + value,
+                0
+              ) /
+                subject.classAverages.length
+            )
+          : null;
+
+      return {
+        subjectCode:
+          subject.subjectCode,
+
+        subjectName:
+          subject.subjectName,
+
+        totalAssessments:
+          subject.totalAssessments,
+
+        marksObtained:
+          round(
+            subject.marksObtained,
+            2
+          ),
+
+        maxMarks:
+          round(
+            subject.maxMarks,
+            2
+          ),
+
+        percentage,
+
+        classAveragePercentage:
+          subjectClassAverage,
+      };
+    });
+
+  // ---------------------------------------------------
+  // BEST / WEAKEST SUBJECT
+  // ---------------------------------------------------
+
+  const comparableSubjects =
+    subjects
+      .filter(
+        (subject) =>
+          subject.percentage !== null
+      )
+      .sort(
+        (a, b) =>
+          b.percentage -
+          a.percentage
+      );
+
+  const bestSubject =
+    comparableSubjects.length > 0
+      ? comparableSubjects[0]
+      : null;
+
+  const weakestSubject =
+    comparableSubjects.length > 0
+      ? comparableSubjects[
+          comparableSubjects.length -
+            1
+        ]
+      : null;
+
+  // ---------------------------------------------------
+  // RESULT TREND
+  // ---------------------------------------------------
+
+  const trend =
+    rows.map((row) => ({
+      resultId:
+        row.RESULT_ID,
+
+      subjectCode:
+        row.SUBJECT_CODE,
+
+      subjectName:
+        row.SUBJECT_NAME,
+
+      examType:
+        row.EXAM_TYPE,
+
+      marksObtained:
+        Number(
+          row.MARKS_OBTAINED
+        ),
+
+      maxMarks:
+        Number(
+          row.MAX_MARKS
+        ),
+
+      percentage:
+        row.PERCENTAGE === null
+          ? null
+          : Number(
+              row.PERCENTAGE
+            ),
+
+      classAveragePercentage:
+        row.CLASS_AVERAGE_PERCENTAGE === null
+          ? null
+          : Number(
+              row.CLASS_AVERAGE_PERCENTAGE
+            ),
+
+      examDate:
+        row.EXAM_DATE instanceof Date
+          ? row.EXAM_DATE.toISOString()
+          : row.EXAM_DATE,
+
+      createdAt:
+        row.CREATED_AT instanceof Date
+          ? row.CREATED_AT.toISOString()
+          : row.CREATED_AT,
+    }));
+
+  return {
+    totalAssessments:
+      rows.length,
+
+    totalMarksObtained:
+      round(
+        totalMarksObtained,
+        2
+      ),
+
+    totalMaxMarks:
+      round(
+        totalMaxMarks,
+        2
+      ),
+
+    overallPercentage,
+
+    classAveragePercentage,
+
+    bestSubject,
+
+    weakestSubject,
+
+    subjects,
+
+    trend,
+  };
+}
+
+
+// =====================================================
+// STUDY SESSION ANALYTICS
+// =====================================================
+
+async function loadStudySessionAnalytics(
+  connection,
+  studentRoll
+) {
+  const result = await connection.execute(
+    `
+      SELECT
+        ss.study_session_id,
+        ss.subject_code,
+        s.subject_name,
+        ss.start_time,
+        ss.end_time,
+        ss.created_at,
+
+        TO_CHAR(
+          ss.start_time,
+          'YYYY-MM-DD'
+        ) AS study_date,
+
+        TRUNC(SYSDATE) -
+        TRUNC(
+          CAST(
+            ss.start_time
+            AS DATE
+          )
+        ) AS days_ago,
+
+        CASE
+          WHEN ss.end_time IS NOT NULL
+           AND ss.end_time >=
+               ss.start_time
+          THEN
+            ROUND(
+              (
+                CAST(
+                  ss.end_time
+                  AS DATE
+                ) -
+                CAST(
+                  ss.start_time
+                  AS DATE
+                )
+              ) *
+              24 *
+              60,
+              2
+            )
+          ELSE NULL
+        END AS duration_minutes,
+
+        CASE
+          WHEN
+            TRUNC(
+              CAST(
+                ss.start_time
+                AS DATE
+              )
+            ) =
+            TRUNC(SYSDATE)
+          THEN 1
+          ELSE 0
+        END AS is_today,
+
+        CASE
+          WHEN
+            TRUNC(
+              CAST(
+                ss.start_time
+                AS DATE
+              ),
+              'IW'
+            ) =
+            TRUNC(
+              SYSDATE,
+              'IW'
+            )
+          THEN 1
+          ELSE 0
+        END AS is_this_week
+
+      FROM study_sessions ss
+
+      LEFT JOIN subjects s
+        ON s.subject_code =
+           ss.subject_code
+
+      WHERE UPPER(
+              ss.student_roll
+            ) =
+            UPPER(
+              :studentRoll
+            )
+
+      ORDER BY
+        ss.start_time DESC
+    `,
+    {
+      studentRoll,
+    },
+    {
+      outFormat:
+        oracledb.OUT_FORMAT_OBJECT,
+    }
+  );
+
+  const rows =
+    result.rows || [];
+
+  // ---------------------------------------------------
+  // NO STUDY DATA YET
+  // ---------------------------------------------------
+
+  if (rows.length === 0) {
+    return {
+      totalSessions: 0,
+      completedSessions: 0,
+      activeSessions: 0,
+      totalMinutes: 0,
+      totalHours: 0,
+      todayMinutes: 0,
+      todayHours: 0,
+      weekMinutes: 0,
+      weekHours: 0,
+      currentStreak: 0,
+      subjects: [],
+      recentSessions: [],
+    };
+  }
+
+  // ---------------------------------------------------
+  // COMPLETED / ACTIVE SESSIONS
+  // ---------------------------------------------------
+
+  const completedRows =
+    rows.filter(
+      (row) =>
+        row.END_TIME !== null &&
+        row.DURATION_MINUTES !== null
+    );
+
+  const activeSessions =
+    rows.filter(
+      (row) =>
+        row.END_TIME === null
+    ).length;
+
+  // ---------------------------------------------------
+  // TOTAL STUDY TIME
+  // ---------------------------------------------------
+
+  const totalMinutes =
+    completedRows.reduce(
+      (total, row) =>
+        total +
+        Number(
+          row.DURATION_MINUTES || 0
+        ),
+      0
+    );
+
+  // ---------------------------------------------------
+  // TODAY
+  // ---------------------------------------------------
+
+  const todayMinutes =
+    completedRows
+      .filter(
+        (row) =>
+          Number(
+            row.IS_TODAY
+          ) === 1
+      )
+      .reduce(
+        (total, row) =>
+          total +
+          Number(
+            row.DURATION_MINUTES || 0
+          ),
+        0
+      );
+
+  // ---------------------------------------------------
+  // CURRENT WEEK
+  // ---------------------------------------------------
+
+  const weekMinutes =
+    completedRows
+      .filter(
+        (row) =>
+          Number(
+            row.IS_THIS_WEEK
+          ) === 1
+      )
+      .reduce(
+        (total, row) =>
+          total +
+          Number(
+            row.DURATION_MINUTES || 0
+          ),
+        0
+      );
+
+  // ---------------------------------------------------
+  // CURRENT STREAK
+  //
+  // A streak requires at least one completed session
+  // today, then yesterday, then the previous day, etc.
+  // ---------------------------------------------------
+
+  const studyDays =
+    new Set(
+      completedRows
+        .map((row) =>
+          row.DAYS_AGO === null
+            ? null
+            : Number(
+                row.DAYS_AGO
+              )
+        )
+        .filter(
+          (daysAgo) =>
+            Number.isInteger(
+              daysAgo
+            ) &&
+            daysAgo >= 0
+        )
+    );
+
+  let currentStreak =
+    0;
+
+  while (
+    studyDays.has(
+      currentStreak
+    )
+  ) {
+    currentStreak +=
+      1;
+  }
+
+  // ---------------------------------------------------
+  // SUBJECT-WISE STUDY TIME
+  // ---------------------------------------------------
+
+  const subjectMap =
+    new Map();
+
+  completedRows.forEach((row) => {
+    const subjectCode =
+      row.SUBJECT_CODE ||
+      "GENERAL";
+
+    if (
+      !subjectMap.has(
+        subjectCode
+      )
+    ) {
+      subjectMap.set(
+        subjectCode,
+        {
+          subjectCode,
+
+          subjectName:
+            row.SUBJECT_NAME ||
+            "General Study",
+
+          sessionCount:
+            0,
+
+          totalMinutes:
+            0,
+        }
+      );
+    }
+
+    const subject =
+      subjectMap.get(
+        subjectCode
+      );
+
+    subject.sessionCount +=
+      1;
+
+    subject.totalMinutes +=
+      Number(
+        row.DURATION_MINUTES || 0
+      );
+  });
+
+  const subjects =
+    Array.from(
+      subjectMap.values()
+    )
+      .map((subject) => ({
+        subjectCode:
+          subject.subjectCode,
+
+        subjectName:
+          subject.subjectName,
+
+        sessionCount:
+          subject.sessionCount,
+
+        totalMinutes:
+          round(
+            subject.totalMinutes,
+            1
+          ),
+
+        totalHours:
+          round(
+            subject.totalMinutes /
+              60,
+            1
+          ),
+      }))
+      .sort(
+        (a, b) =>
+          b.totalMinutes -
+          a.totalMinutes
+      );
+
+  // ---------------------------------------------------
+  // RECENT STUDY SESSIONS
+  // ---------------------------------------------------
+
+  const recentSessions =
+    rows
+      .slice(
+        0,
+        10
+      )
+      .map((row) => ({
+        studySessionId:
+          row.STUDY_SESSION_ID,
+
+        subjectCode:
+          row.SUBJECT_CODE,
+
+        subjectName:
+          row.SUBJECT_NAME,
+
+        startTime:
+          row.START_TIME instanceof Date
+            ? row.START_TIME.toISOString()
+            : row.START_TIME,
+
+        endTime:
+          row.END_TIME instanceof Date
+            ? row.END_TIME.toISOString()
+            : row.END_TIME,
+
+        durationMinutes:
+          row.DURATION_MINUTES === null
+            ? null
+            : Number(
+                row.DURATION_MINUTES
+              ),
+
+        active:
+          row.END_TIME === null,
+      }));
+
+  return {
+    totalSessions:
+      rows.length,
+
+    completedSessions:
+      completedRows.length,
+
+    activeSessions,
+
+    totalMinutes:
+      round(
+        totalMinutes,
+        1
+      ),
+
+    totalHours:
+      round(
+        totalMinutes /
+          60,
+        1
+      ),
+
+    todayMinutes:
+      round(
+        todayMinutes,
+        1
+      ),
+
+    todayHours:
+      round(
+        todayMinutes /
+          60,
+        1
+      ),
+
+    weekMinutes:
+      round(
+        weekMinutes,
+        1
+      ),
+
+    weekHours:
+      round(
+        weekMinutes /
+          60,
+        1
+      ),
+
+    currentStreak,
+
+    subjects,
+
+    recentSessions,
+  };
+}
+
+
+// =====================================================
 // TIMETABLE OVERVIEW
 // =====================================================
 
@@ -673,7 +1521,10 @@ function calculateWorkloadHealth(
   */
 
   score -=
-    Math.min(assignments.dueSoon * 15, 45);
+    Math.min(
+      assignments.dueSoon * 15,
+      45
+    );
 
   const examsWithin7Days =
     exams.exams.filter(
@@ -684,12 +1535,20 @@ function calculateWorkloadHealth(
     ).length;
 
   score -=
-    Math.min(examsWithin7Days * 15, 30);
+    Math.min(
+      examsWithin7Days * 15,
+      30
+    );
 
-  if (assignments.pending > 3) {
+  if (
+    assignments.pending > 3
+  ) {
     score -=
       Math.min(
-        (assignments.pending - 3) * 5,
+        (
+          assignments.pending -
+          3
+        ) * 5,
         20
       );
   }
@@ -708,25 +1567,34 @@ function buildDeterministicInsights(analytics) {
   const subjects =
     [...analytics.subjects].sort(
       (a, b) =>
-        (a.readinessScore ?? 101) -
-        (b.readinessScore ?? 101)
+        (
+          a.readinessScore ??
+          101
+        ) -
+        (
+          b.readinessScore ??
+          101
+        )
     );
 
   const prioritySubject =
     subjects.find(
       (subject) =>
-        subject.readinessScore !== null
+        subject.readinessScore !==
+        null
     );
 
   if (
     prioritySubject &&
-    prioritySubject.readinessScore < 80
+    prioritySubject.readinessScore <
+      80
   ) {
     const parts = [];
 
     if (
-      prioritySubject.attendance.percentage !==
-      null
+      prioritySubject
+        .attendance
+        .percentage !== null
     ) {
       parts.push(
         `attendance is ${prioritySubject.attendance.percentage}%`
@@ -734,7 +1602,9 @@ function buildDeterministicInsights(analytics) {
     }
 
     if (
-      prioritySubject.assignments.pending > 0
+      prioritySubject
+        .assignments
+        .pending > 0
     ) {
       parts.push(
         `${prioritySubject.assignments.pending} assignment(s) remain pending`
@@ -742,7 +1612,8 @@ function buildDeterministicInsights(analytics) {
     }
 
     insights.push({
-      type: "HIGH_IMPACT",
+      type:
+        "HIGH_IMPACT",
 
       title:
         `Prioritize ${prioritySubject.subjectName}`,
@@ -752,34 +1623,40 @@ function buildDeterministicInsights(analytics) {
           ? `${parts.join(
               " and "
             )}. This currently gives it the lowest readiness index among your tracked subjects.`
-          : `This subject currently has the lowest readiness index among your tracked subjects.`,
+          : "This subject currently has the lowest readiness index among your tracked subjects.",
     });
   }
 
-
   if (
-    analytics.assignments.pending > 0
+    analytics.assignments
+      .pending > 0
   ) {
     insights.push({
-      type: "WORKLOAD",
+      type:
+        "WORKLOAD",
 
       title:
         `${analytics.assignments.pending} assignment(s) pending`,
 
       description:
-        analytics.assignments.dueSoon > 0
+        analytics.assignments
+          .dueSoon > 0
           ? `${analytics.assignments.dueSoon} pending assignment(s) are due within the next 7 days. Clear those first to reduce near-term workload pressure.`
           : `You currently have ${analytics.assignments.pending} pending assignment(s). Finishing them will improve your assignment-completion component.`,
     });
   }
 
-
-  if (analytics.exams.nextExam) {
+  if (
+    analytics.exams
+      .nextExam
+  ) {
     const exam =
-      analytics.exams.nextExam;
+      analytics.exams
+        .nextExam;
 
     insights.push({
-      type: "EXAM",
+      type:
+        "EXAM",
 
       title:
         `Next exam: ${exam.subjectName}`,
@@ -789,14 +1666,18 @@ function buildDeterministicInsights(analytics) {
     });
   }
 
-
   if (
-    analytics.attendance.percentage !== null &&
-    analytics.attendance.percentage >= 80 &&
-    analytics.attendance.belowThresholdCount === 0
+    analytics.attendance
+      .percentage !== null &&
+    analytics.attendance
+      .percentage >= 80 &&
+    analytics.attendance
+      .belowThresholdCount ===
+      0
   ) {
     insights.push({
-      type: "CONSISTENCY",
+      type:
+        "CONSISTENCY",
 
       title:
         "Attendance currently stable",
@@ -806,10 +1687,12 @@ function buildDeterministicInsights(analytics) {
     });
   }
 
-
-  if (insights.length === 0) {
+  if (
+    insights.length === 0
+  ) {
     insights.push({
-      type: "CONSISTENCY",
+      type:
+        "CONSISTENCY",
 
       title:
         "Academic data is currently stable",
@@ -819,8 +1702,10 @@ function buildDeterministicInsights(analytics) {
     });
   }
 
-
-  return insights.slice(0, 3);
+  return insights.slice(
+    0,
+    3
+  );
 }
 
 
@@ -835,6 +1720,9 @@ async function getStudentAnalytics(studentRoll) {
     connection =
       await getConnection();
 
+    // -------------------------------------------------
+    // STUDENT
+    // -------------------------------------------------
 
     const student =
       await loadStudent(
@@ -842,6 +1730,9 @@ async function getStudentAnalytics(studentRoll) {
         studentRoll
       );
 
+    // -------------------------------------------------
+    // SUBJECTS
+    // -------------------------------------------------
 
     const subjects =
       await loadSubjectAnalytics(
@@ -849,6 +1740,9 @@ async function getStudentAnalytics(studentRoll) {
         studentRoll
       );
 
+    // -------------------------------------------------
+    // ASSIGNMENTS
+    // -------------------------------------------------
 
     const assignments =
       await loadAssignmentOverview(
@@ -856,6 +1750,9 @@ async function getStudentAnalytics(studentRoll) {
         studentRoll
       );
 
+    // -------------------------------------------------
+    // UPCOMING EXAMS
+    // -------------------------------------------------
 
     const exams =
       await loadExamOverview(
@@ -863,6 +1760,9 @@ async function getStudentAnalytics(studentRoll) {
         studentRoll
       );
 
+    // -------------------------------------------------
+    // TIMETABLE
+    // -------------------------------------------------
 
     const timetable =
       await loadTimetableOverview(
@@ -870,19 +1770,44 @@ async function getStudentAnalytics(studentRoll) {
         studentRoll
       );
 
+    // -------------------------------------------------
+    // REAL EXAM RESULTS
+    // -------------------------------------------------
+
+    const examResults =
+      await loadExamResultAnalytics(
+        connection,
+        studentRoll
+      );
+
+    // -------------------------------------------------
+    // REAL STUDY ACTIVITY
+    // -------------------------------------------------
+
+    const studyActivity =
+      await loadStudySessionAnalytics(
+        connection,
+        studentRoll
+      );
+
+    // -------------------------------------------------
+    // ATTENDANCE
+    // -------------------------------------------------
 
     const attendance =
       calculateAttendanceOverview(
         subjects
       );
 
+    // -------------------------------------------------
+    // WORKLOAD
+    // -------------------------------------------------
 
     const workloadHealth =
       calculateWorkloadHealth(
         assignments,
         exams
       );
-
 
     /*
       Overall Academic Readiness Index
@@ -893,6 +1818,16 @@ async function getStudentAnalytics(studentRoll) {
 
       Missing components are automatically
       re-weighted.
+
+      IMPORTANT:
+
+      EXAM_RESULTS and STUDY_SESSIONS are currently
+      displayed as separate real analytics.
+
+      They do NOT affect the readiness score yet.
+
+      This prevents us from silently changing the
+      meaning of the existing readiness index.
 
       This is NOT a GPA, mark or university grade.
     */
@@ -925,6 +1860,9 @@ async function getStudentAnalytics(studentRoll) {
         },
       ]);
 
+    // -------------------------------------------------
+    // FINAL ANALYTICS
+    // -------------------------------------------------
 
     const analytics = {
       calculatedAt:
@@ -967,6 +1905,10 @@ async function getStudentAnalytics(studentRoll) {
 
       exams,
 
+      examResults,
+
+      studyActivity,
+
       timetable,
 
       workload: {
@@ -977,12 +1919,14 @@ async function getStudentAnalytics(studentRoll) {
       subjects,
     };
 
+    // -------------------------------------------------
+    // DETERMINISTIC RECOMMENDATIONS
+    // -------------------------------------------------
 
     analytics.deterministicInsights =
       buildDeterministicInsights(
         analytics
       );
-
 
     return analytics;
 
@@ -1000,6 +1944,10 @@ async function getStudentAnalytics(studentRoll) {
   }
 }
 
+
+// =====================================================
+// EXPORTS
+// =====================================================
 
 module.exports = {
   getStudentAnalytics,

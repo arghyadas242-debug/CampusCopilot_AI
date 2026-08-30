@@ -4,92 +4,25 @@ const getConnection = require("../db");
 
 const router = express.Router();
 
-const DEFAULT_TIMETABLE = [
-  {
-    ID: 1,
-    STUDENT_ROLL: "12024002037008",
-    SUBJECT_CODE: "CS301",
-    SUBJECT_NAME: "Database Management Systems",
-    FACULTY_NAME: "Prof. Alan Turing",
-    DAY_OF_WEEK: "Monday",
-    START_TIME: "09:30 AM",
-    END_TIME: "10:30 AM",
-    ROOM: "LH-302",
-  },
-  {
-    ID: 2,
-    STUDENT_ROLL: "12024002037008",
-    SUBJECT_CODE: "CS302",
-    SUBJECT_NAME: "Computer Networks",
-    FACULTY_NAME: "Dr. Grace Hopper",
-    DAY_OF_WEEK: "Monday",
-    START_TIME: "10:30 AM",
-    END_TIME: "11:30 AM",
-    ROOM: "LH-302",
-  },
-  {
-    ID: 3,
-    STUDENT_ROLL: "12024002037008",
-    SUBJECT_CODE: "CS303",
-    SUBJECT_NAME: "Operating Systems Lab",
-    FACULTY_NAME: "Dr. Linus Torvalds",
-    DAY_OF_WEEK: "Monday",
-    START_TIME: "01:30 PM",
-    END_TIME: "03:30 PM",
-    ROOM: "Lab 2",
-  },
-  {
-    ID: 4,
-    STUDENT_ROLL: "12024002037008",
-    SUBJECT_CODE: "CS304",
-    SUBJECT_NAME: "Design & Analysis of Algorithms",
-    FACULTY_NAME: "Prof. Donald Knuth",
-    DAY_OF_WEEK: "Tuesday",
-    START_TIME: "09:30 AM",
-    END_TIME: "10:30 AM",
-    ROOM: "LH-301",
-  },
-  {
-    ID: 5,
-    STUDENT_ROLL: "12024002037008",
-    SUBJECT_CODE: "CS301",
-    SUBJECT_NAME: "Database Management Systems",
-    FACULTY_NAME: "Prof. Alan Turing",
-    DAY_OF_WEEK: "Wednesday",
-    START_TIME: "10:30 AM",
-    END_TIME: "11:30 AM",
-    ROOM: "LH-302",
-  },
-  {
-    ID: 6,
-    STUDENT_ROLL: "12024002037008",
-    SUBJECT_CODE: "CS302",
-    SUBJECT_NAME: "Computer Networks",
-    FACULTY_NAME: "Dr. Grace Hopper",
-    DAY_OF_WEEK: "Thursday",
-    START_TIME: "11:30 AM",
-    END_TIME: "12:30 PM",
-    ROOM: "LH-302",
-  },
-  {
-    ID: 7,
-    STUDENT_ROLL: "12024002037008",
-    SUBJECT_CODE: "CS303",
-    SUBJECT_NAME: "Operating Systems",
-    FACULTY_NAME: "Dr. Linus Torvalds",
-    DAY_OF_WEEK: "Friday",
-    START_TIME: "09:30 AM",
-    END_TIME: "10:30 AM",
-    ROOM: "LH-302",
-  },
-];
+// =====================================================
+// GET REAL TIMETABLE FOR ONE STUDENT
+// GET /api/timetable/:studentRoll
+// =====================================================
 
-// GET timetable for one student
 router.get("/:studentRoll", async (req, res) => {
   let connection;
 
   try {
-    const studentRoll = req.params.studentRoll;
+    const studentRoll = String(
+      req.params.studentRoll || ""
+    ).trim();
+
+    if (!studentRoll) {
+      return res.status(400).json({
+        error: "Student roll number is required",
+      });
+    }
+
     connection = await getConnection();
 
     const result = await connection.execute(
@@ -98,44 +31,59 @@ router.get("/:studentRoll", async (req, res) => {
         t.id,
         t.student_roll,
         t.subject_code,
-        NVL(s.subject_name, t.subject_code) AS subject_name,
-        NVL(s.faculty_name, 'Faculty') AS faculty_name,
+        s.subject_name,
+        s.faculty_name,
         t.day_of_week,
         t.start_time,
         t.end_time,
         t.room
       FROM timetable t
       LEFT JOIN subjects s
-        ON t.subject_code = s.subject_code
-      WHERE t.student_roll = :studentRoll
+        ON UPPER(t.subject_code) =
+           UPPER(s.subject_code)
+      WHERE UPPER(t.student_roll) =
+            UPPER(:studentRoll)
       ORDER BY
-        CASE t.day_of_week
-          WHEN 'Monday' THEN 1
-          WHEN 'Tuesday' THEN 2
-          WHEN 'Wednesday' THEN 3
-          WHEN 'Thursday' THEN 4
-          WHEN 'Friday' THEN 5
-          WHEN 'Saturday' THEN 6
-          WHEN 'Sunday' THEN 7
+        CASE UPPER(t.day_of_week)
+          WHEN 'MONDAY' THEN 1
+          WHEN 'TUESDAY' THEN 2
+          WHEN 'WEDNESDAY' THEN 3
+          WHEN 'THURSDAY' THEN 4
+          WHEN 'FRIDAY' THEN 5
+          WHEN 'SATURDAY' THEN 6
+          WHEN 'SUNDAY' THEN 7
+          ELSE 8
         END,
-        t.start_time
+        t.start_time,
+        t.id
       `,
       { studentRoll },
-      { outFormat: oracledb.OUT_FORMAT_OBJECT }
+      {
+        outFormat: oracledb.OUT_FORMAT_OBJECT,
+      }
     );
 
-    if (result.rows && result.rows.length > 0) {
-      return res.json(result.rows);
-    }
-    return res.json(DEFAULT_TIMETABLE);
+    return res.json(result.rows);
   } catch (error) {
-    console.warn("Timetable route using fallback timetable:", error.message);
-    res.json(DEFAULT_TIMETABLE);
+    console.error(
+      "Student timetable error:",
+      error
+    );
+
+    return res.status(500).json({
+      error: "Unable to load timetable",
+      details: error.message,
+    });
   } finally {
     if (connection) {
       try {
         await connection.close();
-      } catch (e) {}
+      } catch (closeError) {
+        console.error(
+          "Timetable connection close error:",
+          closeError
+        );
+      }
     }
   }
 });

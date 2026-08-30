@@ -13,6 +13,7 @@ import {
   authService,
 } from "../../services/api";
 
+import StudentPageHero from "../../components/student/StudentPageHero";
 import StudentNotificationBell from "./StudentNotificationBell";
 
 const API_URL = "http://localhost:5000";
@@ -1324,27 +1325,11 @@ export default function TimetablePage() {
 
         <main className="w-full px-margin-mobile md:px-lg py-md pb-[90px] lg:pb-lg">
 
-          {/* TITLE */}
-
-          <section className="flex items-start justify-between gap-4 mb-md">
-
-            <div>
-
-              <h1 className="font-headline-lg md:font-display-lg font-bold text-on-surface">
-                Class Timetable
-              </h1>
-
-              <p className="font-body-md text-on-surface-variant mt-1">
-                View your weekly class schedule, venue details and faculty assignments.
-              </p>
-
-            </div>
-
-            <div className="hidden lg:block">
-              <StudentNotificationBell />
-            </div>
-
-          </section>
+          <StudentPageHero
+            eyebrow="WEEKLY SCHEDULE"
+            title="Class Timetable"
+            subtitle="Weekly schedule, venue navigation, and faculty assignments."
+          />
 
           {/* DAY SELECTOR */}
 

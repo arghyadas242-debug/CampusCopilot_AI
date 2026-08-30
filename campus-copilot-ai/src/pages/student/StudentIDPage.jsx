@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router";
+import StudentPageLayout from "../../components/student/StudentPageLayout";
 import { authService } from "../../services/api";
-import StudentNotificationBell from "./StudentNotificationBell";
 
 const API_URL = "http://localhost:5000";
 
@@ -110,7 +109,12 @@ export default function StudentIDPage() {
           await fetch(
             `${API_URL}/api/students/${encodeURIComponent(
               roll
-            )}`
+            )}`,
+            {
+              headers: localStorage.getItem("campus_token")
+                ? { Authorization: `Bearer ${localStorage.getItem("campus_token")}` }
+                : {},
+            }
           );
 
         if (!response.ok) {
@@ -174,9 +178,13 @@ export default function StudentIDPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-
-        <div className="text-center">
+      <StudentPageLayout
+        activePath="/student-id"
+        eyebrow="STUDENT IDENTITY"
+        title="Digital Student ID"
+        subtitle="Your secure campus identity and academic profile in one place."
+      >
+        <div className="flex min-h-[300px] items-center justify-center rounded-xl border border-outline-variant bg-surface-container-lowest text-center">
 
           <span className="material-symbols-outlined text-primary text-5xl">
             badge
@@ -187,8 +195,7 @@ export default function StudentIDPage() {
           </p>
 
         </div>
-
-      </div>
+      </StudentPageLayout>
     );
   }
 
@@ -198,9 +205,13 @@ export default function StudentIDPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-
-        <div className="text-center max-w-md px-4">
+      <StudentPageLayout
+        activePath="/student-id"
+        eyebrow="STUDENT IDENTITY"
+        title="Digital Student ID"
+        subtitle="Your secure campus identity and academic profile in one place."
+      >
+        <div className="mx-auto max-w-md rounded-xl border border-error/30 bg-surface-container-lowest px-6 py-10 text-center">
 
           <span className="material-symbols-outlined text-error text-5xl">
             error
@@ -214,72 +225,19 @@ export default function StudentIDPage() {
             {error}
           </p>
 
-          <Link
-            to="/dashboard"
-            className="inline-flex mt-4 px-4 py-2 bg-primary text-on-primary rounded-lg text-sm font-semibold"
-          >
-            Back to Dashboard
-          </Link>
-
         </div>
-
-      </div>
+      </StudentPageLayout>
     );
   }
 
   return (
-    <div className="bg-background text-on-background min-h-screen flex flex-col font-body-md">
-
-      {/* TopAppBar */}
-
-      <header className="sticky top-0 w-full z-50 bg-surface border-b border-surface-container-high flex justify-between items-center px-4 py-3 md:px-8 md:py-4 shadow-xs">
-
-        <div className="flex items-center gap-3">
-
-          <Link
-            to="/dashboard"
-            className="w-8 h-8 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold text-xs"
-          >
-            {initials}
-          </Link>
-
-          <span className="font-headline-lg-mobile md:font-headline-lg font-bold text-primary">
-            CampusCopilot
-          </span>
-
-        </div>
-
-        <div className="flex items-center gap-2">
-
-          <StudentNotificationBell />
-
-          <Link
-            to="/dashboard"
-            className="text-xs font-semibold text-primary px-3.5 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors"
-          >
-            Dashboard
-          </Link>
-
-        </div>
-
-      </header>
-
-      {/* Main Content */}
-
-      <main className="flex-1 w-full max-w-5xl mx-auto py-8 pb-24 md:pb-12 px-4 flex flex-col items-center justify-center">
-
-        <div className="text-center mb-6">
-
-          <h1 className="text-2xl md:text-3xl font-bold text-primary">
-            Digital Student ID
-          </h1>
-
-          <p className="text-sm text-on-surface-variant mt-1">
-            Official student identity information from your academic profile.
-          </p>
-
-        </div>
-
+    <StudentPageLayout
+      activePath="/student-id"
+      eyebrow="STUDENT IDENTITY"
+      title="Digital Student ID"
+      subtitle="Your secure campus identity and academic profile in one place."
+    >
+      <div className="flex justify-center py-2 md:py-6">
         <div className="w-full max-w-[380px] relative group">
 
           {/* ID Card */}
@@ -446,89 +404,7 @@ export default function StudentIDPage() {
 
         </div>
 
-      </main>
-
-      {/* Bottom Nav */}
-
-      <nav className="fixed bottom-0 w-full z-50 h-[64px] bg-surface border-t border-surface-container-high shadow-lg md:hidden">
-
-        <div className="flex justify-around items-center px-4 w-full h-full">
-
-          <Link
-            to="/dashboard"
-            className="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary"
-          >
-            <span className="material-symbols-outlined">
-              dashboard
-            </span>
-
-            <span className="text-[10px] mt-1">
-              Home
-            </span>
-          </Link>
-
-          <Link
-            to="/attendance"
-            className="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary"
-          >
-            <span className="material-symbols-outlined">
-              analytics
-            </span>
-
-            <span className="text-[10px] mt-1">
-              Attendance
-            </span>
-          </Link>
-
-          <Link
-            to="/ai-chat"
-            className="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary"
-          >
-            <span className="material-symbols-outlined">
-              smart_toy
-            </span>
-
-            <span className="text-[10px] mt-1">
-              Copilot
-            </span>
-          </Link>
-
-          <Link
-            to="/student-id"
-            className="flex flex-col items-center justify-center text-primary font-bold"
-          >
-            <span
-              className="material-symbols-outlined"
-              style={{
-                fontVariationSettings:
-                  "'FILL' 1",
-              }}
-            >
-              badge
-            </span>
-
-            <span className="text-[10px] mt-1">
-              ID Card
-            </span>
-          </Link>
-
-          <Link
-            to="/profile"
-            className="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary"
-          >
-            <span className="material-symbols-outlined">
-              account_circle
-            </span>
-
-            <span className="text-[10px] mt-1">
-              Profile
-            </span>
-          </Link>
-
-        </div>
-
-      </nav>
-
-    </div>
+      </div>
+    </StudentPageLayout>
   );
 }

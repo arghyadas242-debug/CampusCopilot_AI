@@ -9,6 +9,7 @@ const aiRoutes = require("./routes/aiRoutes");
 const attendanceRoutes = require("./routes/attendanceRoutes");
 const examRoutes = require("./routes/examRoutes");
 const timetableRoutes = require("./routes/timetableRoutes");
+const assignmentFileRoutes =  require("./routes/assignmentFileRoutes");
 const adminAssignmentRoutes = require("./routes/adminAssigmentRoutes");
 const subjectRoutes = require("./routes/subjectRoutes");
 const notificationRoutes =require("./routes/notificationRoutes");
@@ -44,6 +45,7 @@ app.use("/api/students", studentRoutes);
 app.use("/api/assignments", assignmentRoutes);
 app.use("/api/admin/timetable",adminTimetableRoutes);
 app.use("/api/admin/notices",adminNoticeRoutes);
+app.use("/api/assignment-files",assignmentFileRoutes);
 app.use("/api/exams", examRoutes);
 app.use("/api/admin/exams", adminExamRoutes);
 // Root Route
@@ -61,6 +63,7 @@ app.get("/", (req, res) => {
       "/api/assignments",
       "/api/notices",
       "/api/students",
+      "/api/assignment-files",
     ],
   });
 });

@@ -4,121 +4,227 @@ const getConnection = require("../db");
 
 const router = express.Router();
 
-const DEFAULT_ASSIGNMENTS = [
-  {
-    ID: 1,
-    STUDENT_ROLL: "12024002037008",
-    SUBJECT_CODE: "CS301",
-    SUBJECT_NAME: "Database Management Systems",
-    TITLE: "ER Modeling & Schema Normalization",
-    DESCRIPTION: "Submit comprehensive schema diagrams in 3NF with sample SQL queries.",
-    DUE_DATE: "28-08-2026",
-    PRIORITY: "High",
-    STATUS: "pending",
-  },
-  {
-    ID: 2,
-    STUDENT_ROLL: "12024002037008",
-    SUBJECT_CODE: "CS302",
-    SUBJECT_NAME: "Computer Networks",
-    TITLE: "Socket Programming in C / Python",
-    DESCRIPTION: "Implement multi-client TCP echo server with packet loss simulation.",
-    DUE_DATE: "30-08-2026",
-    PRIORITY: "Medium",
-    STATUS: "pending",
-  },
-  {
-    ID: 3,
-    STUDENT_ROLL: "12024002037008",
-    SUBJECT_CODE: "CS303",
-    SUBJECT_NAME: "Operating Systems",
-    TITLE: "Process Synchronization using Semaphores",
-    DESCRIPTION: "Solve the Dining Philosophers problem avoiding deadlock conditions.",
-    DUE_DATE: "04-09-2026",
-    PRIORITY: "High",
-    STATUS: "pending",
-  },
-];
+// =====================================================
+// UPDATE STUDENT ASSIGNMENT STATUS
+//
+// PATCH /api/assignments/:id/status
+// =====================================================
 
-// GET assignments for one student
-router.get("/:studentRoll", async (req, res) => {
-  let connection;
-
-  try {
-    const studentRoll = req.params.studentRoll;
-    connection = await getConnection();
-
-    const result = await connection.execute(
-      `
-      SELECT
-        a.id,
-        a.student_roll,
-        a.subject_code,
-        NVL(s.subject_name, a.subject_code) AS subject_name,
-        a.title,
-        a.description,
-        TO_CHAR(a.due_date, 'DD-MM-YYYY') AS due_date,
-        a.priority,
-        a.status
-      FROM assignments a
-      LEFT JOIN subjects s
-        ON a.subject_code = s.subject_code
-      WHERE a.student_roll = :studentRoll
-      ORDER BY a.due_date
-      `,
-      { studentRoll },
-      { outFormat: oracledb.OUT_FORMAT_OBJECT }
-    );
-
-    if (result.rows && result.rows.length > 0) {
-      return res.json(result.rows);
-    }
-    return res.json(DEFAULT_ASSIGNMENTS);
-  } catch (error) {
-    console.warn("Assignment route using fallback assignments:", error.message);
-    res.json(DEFAULT_ASSIGNMENTS);
-  } finally {
-    if (connection) {
-      try {
-        await connection.close();
-      } catch (e) {}
-    }
-  }
-});
-
-// UPDATE assignment status
 router.patch("/:id/status", async (req, res) => {
   let connection;
 
   try {
-    const assignmentId = Number(req.params.id);
-    const { status } = req.body;
+    const assignmentId =
+      Number(req.params.id);
 
-    if (!["pending", "completed"].includes(status)) {
-      return res.status(400).json({ error: "Status must be pending or completed" });
+    if (
+      !Number.isInteger(assignmentId) ||
+      assignmentId <= 0
+    ) {
+      return res.status(400).json({
+        error:
+          "Invalid assignment ID",
+      });
     }
 
-    connection = await getConnection();
+    const status =
+      String(
+        req.body?.status || ""
+      )
+        .trim()
+        .toLowerCase();
 
-    await connection.execute(
-      `
-      UPDATE assignments
-      SET status = :status
-      WHERE id = :id
-      `,
-      { status, id: assignmentId },
-      { autoCommit: true }
+    if (
+      ![
+        "pending",
+        "completed",
+        "submitted",
+      ].includes(status)
+    ) {
+      return res.status(400).json({
+        error:
+          "Invalid assignment status",
+      });
+    }
+
+    connection =
+      await getConnection();
+
+    const result =
+      await connection.execute(
+        `
+        UPDATE assignments
+        SET status = :status
+        WHERE id = :assignmentId
+        `,
+        {
+          status,
+
+          assignmentId,
+        }
+      );
+
+    if (
+      result.rowsAffected === 0
+    ) {
+      await connection.rollback();
+
+      return res.status(404).json({
+        error:
+          "Assignment not found",
+      });
+    }
+
+    await connection.commit();
+
+    return res.json({
+      message:
+        "Assignment status updated successfully",
+
+      assignmentId,
+
+      status,
+    });
+
+  } catch (error) {
+    if (connection) {
+      try {
+        await connection.rollback();
+      } catch (rollbackError) {
+        console.error(
+          "Assignment rollback error:",
+          rollbackError
+        );
+      }
+    }
+
+    console.error(
+      "Update assignment status error:",
+      error
     );
 
-    res.json({ message: "Assignment status updated successfully", status });
-  } catch (error) {
-    console.warn("Assignment update using fallback success:", error.message);
-    res.json({ message: "Assignment status updated (local)", status: req.body.status });
+    return res.status(500).json({
+      error:
+        "Unable to update assignment status",
+
+      details:
+        error.message,
+    });
+
   } finally {
     if (connection) {
       try {
         await connection.close();
-      } catch (e) {}
+      } catch (closeError) {
+        console.error(
+          "Connection close error:",
+          closeError
+        );
+      }
+    }
+  }
+});
+
+// =====================================================
+// GET REAL ASSIGNMENTS FOR ONE STUDENT
+//
+// GET /api/assignments/:studentRoll
+//
+// KEEP THIS DYNAMIC ROUTE LAST.
+// =====================================================
+
+router.get("/:studentRoll", async (req, res) => {
+  let connection;
+
+  try {
+    const studentRoll =
+      String(
+        req.params.studentRoll ||
+          ""
+      ).trim();
+
+    if (!studentRoll) {
+      return res.status(400).json({
+        error:
+          "Student roll number is required",
+      });
+    }
+
+    connection =
+      await getConnection();
+
+    const result =
+      await connection.execute(
+        `
+        SELECT
+          a.id,
+          a.student_roll,
+          a.subject_code,
+          s.subject_name,
+          a.title,
+          a.description,
+          a.due_date,
+          a.priority,
+          a.status
+
+        FROM assignments a
+
+        LEFT JOIN subjects s
+          ON UPPER(a.subject_code) =
+             UPPER(s.subject_code)
+
+        WHERE UPPER(a.student_roll) =
+              UPPER(:studentRoll)
+
+        ORDER BY
+          CASE
+            WHEN LOWER(a.status) =
+                 'pending'
+            THEN 0
+            ELSE 1
+          END,
+
+          a.due_date,
+
+          a.id
+        `,
+        {
+          studentRoll,
+        },
+        {
+          outFormat:
+            oracledb.OUT_FORMAT_OBJECT,
+        }
+      );
+
+    return res.json(
+      result.rows
+    );
+
+  } catch (error) {
+    console.error(
+      "Student assignments error:",
+      error
+    );
+
+    return res.status(500).json({
+      error:
+        "Unable to load assignments",
+
+      details:
+        error.message,
+    });
+
+  } finally {
+    if (connection) {
+      try {
+        await connection.close();
+      } catch (closeError) {
+        console.error(
+          "Connection close error:",
+          closeError
+        );
+      }
     }
   }
 });

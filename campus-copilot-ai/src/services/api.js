@@ -343,16 +343,16 @@ export const timetableService = {
 
 export const noticeService = {
   async getNotices() {
-    try {
-      const res = await fetch(`${API_BASE_URL}/notices`, {
-        headers: getAuthHeader(),
-      });
-      if (!res.ok) throw new Error("Failed to fetch notices");
-      return await res.json();
-    } catch (e) {
-      console.warn("Using offline fallback notice data:", e.message);
-      return null;
+    const res = await fetch(`${API_BASE_URL}/notices`, {
+      headers: getAuthHeader(),
+    });
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      throw new Error(data?.error || "Failed to fetch notices");
     }
+
+    return data;
   },
 
   async publishNotice(noticeData) {
