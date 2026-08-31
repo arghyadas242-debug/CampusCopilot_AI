@@ -13,6 +13,7 @@ import {
   authService,
 } from "../../services/api";
 
+import CampusCopilotBrand from "../../components/student/CampusCopilotBrand";
 import StudentPageHero from "../../components/student/StudentPageHero";
 import StudentNotificationBell from "./StudentNotificationBell";
 
@@ -1639,11 +1640,7 @@ export default function AssignmentsPage() {
         {/* BRAND */}
 
         <div className="px-md pt-md pb-sm">
-
-          <div className="font-headline-lg-mobile font-bold text-primary">
-            CampusCopilot
-          </div>
-
+          <CampusCopilotBrand />
         </div>
 
         {/* PROFILE */}

@@ -94,6 +94,7 @@ async function closeConnection(
 
   try {
     await connection.close();
+
   } catch (error) {
     console.error(
       "Auth DB connection close error:",
@@ -144,6 +145,7 @@ router.post(
       section,
     } = req.body || {};
 
+
     // ===============================================
     // CLEAN INPUT
     // ===============================================
@@ -153,15 +155,18 @@ router.post(
         name || ""
       ).trim();
 
+
     const cleanEmail =
       normalizeEmail(
         email
       );
 
+
     const cleanPassword =
       String(
         password || ""
       );
+
 
     const cleanRoll =
       String(
@@ -170,16 +175,19 @@ router.post(
         ""
       ).trim();
 
+
     const cleanDepartment =
       String(
         department || ""
       ).trim() ||
       null;
 
+
     const cleanSemester =
       normalizeSemester(
         semester
       );
+
 
     const cleanSection =
       normalizeSection(
@@ -247,6 +255,7 @@ router.post(
 
     const jwtSecret =
       getJwtSecret();
+
 
     if (!jwtSecret) {
       console.error(
@@ -466,67 +475,66 @@ router.post(
       // =============================================
       // INSERT STUDENT PROFILE
       //
-      // IMPORTANT:
-      // STUDENTS uses EMAIL as the USERS ↔ STUDENTS
-      // relationship. There is no USER_ID column.
+      // STUDENTS uses EMAIL as the
+      // USERS ↔ STUDENTS relationship.
       // =============================================
 
       const studentInsert =
         await connection.execute(
-        `
-          INSERT INTO students
-          (
-            name,
-            email,
-            department,
-            semester,
-            section,
-            student_roll
-          )
-          VALUES
-          (
-            :name,
-            :email,
-            :department,
-            :semester,
-            :section,
-            :studentRoll
-          )
-          RETURNING student_id
-          INTO :studentId
-        `,
-        {
-          name:
-            cleanName,
+          `
+            INSERT INTO students
+            (
+              name,
+              email,
+              department,
+              semester,
+              section,
+              student_roll
+            )
+            VALUES
+            (
+              :name,
+              :email,
+              :department,
+              :semester,
+              :section,
+              :studentRoll
+            )
+            RETURNING student_id
+            INTO :studentId
+          `,
+          {
+            name:
+              cleanName,
 
-          email:
-            cleanEmail,
+            email:
+              cleanEmail,
 
-          department:
-            cleanDepartment,
+            department:
+              cleanDepartment,
 
-          semester:
-            cleanSemester,
+            semester:
+              cleanSemester,
 
-          section:
-            cleanSection,
+            section:
+              cleanSection,
 
-          studentRoll:
-            cleanRoll,
+            studentRoll:
+              cleanRoll,
 
-          studentId: {
-            type:
-              oracledb.NUMBER,
+            studentId: {
+              type:
+                oracledb.NUMBER,
 
-            dir:
-              oracledb.BIND_OUT,
+              dir:
+                oracledb.BIND_OUT,
+            },
           },
-        },
-        {
-          autoCommit:
-            false,
-        }
-      );
+          {
+            autoCommit:
+              false,
+          }
+        );
 
 
       const studentId =
@@ -617,14 +625,24 @@ router.post(
 
             section:
               cleanSection,
+
+            /*
+              Registration is not considered
+              a normal login event.
+
+              LAST_LOGIN_AT will be set after
+              the first successful /login.
+            */
+            lastLogin:
+              null,
           },
         });
 
     } catch (error) {
-
       if (connection) {
         try {
           await connection.rollback();
+
         } catch (
           rollbackError
         ) {
@@ -699,6 +717,7 @@ router.post(
         email
       );
 
+
     const cleanPassword =
       String(
         password || ""
@@ -766,7 +785,8 @@ router.post(
               name,
               email,
               password_hash,
-              role
+              role,
+              last_login_at
             FROM users
             WHERE LOWER(email) =
                   :email
@@ -887,19 +907,24 @@ router.post(
           ? "ADMIN"
           : null;
 
+
       let department =
         role === "admin"
           ? "University Administration"
           : null;
 
+
       let semester =
         null;
+
 
       let section =
         null;
 
+
       let studentId =
         null;
+
 
       let displayName =
         user.NAME;
@@ -985,15 +1010,19 @@ router.post(
         studentId =
           student.STUDENT_ID;
 
+
         displayName =
           student.NAME ||
           user.NAME;
 
+
         department =
           student.DEPARTMENT;
 
+
         semester =
           student.SEMESTER;
+
 
         section =
           student.SECTION;
@@ -1031,6 +1060,65 @@ router.post(
 
 
       // =============================================
+      // RECORD SUCCESSFUL LOGIN
+      // =============================================
+
+      await connection.execute(
+        `
+          UPDATE users
+          SET last_login_at =
+                SYSTIMESTAMP
+          WHERE id =
+                :userId
+        `,
+        {
+          userId:
+            user.ID,
+        }
+      );
+
+
+      // =============================================
+      // READ SAVED LOGIN TIME
+      //
+      // We read the actual Oracle value instead of
+      // generating a timestamp in JavaScript.
+      // =============================================
+
+      const lastLoginResult =
+        await connection.execute(
+          `
+            SELECT
+              last_login_at
+            FROM users
+            WHERE id =
+                  :userId
+          `,
+          {
+            userId:
+              user.ID,
+          },
+          {
+            outFormat:
+              oracledb.OUT_FORMAT_OBJECT,
+          }
+        );
+
+
+      const lastLogin =
+        lastLoginResult.rows[0]
+          ?.LAST_LOGIN_AT ||
+        null;
+
+
+      // =============================================
+      // COMMIT LOGIN TIMESTAMP
+      // =============================================
+
+      await connection.commit();
+
+
+      // =============================================
       // LOGIN RESPONSE
       // =============================================
 
@@ -1061,10 +1149,32 @@ router.post(
           semester,
 
           section,
+
+          lastLogin,
         },
       });
 
     } catch (error) {
+      /*
+        Because login now performs an UPDATE,
+        rollback if anything fails before commit.
+      */
+
+      if (connection) {
+        try {
+          await connection.rollback();
+
+        } catch (
+          rollbackError
+        ) {
+          console.error(
+            "Login rollback error:",
+            rollbackError
+          );
+        }
+      }
+
+
       console.error(
         "Login Error:",
         error
@@ -1142,7 +1252,8 @@ router.get(
               id,
               name,
               email,
-              role
+              role,
+              last_login_at
             FROM users
             WHERE LOWER(email) =
                   :email
@@ -1187,6 +1298,10 @@ router.get(
           .toLowerCase();
 
 
+      // =============================================
+      // DEFAULT ACCOUNT PROFILE
+      // =============================================
+
       let profile = {
         id:
           user.ID,
@@ -1216,6 +1331,10 @@ router.get(
           null,
 
         studentId:
+          null,
+
+        lastLogin:
+          user.LAST_LOGIN_AT ||
           null,
       };
 
@@ -1322,6 +1441,10 @@ router.get(
 
           section:
             student.SECTION,
+
+          lastLogin:
+            user.LAST_LOGIN_AT ||
+            null,
         };
       }
 

@@ -1,112 +1,340 @@
-const express = require("express");
-const cors = require("cors");
+const express =
+  require("express");
+
+const cors =
+  require("cors");
+
 require("dotenv").config();
 
-const initDatabase = require("./initDb");
 
-const authRoutes = require("./routes/authRoutes");
-const aiRoutes = require("./routes/aiRoutes");
-const attendanceRoutes = require("./routes/attendanceRoutes");
-const examRoutes = require("./routes/examRoutes");
-const timetableRoutes = require("./routes/timetableRoutes");
-const assignmentFileRoutes =  require("./routes/assignmentFileRoutes");
-const adminAssignmentRoutes = require("./routes/adminAssigmentRoutes");
-const subjectRoutes = require("./routes/subjectRoutes");
-const notificationRoutes =require("./routes/notificationRoutes");
-const adminRoutes = require("./routes/adminRoutes");
-const adminExamRoutes =require("./routes/adminExamRoutes");
-const adminTimetableRoutes =require("./routes/adminTimetableRoutes");
-const adminNoticeRoutes =require("./routes/adminNoticeRoutes");
-const noticeRoutes = require("./routes/noticeRoutes");
-const adminResourceRoutes =require("./routes/adminResourceRoutes");
-const studentRoutes = require("./routes/studentRoutes");
-const resourceRoutes =require("./routes/resourceRoutes");
-const assignmentRoutes = require("./routes/assignmentRoutes");
+const initDatabase =
+  require("./initDb");
 
-const app = express();
 
-// Middleware
+// =====================================================
+// ROUTES
+// =====================================================
+
+const authRoutes =
+  require("./routes/authRoutes");
+
+const aiRoutes =
+  require("./routes/aiRoutes");
+
+const attendanceRoutes =
+  require("./routes/attendanceRoutes");
+
+const examRoutes =
+  require("./routes/examRoutes");
+
+const timetableRoutes =
+  require("./routes/timetableRoutes");
+
+const assignmentFileRoutes =
+  require("./routes/assignmentFileRoutes");
+
+const adminAssignmentRoutes =
+  require("./routes/adminAssigmentRoutes");
+
+const subjectRoutes =
+  require("./routes/subjectRoutes");
+
+const notificationRoutes =
+  require("./routes/notificationRoutes");
+
+const adminRoutes =
+  require("./routes/adminRoutes");
+
+const adminExamRoutes =
+  require("./routes/adminExamRoutes");
+
+const adminTimetableRoutes =
+  require("./routes/adminTimetableRoutes");
+
+const adminNoticeRoutes =
+  require("./routes/adminNoticeRoutes");
+
+const noticeRoutes =
+  require("./routes/noticeRoutes");
+
+const adminResourceRoutes =
+  require("./routes/adminResourceRoutes");
+
+const studentRoutes =
+  require("./routes/studentRoutes");
+
+const resourceRoutes =
+  require("./routes/resourceRoutes");
+
+const assignmentRoutes =
+  require("./routes/assignmentRoutes");
+
+
+// =====================================================
+// NEW: STUDENT ID ROUTES
+// =====================================================
+
+const studentIdRoutes =
+  require("./routes/studentIdRoutes");
+
+
+// =====================================================
+// APP
+// =====================================================
+
+const app =
+  express();
+
+
+// =====================================================
+// MIDDLEWARE
+// =====================================================
+
 app.use(cors());
-app.use(express.json());
 
-// API Routes
-app.use("/api/auth", authRoutes);
-app.use("/api/timetable", timetableRoutes);
-app.use("/api/ai", aiRoutes);
-app.use("/api/subjects", subjectRoutes);
-app.use("/api/attendance", attendanceRoutes);
-app.use("/api/notifications",notificationRoutes);
-app.use("/api/admin", adminRoutes);
-app.use("/api/resources",resourceRoutes);
-app.use("/api/admin/assignments", adminAssignmentRoutes);
-app.use("/api/notices", noticeRoutes);
-app.use("/api/admin/resources",adminResourceRoutes);
-app.use("/api/students", studentRoutes);
-app.use("/api/assignments", assignmentRoutes);
-app.use("/api/admin/timetable",adminTimetableRoutes);
-app.use("/api/admin/notices",adminNoticeRoutes);
-app.use("/api/assignment-files",assignmentFileRoutes);
-app.use("/api/exams", examRoutes);
-app.use("/api/admin/exams", adminExamRoutes);
-// Root Route
-app.get("/", (req, res) => {
-  res.json({
-    status: "online",
-    service: "CampusCopilot AI Backend API",
-    version: "2.0.0",
-    endpoints: [
-      "/api/auth",
-      "/api/ai/chat",
-      "/api/ai/summarize-notice",
-      "/api/ai/study-plan",
-      "/api/attendance",
-      "/api/assignments",
-      "/api/notices",
-      "/api/students",
-      "/api/assignment-files",
-    ],
-  });
-});
+app.use(
+  express.json()
+);
 
-// Global Error Handler
-app.use((err, req, res, next) => {
-  console.error("Unhandled Error:", err);
 
-  res.status(500).json({
-    error:
-      "Internal server error. " +
-      (err.message || ""),
-  });
-});
+// =====================================================
+// API ROUTES
+// =====================================================
 
-const PORT = process.env.PORT || 5000;
+app.use(
+  "/api/auth",
+  authRoutes
+);
 
-const server = app.listen(PORT);
 
-server.on("listening", () => {
-  console.log(
-    `CampusCopilot API server running at http://localhost:${PORT}`
-  );
+app.use(
+  "/api/timetable",
+  timetableRoutes
+);
 
-  initDatabase().catch((err) => {
-    console.warn(
-      "Oracle DB connection notice:",
-      err.message
-    );
-  });
-});
 
-server.on("error", (error) => {
-  if (error.code === "EADDRINUSE") {
-    console.error(
-      `Unable to start CampusCopilot API: port ${PORT} is already in use.`
-    );
-  } else {
-    console.error(
-      "CampusCopilot API server error:",
-      error
-    );
+app.use(
+  "/api/ai",
+  aiRoutes
+);
+
+
+app.use(
+  "/api/subjects",
+  subjectRoutes
+);
+
+
+app.use(
+  "/api/attendance",
+  attendanceRoutes
+);
+
+
+app.use(
+  "/api/notifications",
+  notificationRoutes
+);
+
+
+app.use(
+  "/api/admin",
+  adminRoutes
+);
+
+
+app.use(
+  "/api/resources",
+  resourceRoutes
+);
+
+
+app.use(
+  "/api/admin/assignments",
+  adminAssignmentRoutes
+);
+
+
+app.use(
+  "/api/notices",
+  noticeRoutes
+);
+
+
+app.use(
+  "/api/admin/resources",
+  adminResourceRoutes
+);
+
+
+app.use(
+  "/api/students",
+  studentRoutes
+);
+
+
+app.use(
+  "/api/assignments",
+  assignmentRoutes
+);
+
+
+app.use(
+  "/api/admin/timetable",
+  adminTimetableRoutes
+);
+
+
+app.use(
+  "/api/admin/notices",
+  adminNoticeRoutes
+);
+
+
+app.use(
+  "/api/assignment-files",
+  assignmentFileRoutes
+);
+
+
+app.use(
+  "/api/exams",
+  examRoutes
+);
+
+
+app.use(
+  "/api/admin/exams",
+  adminExamRoutes
+);
+
+
+// =====================================================
+// STUDENT ID
+// =====================================================
+
+app.use(
+  "/api/student-id",
+  studentIdRoutes
+);
+
+
+// =====================================================
+// ROOT ROUTE
+// =====================================================
+
+app.get(
+  "/",
+  (req, res) => {
+    res.json({
+      status:
+        "online",
+
+      service:
+        "CampusCopilot AI Backend API",
+
+      version:
+        "2.0.0",
+
+      endpoints: [
+        "/api/auth",
+        "/api/ai/chat",
+        "/api/ai/summarize-notice",
+        "/api/ai/study-plan",
+        "/api/attendance",
+        "/api/assignments",
+        "/api/notices",
+        "/api/students",
+        "/api/assignment-files",
+        "/api/student-id/verification",
+        "/api/student-id/verify/:token",
+      ],
+    });
   }
+);
 
-  process.exitCode = 1;
-});
+
+// =====================================================
+// GLOBAL ERROR HANDLER
+// =====================================================
+
+app.use(
+  (
+    err,
+    req,
+    res,
+    next
+  ) => {
+    console.error(
+      "Unhandled Error:",
+      err
+    );
+
+
+    res
+      .status(500)
+      .json({
+        error:
+          "Internal server error. " +
+          (err.message ||
+            ""),
+      });
+  }
+);
+
+
+// =====================================================
+// SERVER
+// =====================================================
+
+const PORT =
+  process.env.PORT ||
+  5000;
+
+
+const server =
+  app.listen(PORT);
+
+
+server.on(
+  "listening",
+  () => {
+    console.log(
+      `CampusCopilot API server running at http://localhost:${PORT}`
+    );
+
+
+    initDatabase()
+      .catch((err) => {
+        console.warn(
+          "Oracle DB connection notice:",
+          err.message
+        );
+      });
+  }
+);
+
+
+server.on(
+  "error",
+  (error) => {
+    if (
+      error.code ===
+      "EADDRINUSE"
+    ) {
+      console.error(
+        `Unable to start CampusCopilot API: port ${PORT} is already in use.`
+      );
+
+    } else {
+      console.error(
+        "CampusCopilot API server error:",
+        error
+      );
+    }
+
+
+    process.exitCode =
+      1;
+  }
+);

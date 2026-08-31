@@ -15,6 +15,10 @@ function authenticateToken(
     req.headers.authorization;
 
 
+  // ---------------------------------------------------
+  // TOKEN NOT PROVIDED
+  // ---------------------------------------------------
+
   if (
     !authHeader ||
     !authHeader.startsWith(
@@ -32,6 +36,10 @@ function authenticateToken(
       });
   }
 
+
+  // ---------------------------------------------------
+  // EXTRACT TOKEN
+  // ---------------------------------------------------
 
   const token =
     authHeader
@@ -51,6 +59,10 @@ function authenticateToken(
       });
   }
 
+
+  // ---------------------------------------------------
+  // CHECK JWT SECRET
+  // ---------------------------------------------------
 
   const jwtSecret =
     process.env.JWT_SECRET;
@@ -74,6 +86,10 @@ function authenticateToken(
   }
 
 
+  // ---------------------------------------------------
+  // VERIFY TOKEN
+  // ---------------------------------------------------
+
   try {
     const decoded =
       jwt.verify(
@@ -82,6 +98,19 @@ function authenticateToken(
       );
 
 
+    /*
+      Store decoded JWT data so later middleware
+      and routes can access:
+
+      req.user.id
+      req.user.email
+      req.user.role
+      req.user.studentRoll
+
+      depending on what your login route puts
+      inside the JWT.
+    */
+
     req.user =
       decoded;
 
@@ -89,6 +118,11 @@ function authenticateToken(
     return next();
 
   } catch (error) {
+
+    // -------------------------------------------------
+    // TOKEN EXPIRED
+    // -------------------------------------------------
+
     if (
       error.name ===
       "TokenExpiredError"
@@ -104,6 +138,30 @@ function authenticateToken(
         });
     }
 
+
+    // -------------------------------------------------
+    // TOKEN NOT ACTIVE YET
+    // -------------------------------------------------
+
+    if (
+      error.name ===
+      "NotBeforeError"
+    ) {
+      return res
+        .status(401)
+        .json({
+          error:
+            "Your authentication token is not active yet.",
+
+          code:
+            "AUTH_TOKEN_NOT_ACTIVE",
+        });
+    }
+
+
+    // -------------------------------------------------
+    // INVALID TOKEN
+    // -------------------------------------------------
 
     return res
       .status(403)
@@ -127,6 +185,32 @@ function requireAdmin(
   res,
   next
 ) {
+  /*
+    authenticateToken must run before this middleware.
+
+    Example:
+
+    router.post(
+      "/something",
+      authenticateToken,
+      requireAdmin,
+      handler
+    );
+  */
+
+  if (!req.user) {
+    return res
+      .status(401)
+      .json({
+        error:
+          "Authentication is required.",
+
+        code:
+          "AUTH_REQUIRED",
+      });
+  }
+
+
   const role =
     String(
       req.user?.role ||
@@ -164,6 +248,32 @@ function requireStudent(
   res,
   next
 ) {
+  /*
+    authenticateToken must run before this middleware.
+
+    Example:
+
+    router.post(
+      "/verification",
+      authenticateToken,
+      requireStudent,
+      handler
+    );
+  */
+
+  if (!req.user) {
+    return res
+      .status(401)
+      .json({
+        error:
+          "Authentication is required.",
+
+        code:
+          "AUTH_REQUIRED",
+      });
+  }
+
+
   const role =
     String(
       req.user?.role ||
@@ -193,11 +303,104 @@ function requireStudent(
 
 
 // =====================================================
+// OPTIONAL AUTHENTICATION
+// =====================================================
+
+function optionalAuthenticateToken(
+  req,
+  res,
+  next
+) {
+  const authHeader =
+    req.headers.authorization;
+
+
+  /*
+    No token:
+    continue normally as a public request.
+  */
+
+  if (
+    !authHeader ||
+    !authHeader.startsWith(
+      "Bearer "
+    )
+  ) {
+    req.user =
+      null;
+
+    return next();
+  }
+
+
+  const token =
+    authHeader
+      .slice(7)
+      .trim();
+
+
+  if (!token) {
+    req.user =
+      null;
+
+    return next();
+  }
+
+
+  const jwtSecret =
+    process.env.JWT_SECRET;
+
+
+  if (!jwtSecret) {
+    console.error(
+      "JWT_SECRET is not configured."
+    );
+
+
+    req.user =
+      null;
+
+    return next();
+  }
+
+
+  try {
+    const decoded =
+      jwt.verify(
+        token,
+        jwtSecret
+      );
+
+
+    req.user =
+      decoded;
+
+  } catch {
+    /*
+      This middleware is optional,
+      so an invalid token is treated
+      as an unauthenticated request.
+
+      Use authenticateToken instead
+      for protected routes.
+    */
+
+    req.user =
+      null;
+  }
+
+
+  return next();
+}
+
+
+// =====================================================
 // EXPORTS
 // =====================================================
 
 module.exports = {
   authenticateToken,
+  optionalAuthenticateToken,
   requireAdmin,
   requireStudent,
 };

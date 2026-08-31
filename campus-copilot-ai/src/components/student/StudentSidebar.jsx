@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 
 import { authService } from "../../services/api";
+import CampusCopilotBrand from "./CampusCopilotBrand";
 
 const API_URL = "http://localhost:5000";
 
@@ -178,10 +179,7 @@ export default function StudentSidebar({ activePath }) {
   return (
     <aside className="hidden h-screen w-[280px] shrink-0 flex-col overflow-y-auto border-r border-outline-variant bg-surface lg:flex lg:sticky lg:top-0">
       <div className="px-md pb-sm pt-md">
-        <div className="flex items-center gap-2 text-primary">
-          <span className="material-symbols-outlined text-[28px]">school</span>
-          <span className="font-headline-lg-mobile font-bold">CampusCopilot</span>
-        </div>
+        <CampusCopilotBrand />
       </div>
 
       <Link to="/profile" className="px-md py-md transition-colors hover:bg-surface-container-low">

@@ -13,6 +13,7 @@ import {
   authService,
 } from "../../services/api";
 
+import CampusCopilotBrand from "../../components/student/CampusCopilotBrand";
 import StudentNotificationBell from "./StudentNotificationBell";
 
 const API_URL =
@@ -1563,19 +1564,7 @@ export default function ExamsPage() {
         {/* BRAND */}
 
         <div className="px-md pt-md pb-sm">
-
-          <div className="flex items-center gap-2 text-primary">
-
-            <span className="material-symbols-outlined text-[28px]">
-              school
-            </span>
-
-            <span className="font-headline-lg-mobile font-bold">
-              CampusCopilot
-            </span>
-
-          </div>
-
+          <CampusCopilotBrand />
         </div>
 
         {/* PROFILE */}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { authService } from "../../services/api";
+import CampusCopilotBrand from "../../components/student/CampusCopilotBrand";
 import StudentNotificationBell from "./StudentNotificationBell";
 
 const API_URL = "http://localhost:5000";
@@ -578,11 +579,7 @@ export default function DashboardPage() {
           {/* Brand */}
 
           <div className="px-md pt-md pb-sm">
-
-            <span className="font-headline-lg-mobile font-bold text-primary">
-              CampusCopilot
-            </span>
-
+            <CampusCopilotBrand />
           </div>
 
           {/* Student Profile */}

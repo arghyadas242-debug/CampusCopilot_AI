@@ -10,6 +10,8 @@ import {
   useNavigate,
 } from "react-router";
 
+import CampusCopilotBrand from "../../components/student/CampusCopilotBrand";
+
 import {
   LineChart,
   Line,
@@ -2643,7 +2645,7 @@ export default function AIAnalyticsPage() {
 
         {/* BRAND */}
         <div className="px-md pt-md pb-sm">
-          <span className="font-headline-lg-mobile font-bold text-primary">CampusCopilot</span>
+          <CampusCopilotBrand />
         </div>
 
         {/* PROFILE */}

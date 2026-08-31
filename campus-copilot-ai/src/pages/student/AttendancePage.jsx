@@ -11,6 +11,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import { authService, attendanceService, assignmentService, timetableService } from "../../services/api";
+import CampusCopilotBrand from "../../components/student/CampusCopilotBrand";
 import StudentPageHero from "../../components/student/StudentPageHero";
 import StudentNotificationBell from "./StudentNotificationBell";
 
@@ -235,7 +236,7 @@ export default function AttendancePage() {
       <aside className="hidden lg:flex w-[280px] shrink-0 h-screen sticky top-0 bg-surface border-r border-outline-variant flex-col">
         {/* Brand */}
         <div className="px-md pt-md pb-sm">
-          <span className="font-headline-lg-mobile font-bold text-primary">CampusCopilot</span>
+          <CampusCopilotBrand />
         </div>
 
         {/* Profile */}
