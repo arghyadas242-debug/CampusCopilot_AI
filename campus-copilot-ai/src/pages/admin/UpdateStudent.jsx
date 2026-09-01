@@ -919,47 +919,136 @@ export default function UpdateStudent() {
               {studentLoaded && (
                 <>
                   {/* Row 1: Side-by-side Profile Card & Edit Student Details */}
-                  <section className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+                  <section className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
                     {/* Left: Student Profile Card */}
-                    <div className="lg:col-span-4 bg-surface-container-lowest rounded-2xl border border-outline-variant/70 p-6 shadow-sm">
-                      <div className="flex flex-col items-center text-center">
-                        <div className="w-24 h-24 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold text-3xl shadow-sm">
+                    <div className="lg:col-span-4 bg-surface-container-lowest rounded-2xl border border-outline-variant/70 p-6 shadow-sm flex flex-col h-full">
+                      {/* TOP: Identity */}
+                      <div className="flex flex-col items-center text-center pb-5 border-b border-outline-variant/50">
+                        <div className="w-20 h-20 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold text-2xl shadow-sm">
                           {getInitials()}
                         </div>
-                        <h2 className="font-title-md font-bold text-on-surface text-lg mt-4">
-                          {studentData.fullName}
+                        <h2 className="font-title-md font-bold text-on-surface text-lg mt-3">
+                          {studentData.fullName || "No Student Selected"}
                         </h2>
-                        <p className="text-xs text-outline mt-1 break-all">
-                          {studentData.rollNumber}
+                        <p className="text-xs text-outline mt-0.5 break-all font-mono">
+                          {studentData.rollNumber || "--"}
                         </p>
-                        <span className="mt-3 px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full text-xs font-bold uppercase">
-                          Student
+                        <span className="mt-2.5 px-3 py-0.5 bg-secondary-container text-on-secondary-container rounded-full text-[11px] font-bold uppercase tracking-wider">
+                          STUDENT
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3 mt-6">
-                        <MiniStat
-                          label="CGPA"
-                          value={
-                            academicSummaryExists && academicSummary.cgpa !== ""
-                              ? academicSummary.cgpa
-                              : "--"
-                          }
-                        />
-                        <MiniStat
-                          label="Credits"
-                          value={
-                            academicSummaryExists &&
-                            academicSummary.creditsEarned !== ""
-                              ? academicSummary.creditsEarned
-                              : "--"
-                          }
-                        />
+                      {/* MIDDLE: Student Details */}
+                      <div className="py-5 space-y-3.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-outline uppercase tracking-wider">
+                            Student Details
+                          </span>
+                        </div>
+
+                        {/* Department */}
+                        <div className="rounded-xl bg-surface-container-low p-3 border border-outline-variant/40">
+                          <div className="flex items-center gap-1.5 text-outline mb-1">
+                            <span className="material-symbols-outlined text-[16px]">
+                              domain
+                            </span>
+                            <span className="text-[11px] font-bold uppercase tracking-wide">
+                              Department
+                            </span>
+                          </div>
+                          <p className="text-sm font-semibold text-on-surface truncate">
+                            {studentData.department || "--"}
+                          </p>
+                        </div>
+
+                        {/* Semester & Section */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="rounded-xl bg-surface-container-low p-3 border border-outline-variant/40">
+                            <div className="flex items-center gap-1.5 text-outline mb-1">
+                              <span className="material-symbols-outlined text-[16px]">
+                                school
+                              </span>
+                              <span className="text-[11px] font-bold uppercase tracking-wide">
+                                Semester
+                              </span>
+                            </div>
+                            <p className="text-sm font-semibold text-on-surface">
+                              {studentData.semester
+                                ? `Semester ${studentData.semester}`
+                                : "--"}
+                            </p>
+                          </div>
+
+                          <div className="rounded-xl bg-surface-container-low p-3 border border-outline-variant/40">
+                            <div className="flex items-center gap-1.5 text-outline mb-1">
+                              <span className="material-symbols-outlined text-[16px]">
+                                badge
+                              </span>
+                              <span className="text-[11px] font-bold uppercase tracking-wide">
+                                Section
+                              </span>
+                            </div>
+                            <p className="text-sm font-semibold text-on-surface">
+                              {studentData.section
+                                ? `Section ${studentData.section}`
+                                : "--"}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Email */}
+                        <div className="rounded-xl bg-surface-container-low p-3 border border-outline-variant/40">
+                          <div className="flex items-center gap-1.5 text-outline mb-1">
+                            <span className="material-symbols-outlined text-[16px]">
+                              mail
+                            </span>
+                            <span className="text-[11px] font-bold uppercase tracking-wide">
+                              Email
+                            </span>
+                          </div>
+                          <p className="text-sm font-semibold text-on-surface break-all">
+                            {studentData.email || "--"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* BOTTOM: Academic Snapshot */}
+                      <div className="mt-auto pt-4 border-t border-outline-variant/50">
+                        <div className="flex items-center justify-between mb-2.5">
+                          <span className="text-xs font-bold text-outline uppercase tracking-wider">
+                            Academic Snapshot
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <MiniStat
+                            label="CGPA"
+                            value={
+                              academicSummaryExists &&
+                              academicSummary.cgpa !== "" &&
+                              academicSummary.cgpa !== null &&
+                              academicSummary.cgpa !== undefined
+                                ? academicSummary.cgpa
+                                : "--"
+                            }
+                          />
+                          <MiniStat
+                            label="Credits"
+                            value={
+                              academicSummaryExists &&
+                              academicSummary.creditsEarned !== "" &&
+                              academicSummary.creditsEarned !== null &&
+                              academicSummary.creditsEarned !== undefined
+                                ? academicSummary.creditsEarned
+                                : "--"
+                            }
+                          />
+                        </div>
                       </div>
                     </div>
 
                     {/* Right: Edit Student Details Card */}
-                    <div className="lg:col-span-8 bg-surface-container-lowest rounded-2xl border border-outline-variant/70 p-5 md:p-6 shadow-sm">
+                    <div className="lg:col-span-8 bg-surface-container-lowest rounded-2xl border border-outline-variant/70 p-5 md:p-6 shadow-sm flex flex-col h-full">
                       <div className="mb-5">
                         <h2 className="font-title-md font-bold text-on-surface">
                           Edit Student Details
