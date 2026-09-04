@@ -5,14 +5,23 @@ import {
 
 
 // =====================================================
+// ROUTE PROTECTION
+// =====================================================
+
+import ProtectedRoute from "./components/auth/ProtectedRoute";
+
+
+// =====================================================
 // PUBLIC PAGES
 // =====================================================
 
 import LandingPage from "./pages/student/LandingPage";
 
-import LoginPage from "./pages/student/LoginPage";
+import LoginPage from "./pages/auth/LoginPage";
 
-import RegisterPage from "./pages/student/RegisterPage";
+import RegisterPage from "./pages/auth/RegisterPage";
+
+import ForgotPassword from "./pages/auth/ForgotPassword";
 
 
 // =====================================================
@@ -79,6 +88,44 @@ import NoticeManagement from "./pages/admin/NoticeManagement";
 
 
 // =====================================================
+// STUDENT ROUTE WRAPPER
+// =====================================================
+
+function StudentRoute({
+  children,
+}) {
+  return (
+    <ProtectedRoute
+      allowedRoles={[
+        "student",
+      ]}
+    >
+      {children}
+    </ProtectedRoute>
+  );
+}
+
+
+// =====================================================
+// ADMIN ROUTE WRAPPER
+// =====================================================
+
+function AdminRoute({
+  children,
+}) {
+  return (
+    <ProtectedRoute
+      allowedRoles={[
+        "admin",
+      ]}
+    >
+      {children}
+    </ProtectedRoute>
+  );
+}
+
+
+// =====================================================
 // APP
 // =====================================================
 
@@ -91,7 +138,6 @@ function App() {
         text-on-background
       "
     >
-
       <Routes>
 
         {/* =================================================
@@ -122,14 +168,19 @@ function App() {
         />
 
 
+        <Route
+          path="/forgot-password"
+          element={
+            <ForgotPassword />
+          }
+        />
+
+
         {/* =================================================
-            PUBLIC DIGITAL ID VERIFICATION
+            PUBLIC DIGITAL STUDENT ID VERIFICATION
 
             IMPORTANT:
-            This route must remain public.
-
-            Someone scanning a student's QR code
-            should NOT need to log in.
+            THIS MUST REMAIN PUBLIC.
         ================================================== */}
 
         <Route
@@ -147,7 +198,9 @@ function App() {
         <Route
           path="/dashboard"
           element={
-            <DashboardPage />
+            <StudentRoute>
+              <DashboardPage />
+            </StudentRoute>
           }
         />
 
@@ -155,7 +208,9 @@ function App() {
         <Route
           path="/notifications"
           element={
-            <NotificationsPage />
+            <StudentRoute>
+              <NotificationsPage />
+            </StudentRoute>
           }
         />
 
@@ -163,7 +218,9 @@ function App() {
         <Route
           path="/ai-chat"
           element={
-            <AIChatPage />
+            <StudentRoute>
+              <AIChatPage />
+            </StudentRoute>
           }
         />
 
@@ -171,7 +228,9 @@ function App() {
         <Route
           path="/notices"
           element={
-            <NoticesPage />
+            <StudentRoute>
+              <NoticesPage />
+            </StudentRoute>
           }
         />
 
@@ -179,7 +238,9 @@ function App() {
         <Route
           path="/notices/:id"
           element={
-            <NoticesPage />
+            <StudentRoute>
+              <NoticesPage />
+            </StudentRoute>
           }
         />
 
@@ -187,7 +248,9 @@ function App() {
         <Route
           path="/notice-details"
           element={
-            <NoticesPage />
+            <StudentRoute>
+              <NoticesPage />
+            </StudentRoute>
           }
         />
 
@@ -195,7 +258,9 @@ function App() {
         <Route
           path="/campus"
           element={
-            <CampusPage />
+            <StudentRoute>
+              <CampusPage />
+            </StudentRoute>
           }
         />
 
@@ -203,7 +268,9 @@ function App() {
         <Route
           path="/attendance"
           element={
-            <AttendancePage />
+            <StudentRoute>
+              <AttendancePage />
+            </StudentRoute>
           }
         />
 
@@ -211,7 +278,9 @@ function App() {
         <Route
           path="/timetable"
           element={
-            <TimetablePage />
+            <StudentRoute>
+              <TimetablePage />
+            </StudentRoute>
           }
         />
 
@@ -219,7 +288,9 @@ function App() {
         <Route
           path="/assignments"
           element={
-            <AssignmentsPage />
+            <StudentRoute>
+              <AssignmentsPage />
+            </StudentRoute>
           }
         />
 
@@ -227,7 +298,9 @@ function App() {
         <Route
           path="/exams"
           element={
-            <ExamsPage />
+            <StudentRoute>
+              <ExamsPage />
+            </StudentRoute>
           }
         />
 
@@ -235,7 +308,9 @@ function App() {
         <Route
           path="/collaboration"
           element={
-            <CollaborationPage />
+            <StudentRoute>
+              <CollaborationPage />
+            </StudentRoute>
           }
         />
 
@@ -243,7 +318,9 @@ function App() {
         <Route
           path="/profile"
           element={
-            <ProfilePage />
+            <StudentRoute>
+              <ProfilePage />
+            </StudentRoute>
           }
         />
 
@@ -251,7 +328,9 @@ function App() {
         <Route
           path="/ai-analytics"
           element={
-            <AIAnalyticsPage />
+            <StudentRoute>
+              <AIAnalyticsPage />
+            </StudentRoute>
           }
         />
 
@@ -259,7 +338,9 @@ function App() {
         <Route
           path="/resources"
           element={
-            <ResourceHubPage />
+            <StudentRoute>
+              <ResourceHubPage />
+            </StudentRoute>
           }
         />
 
@@ -267,7 +348,9 @@ function App() {
         <Route
           path="/student-id"
           element={
-            <StudentIDPage />
+            <StudentRoute>
+              <StudentIDPage />
+            </StudentRoute>
           }
         />
 
@@ -279,7 +362,9 @@ function App() {
         <Route
           path="/admin"
           element={
-            <AdminDashboard />
+            <AdminRoute>
+              <AdminDashboard />
+            </AdminRoute>
           }
         />
 
@@ -287,7 +372,9 @@ function App() {
         <Route
           path="/admin/attendance"
           element={
-            <UpdateAttendance />
+            <AdminRoute>
+              <UpdateAttendance />
+            </AdminRoute>
           }
         />
 
@@ -295,7 +382,9 @@ function App() {
         <Route
           path="/admin/students"
           element={
-            <UpdateStudent />
+            <AdminRoute>
+              <UpdateStudent />
+            </AdminRoute>
           }
         />
 
@@ -303,7 +392,9 @@ function App() {
         <Route
           path="/admin/assignments"
           element={
-            <AssignmentManagement />
+            <AdminRoute>
+              <AssignmentManagement />
+            </AdminRoute>
           }
         />
 
@@ -311,7 +402,9 @@ function App() {
         <Route
           path="/admin/subjects"
           element={
-            <SubjectManagement />
+            <AdminRoute>
+              <SubjectManagement />
+            </AdminRoute>
           }
         />
 
@@ -319,7 +412,9 @@ function App() {
         <Route
           path="/admin/timetable"
           element={
-            <TimetableManagement />
+            <AdminRoute>
+              <TimetableManagement />
+            </AdminRoute>
           }
         />
 
@@ -327,7 +422,9 @@ function App() {
         <Route
           path="/admin/notices"
           element={
-            <NoticeManagement />
+            <AdminRoute>
+              <NoticeManagement />
+            </AdminRoute>
           }
         />
 
@@ -335,7 +432,9 @@ function App() {
         <Route
           path="/admin/exams"
           element={
-            <ExamManagement />
+            <AdminRoute>
+              <ExamManagement />
+            </AdminRoute>
           }
         />
 
@@ -343,12 +442,13 @@ function App() {
         <Route
           path="/admin/resources"
           element={
-            <ResourceManagement />
+            <AdminRoute>
+              <ResourceManagement />
+            </AdminRoute>
           }
         />
 
       </Routes>
-
     </div>
   );
 }
