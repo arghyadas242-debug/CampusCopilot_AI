@@ -2,6 +2,7 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const oracledb = require("oracledb");
+const crypto = require("crypto");
 
 const getConnection = require("../db");
 
@@ -105,6 +106,464 @@ async function closeConnection(
 
 
 // =====================================================
+// PASSWORD RESET HELPERS
+// =====================================================
+
+const RESET_OTP_EXPIRY_MINUTES = 10;
+
+const RESET_REQUEST_WINDOW_MS =
+  15 * 60 * 1000;
+
+const RESET_REQUEST_MAX_ATTEMPTS =
+  5;
+
+const RESET_VERIFY_WINDOW_MS =
+  10 * 60 * 1000;
+
+const RESET_VERIFY_MAX_ATTEMPTS =
+  10;
+
+const resetRequestLimiter =
+  new Map();
+
+const resetVerifyLimiter =
+  new Map();
+
+
+function isValidEmail(
+  email
+) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+    String(email || "")
+  );
+}
+
+
+function normalizeOtp(
+  value
+) {
+  return String(
+    value || ""
+  )
+    .replace(/\s+/g, "")
+    .trim();
+}
+
+
+function isValidOtp(
+  value
+) {
+  return /^\d{6}$/.test(
+    normalizeOtp(value)
+  );
+}
+
+
+function getClientIp(
+  req
+) {
+  const forwarded =
+    String(
+      req.headers[
+        "x-forwarded-for"
+      ] || ""
+    )
+      .split(",")[0]
+      .trim();
+
+  return (
+    forwarded ||
+    req.ip ||
+    req.socket?.remoteAddress ||
+    "unknown"
+  );
+}
+
+
+function consumeRateLimit({
+  store,
+  key,
+  windowMs,
+  maxAttempts,
+}) {
+  const now =
+    Date.now();
+
+  const existing =
+    store.get(key);
+
+  if (
+    !existing ||
+    now - existing.startedAt >=
+      windowMs
+  ) {
+    store.set(
+      key,
+      {
+        startedAt:
+          now,
+
+        count:
+          1,
+      }
+    );
+
+    return {
+      allowed:
+        true,
+
+      retryAfterSeconds:
+        0,
+    };
+  }
+
+  if (
+    existing.count >=
+    maxAttempts
+  ) {
+    const remainingMs =
+      windowMs -
+      (
+        now -
+        existing.startedAt
+      );
+
+    return {
+      allowed:
+        false,
+
+      retryAfterSeconds:
+        Math.max(
+          1,
+          Math.ceil(
+            remainingMs /
+            1000
+          )
+        ),
+    };
+  }
+
+  existing.count +=
+    1;
+
+  store.set(
+    key,
+    existing
+  );
+
+  return {
+    allowed:
+      true,
+
+    retryAfterSeconds:
+      0,
+  };
+}
+
+
+function clearVerifyRateLimit(
+  email
+) {
+  const suffix =
+    `:${email}`;
+
+  for (
+    const key
+    of resetVerifyLimiter.keys()
+  ) {
+    if (
+      key.endsWith(
+        suffix
+      )
+    ) {
+      resetVerifyLimiter.delete(
+        key
+      );
+    }
+  }
+}
+
+
+function getSmtpConfig() {
+  const host =
+    String(
+      process.env.SMTP_HOST ||
+      ""
+    ).trim();
+
+  const user =
+    String(
+      process.env.SMTP_USER ||
+      ""
+    ).trim();
+
+  const pass =
+    String(
+      process.env.SMTP_PASS ||
+      ""
+    ).trim();
+
+  const from =
+    String(
+      process.env.SMTP_FROM ||
+      user ||
+      ""
+    ).trim();
+
+  const port =
+    Number(
+      process.env.SMTP_PORT ||
+      587
+    );
+
+  const secure =
+    String(
+      process.env.SMTP_SECURE ||
+      ""
+    )
+      .trim()
+      .toLowerCase() ===
+      "true" ||
+    port === 465;
+
+  if (
+    !host ||
+    !user ||
+    !pass ||
+    !from ||
+    !Number.isInteger(
+      port
+    ) ||
+    port <= 0
+  ) {
+    return null;
+  }
+
+  return {
+    host,
+    port,
+    secure,
+    user,
+    pass,
+    from,
+  };
+}
+
+
+async function sendPasswordResetOtp({
+  email,
+  otp,
+}) {
+  const smtp =
+    getSmtpConfig();
+
+  if (!smtp) {
+    const error =
+      new Error(
+        "Password reset email service is not configured."
+      );
+
+    error.code =
+      "RESET_EMAIL_NOT_CONFIGURED";
+
+    throw error;
+  }
+
+  let nodemailer;
+
+  try {
+    nodemailer =
+      require("nodemailer");
+  } catch {
+    const error =
+      new Error(
+        "Nodemailer is not installed."
+      );
+
+    error.code =
+      "NODEMAILER_NOT_INSTALLED";
+
+    throw error;
+  }
+
+  const transporter =
+    nodemailer.createTransport({
+      host:
+        smtp.host,
+
+      port:
+        smtp.port,
+
+      secure:
+        smtp.secure,
+
+      auth: {
+        user:
+          smtp.user,
+
+        pass:
+          smtp.pass,
+      },
+    });
+
+  await transporter.sendMail({
+    from:
+      smtp.from,
+
+    to:
+      email,
+
+    subject:
+      "CampusCopilot Password Reset Code",
+
+    text:
+      [
+        "CampusCopilot password reset",
+        "",
+        `Your verification code is: ${otp}`,
+        "",
+        `This code expires in ${RESET_OTP_EXPIRY_MINUTES} minutes.`,
+        "",
+        "If you did not request a password reset, you can ignore this email.",
+      ].join("\n"),
+
+    html:
+      `
+        <div
+          style="
+            font-family: Arial, sans-serif;
+            max-width: 560px;
+            margin: 0 auto;
+            padding: 24px;
+            color: #191c1e;
+          "
+        >
+          <h2
+            style="
+              margin: 0 0 16px;
+              color: #00236f;
+            "
+          >
+            CampusCopilot
+          </h2>
+
+          <p>
+            Use the following verification code to reset your password:
+          </p>
+
+          <div
+            style="
+              margin: 24px 0;
+              padding: 16px;
+              border-radius: 12px;
+              background: #f2f4f6;
+              text-align: center;
+              font-size: 30px;
+              font-weight: 700;
+              letter-spacing: 8px;
+              color: #00236f;
+            "
+          >
+            ${otp}
+          </div>
+
+          <p>
+            This code expires in
+            <strong>
+              ${RESET_OTP_EXPIRY_MINUTES} minutes
+            </strong>.
+          </p>
+
+          <p
+            style="
+              color: #757682;
+              font-size: 13px;
+            "
+          >
+            If you did not request this reset,
+            ignore this email.
+          </p>
+        </div>
+      `,
+  });
+}
+
+
+async function getLatestActiveResetOtp(
+  connection,
+  email
+) {
+  const result =
+    await connection.execute(
+      `
+        SELECT
+          id,
+          email,
+          otp_hash,
+          expires_at,
+          verified,
+          used,
+          created_at
+
+        FROM password_reset_otps
+
+        WHERE LOWER(email) =
+              :email
+
+          AND used = 0
+
+        ORDER BY
+          created_at DESC,
+          id DESC
+
+        FETCH FIRST 1 ROWS ONLY
+      `,
+      {
+        email,
+      },
+      {
+        outFormat:
+          oracledb.OUT_FORMAT_OBJECT,
+      }
+    );
+
+  return (
+    result.rows[0] ||
+    null
+  );
+}
+
+
+function isOtpExpired(
+  row
+) {
+  if (
+    !row?.EXPIRES_AT
+  ) {
+    return true;
+  }
+
+  const expiresAt =
+    new Date(
+      row.EXPIRES_AT
+    );
+
+  if (
+    Number.isNaN(
+      expiresAt.getTime()
+    )
+  ) {
+    return true;
+  }
+
+  return (
+    expiresAt.getTime() <=
+    Date.now()
+  );
+}
+
+
+// =====================================================
 // AUTH STATUS
 // GET /api/auth
 // =====================================================
@@ -119,6 +578,9 @@ router.get(
       endpoints: [
         "POST /api/auth/register",
         "POST /api/auth/login",
+        "POST /api/auth/forgot-password",
+        "POST /api/auth/verify-reset-otp",
+        "POST /api/auth/reset-password",
         "GET /api/auth/me",
       ],
     });
@@ -145,10 +607,6 @@ router.post(
       section,
     } = req.body || {};
 
-
-    // ===============================================
-    // CLEAN INPUT
-    // ===============================================
 
     const cleanName =
       String(
@@ -194,10 +652,6 @@ router.post(
         section
       );
 
-
-    // ===============================================
-    // VALIDATION
-    // ===============================================
 
     if (
       !cleanName ||
@@ -282,16 +736,14 @@ router.post(
         await getConnection();
 
 
-      // =============================================
-      // CHECK USERS EMAIL
-      // =============================================
-
       const existingUser =
         await connection.execute(
           `
             SELECT
               id
+
             FROM users
+
             WHERE LOWER(email) =
                   :email
           `,
@@ -322,16 +774,14 @@ router.post(
       }
 
 
-      // =============================================
-      // CHECK STUDENT EMAIL
-      // =============================================
-
       const existingStudentEmail =
         await connection.execute(
           `
             SELECT
               student_id
+
             FROM students
+
             WHERE LOWER(email) =
                   :email
           `,
@@ -363,16 +813,14 @@ router.post(
       }
 
 
-      // =============================================
-      // CHECK STUDENT ROLL
-      // =============================================
-
       const existingRoll =
         await connection.execute(
           `
             SELECT
               student_id
+
             FROM students
+
             WHERE LOWER(student_roll) =
                   LOWER(:studentRoll)
           `,
@@ -403,20 +851,12 @@ router.post(
       }
 
 
-      // =============================================
-      // PASSWORD HASH
-      // =============================================
-
       const passwordHash =
         await bcrypt.hash(
           cleanPassword,
           10
         );
 
-
-      // =============================================
-      // INSERT USERS
-      // =============================================
 
       const userInsert =
         await connection.execute(
@@ -428,6 +868,7 @@ router.post(
               password_hash,
               role
             )
+
             VALUES
             (
               :name,
@@ -435,7 +876,9 @@ router.post(
               :passwordHash,
               'student'
             )
-            RETURNING id INTO :id
+
+            RETURNING id
+            INTO :id
           `,
           {
             name:
@@ -472,13 +915,6 @@ router.post(
               .id;
 
 
-      // =============================================
-      // INSERT STUDENT PROFILE
-      //
-      // STUDENTS uses EMAIL as the
-      // USERS ↔ STUDENTS relationship.
-      // =============================================
-
       const studentInsert =
         await connection.execute(
           `
@@ -491,6 +927,7 @@ router.post(
               section,
               student_roll
             )
+
             VALUES
             (
               :name,
@@ -500,6 +937,7 @@ router.post(
               :section,
               :studentRoll
             )
+
             RETURNING student_id
             INTO :studentId
           `,
@@ -548,16 +986,8 @@ router.post(
               .studentId;
 
 
-      // =============================================
-      // COMMIT TRANSACTION
-      // =============================================
-
       await connection.commit();
 
-
-      // =============================================
-      // CREATE JWT
-      // =============================================
 
       const token =
         jwt.sign(
@@ -586,10 +1016,6 @@ router.post(
           }
         );
 
-
-      // =============================================
-      // RESPONSE
-      // =============================================
 
       return res
         .status(201)
@@ -626,13 +1052,6 @@ router.post(
             section:
               cleanSection,
 
-            /*
-              Registration is not considered
-              a normal login event.
-
-              LAST_LOGIN_AT will be set after
-              the first successful /login.
-            */
             lastLogin:
               null,
           },
@@ -699,6 +1118,919 @@ router.post(
 
 
 // =====================================================
+// FORGOT PASSWORD
+// POST /api/auth/forgot-password
+// =====================================================
+
+router.post(
+  "/forgot-password",
+  async (req, res) => {
+    const cleanEmail =
+      normalizeEmail(
+        req.body?.email
+      );
+
+
+    if (
+      !cleanEmail ||
+      !isValidEmail(
+        cleanEmail
+      )
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            "Please enter a valid email address.",
+
+          code:
+            "INVALID_RESET_EMAIL",
+        });
+    }
+
+
+    const rateKey =
+      `${getClientIp(
+        req
+      )}:${cleanEmail}`;
+
+
+    const limit =
+      consumeRateLimit({
+        store:
+          resetRequestLimiter,
+
+        key:
+          rateKey,
+
+        windowMs:
+          RESET_REQUEST_WINDOW_MS,
+
+        maxAttempts:
+          RESET_REQUEST_MAX_ATTEMPTS,
+      });
+
+
+    if (!limit.allowed) {
+      res.set(
+        "Retry-After",
+        String(
+          limit.retryAfterSeconds
+        )
+      );
+
+      return res
+        .status(429)
+        .json({
+          error:
+            "Too many password reset requests. Please try again later.",
+
+          code:
+            "RESET_RATE_LIMITED",
+
+          retryAfterSeconds:
+            limit.retryAfterSeconds,
+        });
+    }
+
+
+    const smtp =
+      getSmtpConfig();
+
+
+    if (!smtp) {
+      console.error(
+        "Password reset SMTP configuration is missing."
+      );
+
+      return res
+        .status(503)
+        .json({
+          error:
+            "Password reset email service is temporarily unavailable.",
+
+          code:
+            "RESET_EMAIL_SERVICE_UNAVAILABLE",
+        });
+    }
+
+
+    let connection;
+
+
+    try {
+      connection =
+        await getConnection();
+
+
+      const userResult =
+        await connection.execute(
+          `
+            SELECT
+              id,
+              email
+
+            FROM users
+
+            WHERE LOWER(email) =
+                  :email
+          `,
+          {
+            email:
+              cleanEmail,
+          },
+          {
+            outFormat:
+              oracledb.OUT_FORMAT_OBJECT,
+          }
+        );
+
+
+      if (
+        userResult.rows.length ===
+        0
+      ) {
+        return res.json({
+          message:
+            "If an account exists for this email, a password reset code has been sent.",
+
+          code:
+            "RESET_REQUEST_ACCEPTED",
+        });
+      }
+
+
+      const accountEmail =
+        normalizeEmail(
+          userResult.rows[0]
+            .EMAIL
+        );
+
+
+      await connection.execute(
+        `
+          UPDATE password_reset_otps
+
+          SET used = 1
+
+          WHERE LOWER(email) =
+                :email
+
+            AND used = 0
+        `,
+        {
+          email:
+            accountEmail,
+        }
+      );
+
+
+      const otp =
+        String(
+          crypto.randomInt(
+            100000,
+            1000000
+          )
+        );
+
+
+      const otpHash =
+        await bcrypt.hash(
+          otp,
+          10
+        );
+
+
+      await connection.execute(
+        `
+          INSERT INTO password_reset_otps
+          (
+            email,
+            otp_hash,
+            expires_at,
+            verified,
+            used
+          )
+
+          VALUES
+          (
+            :email,
+            :otpHash,
+
+            SYSTIMESTAMP
+              +
+            NUMTODSINTERVAL(
+              :expiryMinutes,
+              'MINUTE'
+            ),
+
+            0,
+            0
+          )
+        `,
+        {
+          email:
+            accountEmail,
+
+          otpHash,
+
+          expiryMinutes:
+            RESET_OTP_EXPIRY_MINUTES,
+        }
+      );
+
+
+      await sendPasswordResetOtp({
+        email:
+          accountEmail,
+
+        otp,
+      });
+
+
+      await connection.commit();
+
+
+      return res.json({
+        message:
+          "If an account exists for this email, a password reset code has been sent.",
+
+        code:
+          "RESET_REQUEST_ACCEPTED",
+      });
+
+    } catch (error) {
+      if (connection) {
+        try {
+          await connection.rollback();
+
+        } catch (
+          rollbackError
+        ) {
+          console.error(
+            "Forgot password rollback error:",
+            rollbackError
+          );
+        }
+      }
+
+
+      console.error(
+        "Forgot Password Error:",
+        error
+      );
+
+
+      if (
+        error.code ===
+          "NODEMAILER_NOT_INSTALLED" ||
+        error.code ===
+          "RESET_EMAIL_NOT_CONFIGURED"
+      ) {
+        return res
+          .status(503)
+          .json({
+            error:
+              "Password reset email service is temporarily unavailable.",
+
+            code:
+              "RESET_EMAIL_SERVICE_UNAVAILABLE",
+          });
+      }
+
+
+      return res
+        .status(500)
+        .json({
+          error:
+            "Unable to process the password reset request right now.",
+
+          code:
+            "RESET_REQUEST_FAILED",
+        });
+
+    } finally {
+      await closeConnection(
+        connection
+      );
+    }
+  }
+);
+
+
+// =====================================================
+// VERIFY RESET OTP
+// POST /api/auth/verify-reset-otp
+// =====================================================
+
+router.post(
+  "/verify-reset-otp",
+  async (req, res) => {
+    const cleanEmail =
+      normalizeEmail(
+        req.body?.email
+      );
+
+
+    const cleanOtp =
+      normalizeOtp(
+        req.body?.otp
+      );
+
+
+    if (
+      !cleanEmail ||
+      !isValidEmail(
+        cleanEmail
+      )
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            "Please enter a valid email address.",
+
+          code:
+            "INVALID_RESET_EMAIL",
+        });
+    }
+
+
+    if (
+      !isValidOtp(
+        cleanOtp
+      )
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            "Enter the 6-digit verification code.",
+
+          code:
+            "INVALID_RESET_OTP_FORMAT",
+        });
+    }
+
+
+    const rateKey =
+      `${getClientIp(
+        req
+      )}:${cleanEmail}`;
+
+
+    const limit =
+      consumeRateLimit({
+        store:
+          resetVerifyLimiter,
+
+        key:
+          rateKey,
+
+        windowMs:
+          RESET_VERIFY_WINDOW_MS,
+
+        maxAttempts:
+          RESET_VERIFY_MAX_ATTEMPTS,
+      });
+
+
+    if (!limit.allowed) {
+      res.set(
+        "Retry-After",
+        String(
+          limit.retryAfterSeconds
+        )
+      );
+
+      return res
+        .status(429)
+        .json({
+          error:
+            "Too many verification attempts. Request a new code or try again later.",
+
+          code:
+            "RESET_VERIFY_RATE_LIMITED",
+
+          retryAfterSeconds:
+            limit.retryAfterSeconds,
+        });
+    }
+
+
+    let connection;
+
+
+    try {
+      connection =
+        await getConnection();
+
+
+      const resetRow =
+        await getLatestActiveResetOtp(
+          connection,
+          cleanEmail
+        );
+
+
+      if (
+        !resetRow ||
+        isOtpExpired(
+          resetRow
+        )
+      ) {
+        return res
+          .status(400)
+          .json({
+            error:
+              "The verification code is invalid or has expired.",
+
+            code:
+              "RESET_OTP_INVALID_OR_EXPIRED",
+          });
+      }
+
+
+      const otpMatches =
+        await bcrypt.compare(
+          cleanOtp,
+          resetRow.OTP_HASH
+        );
+
+
+      if (!otpMatches) {
+        return res
+          .status(400)
+          .json({
+            error:
+              "The verification code is invalid or has expired.",
+
+            code:
+              "RESET_OTP_INVALID_OR_EXPIRED",
+          });
+      }
+
+
+      await connection.execute(
+        `
+          UPDATE password_reset_otps
+
+          SET verified = 1
+
+          WHERE id =
+                :resetId
+
+            AND used = 0
+        `,
+        {
+          resetId:
+            resetRow.ID,
+        }
+      );
+
+
+      await connection.commit();
+
+
+      clearVerifyRateLimit(
+        cleanEmail
+      );
+
+
+      return res.json({
+        message:
+          "Verification code confirmed.",
+
+        code:
+          "RESET_OTP_VERIFIED",
+      });
+
+    } catch (error) {
+      if (connection) {
+        try {
+          await connection.rollback();
+
+        } catch (
+          rollbackError
+        ) {
+          console.error(
+            "Verify reset OTP rollback error:",
+            rollbackError
+          );
+        }
+      }
+
+
+      console.error(
+        "Verify Reset OTP Error:",
+        error
+      );
+
+
+      return res
+        .status(500)
+        .json({
+          error:
+            "Unable to verify the reset code right now.",
+
+          code:
+            "RESET_OTP_VERIFICATION_FAILED",
+        });
+
+    } finally {
+      await closeConnection(
+        connection
+      );
+    }
+  }
+);
+
+
+// =====================================================
+// RESET PASSWORD
+// POST /api/auth/reset-password
+// =====================================================
+
+router.post(
+  "/reset-password",
+  async (req, res) => {
+    const cleanEmail =
+      normalizeEmail(
+        req.body?.email
+      );
+
+
+    const cleanOtp =
+      normalizeOtp(
+        req.body?.otp
+      );
+
+
+    const newPassword =
+      String(
+        req.body?.newPassword ||
+        req.body?.password ||
+        ""
+      );
+
+
+    if (
+      !cleanEmail ||
+      !isValidEmail(
+        cleanEmail
+      )
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            "Please enter a valid email address.",
+
+          code:
+            "INVALID_RESET_EMAIL",
+        });
+    }
+
+
+    if (
+      !isValidOtp(
+        cleanOtp
+      )
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            "Enter the 6-digit verification code.",
+
+          code:
+            "INVALID_RESET_OTP_FORMAT",
+        });
+    }
+
+
+    if (
+      newPassword.length <
+      6
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            "Password must contain at least 6 characters.",
+
+          code:
+            "PASSWORD_TOO_SHORT",
+        });
+    }
+
+
+    if (
+      newPassword.length >
+      128
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            "Password must not exceed 128 characters.",
+
+          code:
+            "PASSWORD_TOO_LONG",
+        });
+    }
+
+
+    const rateKey =
+      `${getClientIp(
+        req
+      )}:${cleanEmail}`;
+
+
+    const limit =
+      consumeRateLimit({
+        store:
+          resetVerifyLimiter,
+
+        key:
+          rateKey,
+
+        windowMs:
+          RESET_VERIFY_WINDOW_MS,
+
+        maxAttempts:
+          RESET_VERIFY_MAX_ATTEMPTS,
+      });
+
+
+    if (!limit.allowed) {
+      res.set(
+        "Retry-After",
+        String(
+          limit.retryAfterSeconds
+        )
+      );
+
+      return res
+        .status(429)
+        .json({
+          error:
+            "Too many reset attempts. Request a new code or try again later.",
+
+          code:
+            "RESET_RATE_LIMITED",
+
+          retryAfterSeconds:
+            limit.retryAfterSeconds,
+        });
+    }
+
+
+    let connection;
+
+
+    try {
+      connection =
+        await getConnection();
+
+
+      const resetRow =
+        await getLatestActiveResetOtp(
+          connection,
+          cleanEmail
+        );
+
+
+      if (
+        !resetRow ||
+        Number(
+          resetRow.VERIFIED ||
+          0
+        ) !== 1 ||
+        isOtpExpired(
+          resetRow
+        )
+      ) {
+        return res
+          .status(400)
+          .json({
+            error:
+              "Your password reset session is invalid or has expired. Request a new code.",
+
+            code:
+              "RESET_SESSION_INVALID",
+          });
+      }
+
+
+      const otpMatches =
+        await bcrypt.compare(
+          cleanOtp,
+          resetRow.OTP_HASH
+        );
+
+
+      if (!otpMatches) {
+        return res
+          .status(400)
+          .json({
+            error:
+              "Your password reset session is invalid or has expired. Request a new code.",
+
+            code:
+              "RESET_SESSION_INVALID",
+          });
+      }
+
+
+      const userResult =
+        await connection.execute(
+          `
+            SELECT
+              id,
+              password_hash
+
+            FROM users
+
+            WHERE LOWER(email) =
+                  :email
+          `,
+          {
+            email:
+              cleanEmail,
+          },
+          {
+            outFormat:
+              oracledb.OUT_FORMAT_OBJECT,
+          }
+        );
+
+
+      if (
+        userResult.rows.length ===
+        0
+      ) {
+        return res
+          .status(400)
+          .json({
+            error:
+              "Your password reset session is invalid or has expired. Request a new code.",
+
+            code:
+              "RESET_SESSION_INVALID",
+          });
+      }
+
+
+      const oldPasswordHash =
+        userResult.rows[0]
+          .PASSWORD_HASH;
+
+
+      if (oldPasswordHash) {
+        const samePassword =
+          await bcrypt.compare(
+            newPassword,
+            oldPasswordHash
+          );
+
+
+        if (
+          samePassword
+        ) {
+          return res
+            .status(400)
+            .json({
+              error:
+                "Your new password must be different from your current password.",
+
+              code:
+                "PASSWORD_REUSE_NOT_ALLOWED",
+            });
+        }
+      }
+
+
+      const passwordHash =
+        await bcrypt.hash(
+          newPassword,
+          10
+        );
+
+
+      await connection.execute(
+        `
+          UPDATE users
+
+          SET password_hash =
+                :passwordHash
+
+          WHERE LOWER(email) =
+                :email
+        `,
+        {
+          passwordHash,
+
+          email:
+            cleanEmail,
+        }
+      );
+
+
+      await connection.execute(
+        `
+          UPDATE password_reset_otps
+
+          SET
+            used = 1,
+            verified = 1
+
+          WHERE id =
+                :resetId
+        `,
+        {
+          resetId:
+            resetRow.ID,
+        }
+      );
+
+
+      await connection.execute(
+        `
+          UPDATE password_reset_otps
+
+          SET used = 1
+
+          WHERE LOWER(email) =
+                :email
+
+            AND used = 0
+        `,
+        {
+          email:
+            cleanEmail,
+        }
+      );
+
+
+      await connection.commit();
+
+
+      clearVerifyRateLimit(
+        cleanEmail
+      );
+
+
+      return res.json({
+        message:
+          "Password reset successfully. You can now sign in with your new password.",
+
+        code:
+          "PASSWORD_RESET_SUCCESS",
+      });
+
+    } catch (error) {
+      if (connection) {
+        try {
+          await connection.rollback();
+
+        } catch (
+          rollbackError
+        ) {
+          console.error(
+            "Reset password rollback error:",
+            rollbackError
+          );
+        }
+      }
+
+
+      console.error(
+        "Reset Password Error:",
+        error
+      );
+
+
+      return res
+        .status(500)
+        .json({
+          error:
+            "Unable to reset the password right now.",
+
+          code:
+            "PASSWORD_RESET_FAILED",
+        });
+
+    } finally {
+      await closeConnection(
+        connection
+      );
+    }
+  }
+);
+
+
+// =====================================================
 // LOGIN
 // POST /api/auth/login
 // =====================================================
@@ -723,10 +2055,6 @@ router.post(
         password || ""
       );
 
-
-    // ===============================================
-    // VALIDATION
-    // ===============================================
 
     if (
       !cleanEmail ||
@@ -773,10 +2101,6 @@ router.post(
         await getConnection();
 
 
-      // =============================================
-      // FIND LOGIN ACCOUNT
-      // =============================================
-
       const userResult =
         await connection.execute(
           `
@@ -787,7 +2111,9 @@ router.post(
               password_hash,
               role,
               last_login_at
+
             FROM users
+
             WHERE LOWER(email) =
                   :email
           `,
@@ -821,10 +2147,6 @@ router.post(
       const user =
         userResult.rows[0];
 
-
-      // =============================================
-      // PASSWORD
-      // =============================================
 
       if (
         !user.PASSWORD_HASH
@@ -867,10 +2189,6 @@ router.post(
       }
 
 
-      // =============================================
-      // ROLE
-      // =============================================
-
       const role =
         String(
           user.ROLE ||
@@ -881,10 +2199,8 @@ router.post(
 
 
       if (
-        role !==
-          "student" &&
-        role !==
-          "admin"
+        role !== "student" &&
+        role !== "admin"
       ) {
         return res
           .status(403)
@@ -897,10 +2213,6 @@ router.post(
           });
       }
 
-
-      // =============================================
-      // DEFAULT ACCOUNT DETAILS
-      // =============================================
 
       let rollNumber =
         role === "admin"
@@ -930,12 +2242,6 @@ router.post(
         user.NAME;
 
 
-      // =============================================
-      // STUDENT ACADEMIC PROFILE
-      //
-      // USERS.EMAIL ↔ STUDENTS.EMAIL
-      // =============================================
-
       if (
         role === "student"
       ) {
@@ -950,7 +2256,9 @@ router.post(
                 semester,
                 section,
                 student_roll
+
               FROM students
+
               WHERE LOWER(email) =
                     :email
             `,
@@ -1029,10 +2337,6 @@ router.post(
       }
 
 
-      // =============================================
-      // CREATE JWT
-      // =============================================
-
       const token =
         jwt.sign(
           {
@@ -1059,15 +2363,13 @@ router.post(
         );
 
 
-      // =============================================
-      // RECORD SUCCESSFUL LOGIN
-      // =============================================
-
       await connection.execute(
         `
           UPDATE users
+
           SET last_login_at =
                 SYSTIMESTAMP
+
           WHERE id =
                 :userId
         `,
@@ -1078,19 +2380,14 @@ router.post(
       );
 
 
-      // =============================================
-      // READ SAVED LOGIN TIME
-      //
-      // We read the actual Oracle value instead of
-      // generating a timestamp in JavaScript.
-      // =============================================
-
       const lastLoginResult =
         await connection.execute(
           `
             SELECT
               last_login_at
+
             FROM users
+
             WHERE id =
                   :userId
           `,
@@ -1111,16 +2408,8 @@ router.post(
         null;
 
 
-      // =============================================
-      // COMMIT LOGIN TIMESTAMP
-      // =============================================
-
       await connection.commit();
 
-
-      // =============================================
-      // LOGIN RESPONSE
-      // =============================================
 
       return res.json({
         message:
@@ -1155,11 +2444,6 @@ router.post(
       });
 
     } catch (error) {
-      /*
-        Because login now performs an UPDATE,
-        rollback if anything fails before commit.
-      */
-
       if (connection) {
         try {
           await connection.rollback();
@@ -1241,10 +2525,6 @@ router.get(
         await getConnection();
 
 
-      // =============================================
-      // ACCOUNT
-      // =============================================
-
       const userResult =
         await connection.execute(
           `
@@ -1254,7 +2534,9 @@ router.get(
               email,
               role,
               last_login_at
+
             FROM users
+
             WHERE LOWER(email) =
                   :email
           `,
@@ -1298,10 +2580,6 @@ router.get(
           .toLowerCase();
 
 
-      // =============================================
-      // DEFAULT ACCOUNT PROFILE
-      // =============================================
-
       let profile = {
         id:
           user.ID,
@@ -1339,10 +2617,6 @@ router.get(
       };
 
 
-      // =============================================
-      // STUDENT PROFILE
-      // =============================================
-
       if (
         role === "student"
       ) {
@@ -1357,7 +2631,9 @@ router.get(
                 semester,
                 section,
                 student_roll
+
               FROM students
+
               WHERE LOWER(email) =
                     :email
             `,
