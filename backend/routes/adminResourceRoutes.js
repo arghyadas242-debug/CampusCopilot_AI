@@ -1,14 +1,13 @@
-const express =
-  require("express");
+const express = require("express");
+const oracledb = require("oracledb");
+const multer = require("multer");
 
-const oracledb =
-  require("oracledb");
+const getConnection = require("../db");
 
-const multer =
-  require("multer");
-
-const getConnection =
-  require("../db");
+const {
+  authenticateToken,
+  requireAdmin,
+} = require("../middleware/authMiddleware");
 
 const {
   extractPdfText,
@@ -16,13 +15,25 @@ const {
   deleteResourceChunks,
   saveResourcePdf,
   deleteResourcePdf,
-} = require(
-  "../services/resourceRagService"
+} = require("../services/resourceRagService");
+
+
+const router = express.Router();
+
+
+// =====================================================
+// ADMIN AUTHORIZATION
+//
+// All routes in this file are mounted under:
+// /api/admin/resources
+//
+// Only authenticated admins can access them.
+// =====================================================
+
+router.use(
+  authenticateToken,
+  requireAdmin
 );
-
-
-const router =
-  express.Router();
 
 
 // =====================================================
@@ -39,68 +50,57 @@ const VALID_RESOURCE_TYPES = [
 ];
 
 
-const FILE_RESOURCE_TYPES =
-  new Set([
-    "PDF",
-    "Notes",
-    "Question Paper",
-    "Other",
-  ]);
+const FILE_RESOURCE_TYPES = new Set([
+  "PDF",
+  "Notes",
+  "Question Paper",
+  "Other",
+]);
 
 
 // =====================================================
 // MULTER CONFIGURATION
 // =====================================================
 
-const upload =
-  multer({
-    storage:
-      multer.memoryStorage(),
+const upload = multer({
+  storage: multer.memoryStorage(),
 
-    limits: {
-      fileSize:
-        10 *
-        1024 *
-        1024,
+  limits: {
+    fileSize: 10 * 1024 * 1024,
+    files: 1,
+    fields: 20,
+  },
 
-      files: 1,
-
-      fields: 20,
-    },
-
-    fileFilter: (
-      req,
-      file,
-      callback
-    ) => {
-      const isPdf =
-        file.mimetype ===
-          "application/pdf" ||
-        String(
-          file.originalname ||
-          ""
-        )
-          .toLowerCase()
-          .endsWith(
-            ".pdf"
-          );
+  fileFilter: (
+    req,
+    file,
+    callback
+  ) => {
+    const isPdf =
+      file.mimetype ===
+        "application/pdf" ||
+      String(
+        file.originalname || ""
+      )
+        .toLowerCase()
+        .endsWith(".pdf");
 
 
-      if (!isPdf) {
-        return callback(
-          new Error(
-            "Only PDF files can be uploaded."
-          )
-        );
-      }
-
-
+    if (!isPdf) {
       return callback(
-        null,
-        true
+        new Error(
+          "Only PDF files can be uploaded."
+        )
       );
-    },
-  });
+    }
+
+
+    return callback(
+      null,
+      true
+    );
+  },
+});
 
 
 // =====================================================
@@ -112,9 +112,7 @@ function optionalPdfUpload(
   res,
   next
 ) {
-  upload.single(
-    "file"
-  )(
+  upload.single("file")(
     req,
     res,
     (error) => {
@@ -165,9 +163,7 @@ function optionalPdfUpload(
 // SEMESTER HELPER
 // =====================================================
 
-function parseSemester(
-  value
-) {
+function parseSemester(value) {
   if (
     value === undefined ||
     value === null ||
@@ -193,8 +189,10 @@ function parseSemester(
         "Semester must be between 1 and 8"
       );
 
+
     error.statusCode =
       400;
+
 
     throw error;
   }
@@ -227,8 +225,10 @@ function validateResourceType(
         "Invalid resource type"
       );
 
+
     error.statusCode =
       400;
+
 
     throw error;
   }
@@ -274,9 +274,8 @@ async function closeConnection(
 
   try {
     await connection.close();
-  } catch (
-    closeError
-  ) {
+
+  } catch (closeError) {
     console.error(
       "Connection close error:",
       closeError
@@ -307,41 +306,40 @@ router.get(
       const result =
         await connection.execute(
           `
-            SELECT
-              r.resource_id,
-              r.subject_code,
-              s.subject_name,
-              s.faculty_name,
-              r.title,
-              r.description,
-              r.resource_type,
-              r.resource_url,
-              r.semester,
-              r.uploaded_by,
-              r.created_at,
+          SELECT
+            r.resource_id,
+            r.subject_code,
+            s.subject_name,
+            s.faculty_name,
+            r.title,
+            r.description,
+            r.resource_type,
+            r.resource_url,
+            r.semester,
+            r.uploaded_by,
+            r.created_at,
 
-              (
-                SELECT COUNT(*)
-                FROM resource_chunks rc
-                WHERE rc.resource_id =
-                      r.resource_id
-              ) AS chunk_count
+            (
+              SELECT COUNT(*)
+              FROM resource_chunks rc
+              WHERE rc.resource_id =
+                    r.resource_id
+            ) AS chunk_count
 
-            FROM resources r
+          FROM resources r
 
-            LEFT JOIN subjects s
-              ON r.subject_code =
-                 s.subject_code
+          LEFT JOIN subjects s
+            ON r.subject_code =
+               s.subject_code
 
-            ORDER BY
-              r.created_at DESC,
-              r.resource_id DESC
+          ORDER BY
+            r.created_at DESC,
+            r.resource_id DESC
           `,
           [],
           {
             outFormat:
-              oracledb
-                .OUT_FORMAT_OBJECT,
+              oracledb.OUT_FORMAT_OBJECT,
           }
         );
 
@@ -353,8 +351,7 @@ router.get(
 
             RAG_READY:
               Number(
-                resource
-                  .CHUNK_COUNT
+                resource.CHUNK_COUNT
               ) > 0
                 ? 1
                 : 0,
@@ -398,19 +395,24 @@ router.get(
 //
 // Supports:
 // - application/json
-// - multipart/form-data with field name "file"
+// - multipart/form-data
+//
+// PDF upload field:
+// file
 // =====================================================
 
 router.post(
   "/",
   optionalPdfUpload,
+
   async (
     req,
     res
   ) => {
     let connection;
 
-    let resourceId = null;
+    let resourceId =
+      null;
 
     let localFileSaved =
       false;
@@ -568,12 +570,14 @@ router.post(
       const subjectResult =
         await connection.execute(
           `
-            SELECT
-              subject_code,
-              subject_name
-            FROM subjects
-            WHERE UPPER(subject_code) =
-                  UPPER(:subjectCode)
+          SELECT
+            subject_code,
+            subject_name
+
+          FROM subjects
+
+          WHERE UPPER(subject_code) =
+                UPPER(:subjectCode)
           `,
           {
             subjectCode:
@@ -581,15 +585,13 @@ router.post(
           },
           {
             outFormat:
-              oracledb
-                .OUT_FORMAT_OBJECT,
+              oracledb.OUT_FORMAT_OBJECT,
           }
         );
 
 
       if (
-        subjectResult.rows
-          .length ===
+        subjectResult.rows.length ===
         0
       ) {
         return res
@@ -621,26 +623,30 @@ router.post(
       const resourceResult =
         await connection.execute(
           `
-            INSERT INTO resources (
-              subject_code,
-              title,
-              description,
-              resource_type,
-              resource_url,
-              semester,
-              uploaded_by
-            )
-            VALUES (
-              :subjectCode,
-              :title,
-              :description,
-              :resourceType,
-              :resourceUrl,
-              :semester,
-              :uploadedBy
-            )
-            RETURNING resource_id
-            INTO :resourceId
+          INSERT INTO resources
+          (
+            subject_code,
+            title,
+            description,
+            resource_type,
+            resource_url,
+            semester,
+            uploaded_by
+          )
+
+          VALUES
+          (
+            :subjectCode,
+            :title,
+            :description,
+            :resourceType,
+            :resourceUrl,
+            :semester,
+            :uploadedBy
+          )
+
+          RETURNING resource_id
+          INTO :resourceId
           `,
           {
             subjectCode:
@@ -666,12 +672,10 @@ router.post(
 
             resourceId: {
               dir:
-                oracledb
-                  .BIND_OUT,
+                oracledb.BIND_OUT,
 
               type:
-                oracledb
-                  .NUMBER,
+                oracledb.NUMBER,
             },
           }
         );
@@ -686,7 +690,9 @@ router.post(
       let finalResourceUrl =
         providedUrl;
 
-      let chunkCount = 0;
+
+      let chunkCount =
+        0;
 
 
       // -------------------------------------------------
@@ -712,11 +718,13 @@ router.post(
 
         await connection.execute(
           `
-            UPDATE resources
-            SET resource_url =
-                :resourceUrl
-            WHERE resource_id =
-                  :resourceId
+          UPDATE resources
+
+          SET resource_url =
+              :resourceUrl
+
+          WHERE resource_id =
+                :resourceId
           `,
           {
             resourceUrl:
@@ -737,7 +745,7 @@ router.post(
 
 
       // -------------------------------------------------
-      // NOTIFICATION
+      // NOTIFICATION MESSAGE
       // -------------------------------------------------
 
       let notificationMessage =
@@ -752,35 +760,47 @@ router.post(
       }
 
 
+      // -------------------------------------------------
+      // CREATE STUDENT NOTIFICATIONS
+      //
+      // If semester is NULL:
+      // notify all students.
+      //
+      // Otherwise:
+      // notify only that semester.
+      // -------------------------------------------------
+
       const notificationResult =
         await connection.execute(
           `
-            INSERT INTO notifications (
-              student_roll,
-              notification_type,
-              title,
-              message_text,
-              related_type,
-              related_id,
-              action_url,
-              is_read
-            )
+          INSERT INTO notifications
+          (
+            student_roll,
+            notification_type,
+            title,
+            message_text,
+            related_type,
+            related_id,
+            action_url,
+            is_read
+          )
 
-            SELECT
-              s.student_roll,
-              'RESOURCE',
-              :notificationTitle,
-              :messageText,
-              'RESOURCE',
-              :relatedId,
-              '/resources',
-              0
-            FROM students s
+          SELECT
+            s.student_roll,
+            'RESOURCE',
+            :notificationTitle,
+            :messageText,
+            'RESOURCE',
+            :relatedId,
+            '/resources',
+            0
 
-            WHERE
-              :semester IS NULL
-              OR s.semester =
-                 :semester
+          FROM students s
+
+          WHERE
+            :semester IS NULL
+            OR s.semester =
+               :semester
           `,
           {
             notificationTitle:
@@ -830,9 +850,14 @@ router.post(
         });
 
     } catch (error) {
+      // -------------------------------------------------
+      // ROLLBACK
+      // -------------------------------------------------
+
       if (connection) {
         try {
           await connection.rollback();
+
         } catch (
           rollbackError
         ) {
@@ -844,6 +869,10 @@ router.post(
       }
 
 
+      // -------------------------------------------------
+      // CLEAN SAVED PDF IF DB PROCESS FAILED
+      // -------------------------------------------------
+
       if (
         localFileSaved &&
         resourceId
@@ -852,6 +881,7 @@ router.post(
           await deleteResourcePdf(
             resourceId
           );
+
         } catch (
           fileError
         ) {
@@ -896,7 +926,9 @@ router.post(
 
 router.put(
   "/:id",
+
   optionalPdfUpload,
+
   async (
     req,
     res
@@ -911,11 +943,16 @@ router.put(
         );
 
 
+      // -------------------------------------------------
+      // RESOURCE ID VALIDATION
+      // -------------------------------------------------
+
       if (
         !Number.isInteger(
           resourceId
         ) ||
-        resourceId <= 0
+        resourceId <=
+          0
       ) {
         return res
           .status(400)
@@ -937,6 +974,10 @@ router.put(
       } =
         req.body || {};
 
+
+      // -------------------------------------------------
+      // REQUIRED FIELDS
+      // -------------------------------------------------
 
       if (
         !String(
@@ -984,6 +1025,10 @@ router.put(
         );
 
 
+      // -------------------------------------------------
+      // PDF TYPE VALIDATION
+      // -------------------------------------------------
+
       if (
         hasFile &&
         !FILE_RESOURCE_TYPES.has(
@@ -998,6 +1043,10 @@ router.put(
           });
       }
 
+
+      // -------------------------------------------------
+      // PDF EXTRACTION
+      // -------------------------------------------------
 
       let extractedText =
         null;
@@ -1022,27 +1071,27 @@ router.put(
       const existingResult =
         await connection.execute(
           `
-            SELECT
-              resource_id,
-              resource_url
-            FROM resources
-            WHERE resource_id =
-                  :resourceId
+          SELECT
+            resource_id,
+            resource_url
+
+          FROM resources
+
+          WHERE resource_id =
+                :resourceId
           `,
           {
             resourceId,
           },
           {
             outFormat:
-              oracledb
-                .OUT_FORMAT_OBJECT,
+              oracledb.OUT_FORMAT_OBJECT,
           }
         );
 
 
       if (
-        existingResult.rows
-          .length ===
+        existingResult.rows.length ===
         0
       ) {
         return res
@@ -1068,10 +1117,13 @@ router.put(
       const subjectResult =
         await connection.execute(
           `
-            SELECT subject_code
-            FROM subjects
-            WHERE UPPER(subject_code) =
-                  UPPER(:subjectCode)
+          SELECT
+            subject_code
+
+          FROM subjects
+
+          WHERE UPPER(subject_code) =
+                UPPER(:subjectCode)
           `,
           {
             subjectCode:
@@ -1079,15 +1131,13 @@ router.put(
           },
           {
             outFormat:
-              oracledb
-                .OUT_FORMAT_OBJECT,
+              oracledb.OUT_FORMAT_OBJECT,
           }
         );
 
 
       if (
-        subjectResult.rows
-          .length ===
+        subjectResult.rows.length ===
         0
       ) {
         return res
@@ -1134,6 +1184,10 @@ router.put(
           );
 
       } else {
+        // -----------------------------------------------
+        // KEEP OLD URL IF NO NEW URL GIVEN
+        // -----------------------------------------------
+
         if (
           !finalResourceUrl
         ) {
@@ -1142,11 +1196,11 @@ router.put(
         }
 
 
-        /*
-          If admin changes a locally-uploaded
-          PDF into an external URL, remove the
-          old RAG chunks.
-        */
+        // -----------------------------------------------
+        // LOCAL PDF -> EXTERNAL URL
+        //
+        // Remove RAG chunks.
+        // -----------------------------------------------
 
         if (
           isLocalResourceUrl(
@@ -1182,31 +1236,32 @@ router.put(
 
       await connection.execute(
         `
-          UPDATE resources
-          SET
-            subject_code =
-              :subjectCode,
+        UPDATE resources
 
-            title =
-              :title,
+        SET
+          subject_code =
+            :subjectCode,
 
-            description =
-              :description,
+          title =
+            :title,
 
-            resource_type =
-              :resourceType,
+          description =
+            :description,
 
-            resource_url =
-              :resourceUrl,
+          resource_type =
+            :resourceType,
 
-            semester =
-              :semester,
+          resource_url =
+            :resourceUrl,
 
-            uploaded_by =
-              :uploadedBy
+          semester =
+            :semester,
 
-          WHERE resource_id =
-                :resourceId
+          uploaded_by =
+            :uploadedBy
+
+        WHERE resource_id =
+              :resourceId
         `,
         {
           subjectCode:
@@ -1246,11 +1301,11 @@ router.put(
       await connection.commit();
 
 
-      /*
-        Remove physical PDF only after the
-        database successfully switches away
-        from the local upload.
-      */
+      // -------------------------------------------------
+      // REMOVE OLD PHYSICAL PDF
+      //
+      // Only after successful DB commit.
+      // -------------------------------------------------
 
       if (
         !hasFile &&
@@ -1265,6 +1320,7 @@ router.put(
           await deleteResourcePdf(
             resourceId
           );
+
         } catch (
           fileError
         ) {
@@ -1289,8 +1345,7 @@ router.put(
 
         ragReady:
           hasFile
-            ? chunkCount >
-              0
+            ? chunkCount > 0
             : undefined,
 
         chunkCount,
@@ -1300,6 +1355,7 @@ router.put(
       if (connection) {
         try {
           await connection.rollback();
+
         } catch (
           rollbackError
         ) {
@@ -1344,6 +1400,7 @@ router.put(
 
 router.delete(
   "/:id",
+
   async (
     req,
     res
@@ -1358,11 +1415,16 @@ router.delete(
         );
 
 
+      // -------------------------------------------------
+      // VALIDATE RESOURCE ID
+      // -------------------------------------------------
+
       if (
         !Number.isInteger(
           resourceId
         ) ||
-        resourceId <= 0
+        resourceId <=
+          0
       ) {
         return res
           .status(400)
@@ -1377,30 +1439,34 @@ router.delete(
         await getConnection();
 
 
+      // -------------------------------------------------
+      // FIND RESOURCE
+      // -------------------------------------------------
+
       const existing =
         await connection.execute(
           `
-            SELECT
-              resource_id,
-              resource_url
-            FROM resources
-            WHERE resource_id =
-                  :resourceId
+          SELECT
+            resource_id,
+            resource_url
+
+          FROM resources
+
+          WHERE resource_id =
+                :resourceId
           `,
           {
             resourceId,
           },
           {
             outFormat:
-              oracledb
-                .OUT_FORMAT_OBJECT,
+              oracledb.OUT_FORMAT_OBJECT,
           }
         );
 
 
       if (
-        existing.rows
-          .length ===
+        existing.rows.length ===
         0
       ) {
         return res
@@ -1418,16 +1484,19 @@ router.delete(
         "";
 
 
-      /*
-        RESOURCE_CHUNKS is automatically deleted
-        because the FK uses ON DELETE CASCADE.
-      */
+      // -------------------------------------------------
+      // DELETE DATABASE RESOURCE
+      //
+      // RESOURCE_CHUNKS is automatically deleted because
+      // the FK uses ON DELETE CASCADE.
+      // -------------------------------------------------
 
       await connection.execute(
         `
-          DELETE FROM resources
-          WHERE resource_id =
-                :resourceId
+        DELETE FROM resources
+
+        WHERE resource_id =
+              :resourceId
         `,
         {
           resourceId,
@@ -1438,6 +1507,10 @@ router.delete(
       await connection.commit();
 
 
+      // -------------------------------------------------
+      // DELETE LOCAL PDF
+      // -------------------------------------------------
+
       if (
         isLocalResourceUrl(
           resourceUrl
@@ -1447,6 +1520,7 @@ router.delete(
           await deleteResourcePdf(
             resourceId
           );
+
         } catch (
           fileError
         ) {
@@ -1467,6 +1541,7 @@ router.delete(
       if (connection) {
         try {
           await connection.rollback();
+
         } catch (
           rollbackError
         ) {

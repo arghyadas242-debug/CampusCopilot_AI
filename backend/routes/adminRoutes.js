@@ -13,22 +13,30 @@ const router = express.Router();
 
 // =====================================================
 // ADMIN DASHBOARD
+//
 // GET /api/admin/dashboard
+//
+// ADMIN ONLY
 // =====================================================
 
 router.get(
   "/dashboard",
+
+  authenticateToken,
+  requireAdmin,
+
   async (req, res) => {
     let connection;
+
 
     try {
       connection =
         await getConnection();
 
 
-      // -----------------------------------------------
+      // =================================================
       // DASHBOARD STATISTICS
-      // -----------------------------------------------
+      // =================================================
 
       const statsResult =
         await connection.execute(
@@ -66,9 +74,9 @@ router.get(
         );
 
 
-      // -----------------------------------------------
+      // =================================================
       // RECENT STUDENTS
-      // -----------------------------------------------
+      // =================================================
 
       const studentsResult =
         await connection.execute(
@@ -132,6 +140,10 @@ router.get(
         );
 
 
+      // =================================================
+      // RESPONSE
+      // =================================================
+
       return res.json({
         stats:
           statsResult.rows[0],
@@ -189,7 +201,6 @@ router.put(
   "/students/:studentRoll/academic-summary",
 
   authenticateToken,
-
   requireAdmin,
 
   async (req, res) => {
@@ -197,9 +208,9 @@ router.put(
 
 
     try {
-      // -----------------------------------------------
+      // =================================================
       // STUDENT ROLL
-      // -----------------------------------------------
+      // =================================================
 
       const studentRoll =
         String(
@@ -221,9 +232,9 @@ router.put(
       }
 
 
-      // -----------------------------------------------
+      // =================================================
       // REQUEST BODY
-      // -----------------------------------------------
+      // =================================================
 
       const {
         cgpa,
@@ -234,26 +245,29 @@ router.put(
         req.body || {};
 
 
-      // -----------------------------------------------
+      // =================================================
       // REQUIRE ALL VALUES
-      // -----------------------------------------------
+      // =================================================
 
       if (
         cgpa === undefined ||
         cgpa === null ||
         cgpa === "" ||
+
         creditsEarned ===
           undefined ||
         creditsEarned ===
           null ||
         creditsEarned ===
           "" ||
+
         totalProgramCredits ===
           undefined ||
         totalProgramCredits ===
           null ||
         totalProgramCredits ===
           "" ||
+
         completedSemesters ===
           undefined ||
         completedSemesters ===
@@ -273,9 +287,9 @@ router.put(
       }
 
 
-      // -----------------------------------------------
+      // =================================================
       // NORMALIZE VALUES
-      // -----------------------------------------------
+      // =================================================
 
       const cleanCgpa =
         Number(cgpa);
@@ -299,9 +313,9 @@ router.put(
         );
 
 
-      // -----------------------------------------------
+      // =================================================
       // VALIDATE CGPA
-      // -----------------------------------------------
+      // =================================================
 
       if (
         !Number.isFinite(
@@ -322,9 +336,9 @@ router.put(
       }
 
 
-      // -----------------------------------------------
+      // =================================================
       // VALIDATE CREDITS EARNED
-      // -----------------------------------------------
+      // =================================================
 
       if (
         !Number.isInteger(
@@ -344,9 +358,9 @@ router.put(
       }
 
 
-      // -----------------------------------------------
+      // =================================================
       // VALIDATE TOTAL PROGRAM CREDITS
-      // -----------------------------------------------
+      // =================================================
 
       if (
         !Number.isInteger(
@@ -367,9 +381,9 @@ router.put(
       }
 
 
-      // -----------------------------------------------
-      // CREDITS EARNED CANNOT EXCEED TOTAL
-      // -----------------------------------------------
+      // =================================================
+      // EARNED CREDITS CANNOT EXCEED TOTAL
+      // =================================================
 
       if (
         cleanCreditsEarned >
@@ -387,9 +401,9 @@ router.put(
       }
 
 
-      // -----------------------------------------------
+      // =================================================
       // VALIDATE COMPLETED SEMESTERS
-      // -----------------------------------------------
+      // =================================================
 
       if (
         !Number.isInteger(
@@ -412,9 +426,9 @@ router.put(
       }
 
 
-      // -----------------------------------------------
+      // =================================================
       // LIMIT CGPA TO 2 DECIMAL PLACES
-      // -----------------------------------------------
+      // =================================================
 
       const normalizedCgpa =
         Number(
@@ -424,13 +438,17 @@ router.put(
         );
 
 
+      // =================================================
+      // DATABASE CONNECTION
+      // =================================================
+
       connection =
         await getConnection();
 
 
-      // -----------------------------------------------
+      // =================================================
       // VERIFY STUDENT EXISTS
-      // -----------------------------------------------
+      // =================================================
 
       const studentResult =
         await connection.execute(
@@ -439,7 +457,9 @@ router.put(
             student_roll,
             name,
             semester
+
           FROM students
+
           WHERE LOWER(student_roll) =
                 LOWER(:studentRoll)
           `,
@@ -473,19 +493,14 @@ router.put(
         studentResult.rows[0];
 
 
-      // -----------------------------------------------
-      // OPTIONAL SEMESTER VALIDATION
-      //
-      // A semester cannot be "completed" if the student
-      // has not reached it yet.
+      // =================================================
+      // CURRENT SEMESTER VALIDATION
       //
       // Example:
-      // Current semester = 5
-      // Completed semesters can be 0–4.
       //
-      // If current semester is unavailable, we rely on
-      // the general 0–8 validation above.
-      // -----------------------------------------------
+      // current semester = 5
+      // completed semesters = 0-4
+      // =================================================
 
       const currentSemester =
         student.SEMESTER ===
@@ -519,14 +534,12 @@ router.put(
       }
 
 
-      // -----------------------------------------------
+      // =================================================
       // UPSERT ACADEMIC SUMMARY
       //
-      // Oracle MERGE:
-      //
-      // Existing student summary -> UPDATE
-      // No summary yet           -> INSERT
-      // -----------------------------------------------
+      // Existing summary -> UPDATE
+      // No summary       -> INSERT
+      // =================================================
 
       await connection.execute(
         `
@@ -562,6 +575,7 @@ router.put(
         )
 
         WHEN MATCHED THEN
+
           UPDATE SET
             target.cgpa =
               source.cgpa,
@@ -579,7 +593,9 @@ router.put(
               SYSTIMESTAMP
 
         WHEN NOT MATCHED THEN
-          INSERT (
+
+          INSERT
+          (
             student_roll,
             cgpa,
             credits_earned,
@@ -587,7 +603,9 @@ router.put(
             completed_semesters,
             updated_at
           )
-          VALUES (
+
+          VALUES
+          (
             source.student_roll,
             source.cgpa,
             source.credits_earned,
@@ -614,12 +632,16 @@ router.put(
       );
 
 
+      // =================================================
+      // COMMIT
+      // =================================================
+
       await connection.commit();
 
 
-      // -----------------------------------------------
+      // =================================================
       // READ SAVED RESULT
-      // -----------------------------------------------
+      // =================================================
 
       const savedResult =
         await connection.execute(
@@ -651,9 +673,9 @@ router.put(
         savedResult.rows[0];
 
 
-      // -----------------------------------------------
+      // =================================================
       // RESPONSE
-      // -----------------------------------------------
+      // =================================================
 
       return res.json({
         success:
@@ -697,9 +719,9 @@ router.put(
       });
 
     } catch (error) {
-      // -----------------------------------------------
+      // =================================================
       // ROLLBACK
-      // -----------------------------------------------
+      // =================================================
 
       if (connection) {
         try {

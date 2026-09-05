@@ -2,7 +2,28 @@ const express = require("express");
 const oracledb = require("oracledb");
 const getConnection = require("../db");
 
+const {
+  authenticateToken,
+  requireAdmin,
+} = require("../middleware/authMiddleware");
+
 const router = express.Router();
+
+
+// =====================================================
+// ADMIN AUTHORIZATION
+//
+// All routes in this file are mounted under:
+//
+// /api/admin/exams
+//
+// Only authenticated admin accounts may access them.
+// =====================================================
+
+router.use(
+  authenticateToken,
+  requireAdmin
+);
 
 
 // =====================================================
@@ -10,72 +31,90 @@ const router = express.Router();
 // GET /api/admin/exams
 // =====================================================
 
-router.get("/", async (req, res) => {
-  let connection;
+router.get(
+  "/",
+  async (req, res) => {
+    let connection;
 
-  try {
-    connection = await getConnection();
+    try {
+      connection =
+        await getConnection();
 
-    const result = await connection.execute(
-      `
-      SELECT
-        e.id,
-        e.student_roll,
-        s.name AS student_name,
-        e.subject_code,
-        sub.subject_name,
-        e.exam_date,
-        e.start_time,
-        e.end_time,
-        e.room,
-        e.exam_type
-      FROM exams e
 
-      LEFT JOIN students s
-        ON e.student_roll = s.student_roll
+      const result =
+        await connection.execute(
+          `
+          SELECT
+            e.id,
+            e.student_roll,
+            s.name AS student_name,
+            e.subject_code,
+            sub.subject_name,
+            e.exam_date,
+            e.start_time,
+            e.end_time,
+            e.room,
+            e.exam_type
 
-      LEFT JOIN subjects sub
-        ON e.subject_code = sub.subject_code
+          FROM exams e
 
-      ORDER BY
-        e.exam_date ASC,
-        e.start_time ASC,
-        e.id ASC
-      `,
-      [],
-      {
-        outFormat: oracledb.OUT_FORMAT_OBJECT,
-      }
-    );
+          LEFT JOIN students s
+            ON e.student_roll =
+               s.student_roll
 
-    return res.json(result.rows);
+          LEFT JOIN subjects sub
+            ON e.subject_code =
+               sub.subject_code
 
-  } catch (error) {
-
-    console.error(
-      "Admin exams load error:",
-      error
-    );
-
-    return res.status(500).json({
-      error: "Unable to load exams",
-      details: error.message,
-    });
-
-  } finally {
-
-    if (connection) {
-      try {
-        await connection.close();
-      } catch (closeError) {
-        console.error(
-          "Connection close error:",
-          closeError
+          ORDER BY
+            e.exam_date ASC,
+            e.start_time ASC,
+            e.id ASC
+          `,
+          [],
+          {
+            outFormat:
+              oracledb.OUT_FORMAT_OBJECT,
+          }
         );
+
+
+      return res.json(
+        result.rows
+      );
+
+    } catch (error) {
+      console.error(
+        "Admin exams load error:",
+        error
+      );
+
+
+      return res
+        .status(500)
+        .json({
+          error:
+            "Unable to load exams",
+
+          details:
+            error.message,
+        });
+
+    } finally {
+      if (connection) {
+        try {
+          await connection.close();
+
+        } catch (closeError) {
+          console.error(
+            "Connection close error:",
+            closeError
+          );
+        }
       }
     }
   }
-});
+);
 
 
 // =====================================================
@@ -83,325 +122,382 @@ router.get("/", async (req, res) => {
 // POST /api/admin/exams
 // =====================================================
 
-router.post("/", async (req, res) => {
-  let connection;
+router.post(
+  "/",
+  async (req, res) => {
+    let connection;
 
-  try {
-    const {
-      studentRoll,
-      subjectCode,
-      examDate,
-      startTime,
-      endTime,
-      room,
-      examType,
-    } = req.body;
-
-
-    // -------------------------------------------------
-    // VALIDATION
-    // -------------------------------------------------
-
-    if (
-      !studentRoll?.trim() ||
-      !subjectCode?.trim() ||
-      !examDate ||
-      !startTime?.trim() ||
-      !endTime?.trim() ||
-      !examType?.trim()
-    ) {
-      return res.status(400).json({
-        error:
-          "Student, subject, exam date, start time, end time and exam type are required",
-      });
-    }
+    try {
+      const {
+        studentRoll,
+        subjectCode,
+        examDate,
+        startTime,
+        endTime,
+        room,
+        examType,
+      } =
+        req.body;
 
 
-    const cleanStudentRoll =
-      studentRoll.trim();
+      // -------------------------------------------------
+      // VALIDATION
+      // -------------------------------------------------
 
-    const cleanSubjectCode =
-      subjectCode.trim().toUpperCase();
-
-    const cleanStartTime =
-      startTime.trim();
-
-    const cleanEndTime =
-      endTime.trim();
-
-    const cleanRoom =
-      room?.trim() || null;
-
-    const cleanExamType =
-      examType.trim();
-
-
-    // -------------------------------------------------
-    // DATABASE CONNECTION
-    // -------------------------------------------------
-
-    connection = await getConnection();
+      if (
+        !studentRoll?.trim() ||
+        !subjectCode?.trim() ||
+        !examDate ||
+        !startTime?.trim() ||
+        !endTime?.trim() ||
+        !examType?.trim()
+      ) {
+        return res
+          .status(400)
+          .json({
+            error:
+              "Student, subject, exam date, start time, end time and exam type are required",
+          });
+      }
 
 
-    // -------------------------------------------------
-    // CHECK STUDENT EXISTS
-    // -------------------------------------------------
-
-    const studentResult =
-      await connection.execute(
-        `
-        SELECT student_roll
-        FROM students
-        WHERE LOWER(student_roll) =
-              LOWER(:studentRoll)
-        `,
-        {
-          studentRoll:
-            cleanStudentRoll,
-        },
-        {
-          outFormat:
-            oracledb.OUT_FORMAT_OBJECT,
-        }
-      );
+      const cleanStudentRoll =
+        studentRoll.trim();
 
 
-    if (
-      studentResult.rows.length === 0
-    ) {
-      return res.status(404).json({
-        error: "Student not found",
-      });
-    }
+      const cleanSubjectCode =
+        subjectCode
+          .trim()
+          .toUpperCase();
 
 
-    // -------------------------------------------------
-    // CHECK SUBJECT EXISTS
-    // ALSO GET SUBJECT NAME FOR NOTIFICATION
-    // -------------------------------------------------
-
-    const subjectResult =
-      await connection.execute(
-        `
-        SELECT
-          subject_code,
-          subject_name
-        FROM subjects
-        WHERE UPPER(subject_code) =
-              UPPER(:subjectCode)
-        `,
-        {
-          subjectCode:
-            cleanSubjectCode,
-        },
-        {
-          outFormat:
-            oracledb.OUT_FORMAT_OBJECT,
-        }
-      );
+      const cleanStartTime =
+        startTime.trim();
 
 
-    if (
-      subjectResult.rows.length === 0
-    ) {
-      return res.status(404).json({
-        error: "Subject not found",
-      });
-    }
+      const cleanEndTime =
+        endTime.trim();
 
 
-    const subjectName =
-      subjectResult.rows[0]
-        .SUBJECT_NAME ||
-      cleanSubjectCode;
+      const cleanRoom =
+        room?.trim() ||
+        null;
 
 
-    // -------------------------------------------------
-    // INSERT EXAM
-    // RETURN GENERATED EXAM ID
-    // -------------------------------------------------
+      const cleanExamType =
+        examType.trim();
 
-    const examResult =
-      await connection.execute(
-        `
-        INSERT INTO exams (
-          student_roll,
-          subject_code,
-          exam_date,
-          start_time,
-          end_time,
-          room,
-          exam_type
-        )
-        VALUES (
-          :studentRoll,
-          :subjectCode,
-          TO_DATE(:examDate, 'YYYY-MM-DD'),
-          :startTime,
-          :endTime,
-          :room,
-          :examType
-        )
-        RETURNING id
-        INTO :examId
-        `,
-        {
-          studentRoll:
-            cleanStudentRoll,
 
-          subjectCode:
-            cleanSubjectCode,
+      // -------------------------------------------------
+      // DATABASE CONNECTION
+      // -------------------------------------------------
 
-          examDate,
+      connection =
+        await getConnection();
 
-          startTime:
-            cleanStartTime,
 
-          endTime:
-            cleanEndTime,
+      // -------------------------------------------------
+      // CHECK STUDENT EXISTS
+      // -------------------------------------------------
 
-          room:
-            cleanRoom,
+      const studentResult =
+        await connection.execute(
+          `
+          SELECT
+            student_roll
 
-          examType:
-            cleanExamType,
+          FROM students
 
-          examId: {
-            dir: oracledb.BIND_OUT,
-            type: oracledb.NUMBER,
+          WHERE LOWER(student_roll) =
+                LOWER(:studentRoll)
+          `,
+          {
+            studentRoll:
+              cleanStudentRoll,
           },
+          {
+            outFormat:
+              oracledb.OUT_FORMAT_OBJECT,
+          }
+        );
+
+
+      if (
+        studentResult.rows.length ===
+        0
+      ) {
+        return res
+          .status(404)
+          .json({
+            error:
+              "Student not found",
+          });
+      }
+
+
+      // -------------------------------------------------
+      // CHECK SUBJECT EXISTS
+      //
+      // ALSO GET SUBJECT NAME FOR NOTIFICATION
+      // -------------------------------------------------
+
+      const subjectResult =
+        await connection.execute(
+          `
+          SELECT
+            subject_code,
+            subject_name
+
+          FROM subjects
+
+          WHERE UPPER(subject_code) =
+                UPPER(:subjectCode)
+          `,
+          {
+            subjectCode:
+              cleanSubjectCode,
+          },
+          {
+            outFormat:
+              oracledb.OUT_FORMAT_OBJECT,
+          }
+        );
+
+
+      if (
+        subjectResult.rows.length ===
+        0
+      ) {
+        return res
+          .status(404)
+          .json({
+            error:
+              "Subject not found",
+          });
+      }
+
+
+      const subjectName =
+        subjectResult.rows[0]
+          .SUBJECT_NAME ||
+        cleanSubjectCode;
+
+
+      // -------------------------------------------------
+      // INSERT EXAM
+      //
+      // RETURN GENERATED EXAM ID
+      // -------------------------------------------------
+
+      const examResult =
+        await connection.execute(
+          `
+          INSERT INTO exams
+          (
+            student_roll,
+            subject_code,
+            exam_date,
+            start_time,
+            end_time,
+            room,
+            exam_type
+          )
+
+          VALUES
+          (
+            :studentRoll,
+            :subjectCode,
+            TO_DATE(
+              :examDate,
+              'YYYY-MM-DD'
+            ),
+            :startTime,
+            :endTime,
+            :room,
+            :examType
+          )
+
+          RETURNING id
+          INTO :examId
+          `,
+          {
+            studentRoll:
+              cleanStudentRoll,
+
+            subjectCode:
+              cleanSubjectCode,
+
+            examDate,
+
+            startTime:
+              cleanStartTime,
+
+            endTime:
+              cleanEndTime,
+
+            room:
+              cleanRoom,
+
+            examType:
+              cleanExamType,
+
+            examId: {
+              dir:
+                oracledb.BIND_OUT,
+
+              type:
+                oracledb.NUMBER,
+            },
+          }
+        );
+
+
+      // -------------------------------------------------
+      // GET GENERATED EXAM ID
+      // -------------------------------------------------
+
+      const examId =
+        examResult
+          .outBinds
+          .examId[0];
+
+
+      // -------------------------------------------------
+      // BUILD NOTIFICATION MESSAGE
+      // -------------------------------------------------
+
+      let notificationMessage =
+        `${cleanExamType} for ${subjectName} is scheduled on ${examDate} from ${cleanStartTime} to ${cleanEndTime}`;
+
+
+      if (cleanRoom) {
+        notificationMessage +=
+          ` in ${cleanRoom}`;
+      }
+
+
+      notificationMessage +=
+        ".";
+
+
+      // -------------------------------------------------
+      // CREATE EXAM NOTIFICATION
+      // -------------------------------------------------
+
+      await connection.execute(
+        `
+        INSERT INTO notifications
+        (
+          student_roll,
+          notification_type,
+          title,
+          message_text,
+          related_type,
+          related_id,
+          action_url,
+          is_read
+        )
+
+        VALUES
+        (
+          :studentRoll,
+          'EXAM',
+          :notificationTitle,
+          :messageText,
+          'EXAM',
+          :relatedId,
+          '/exams',
+          0
+        )
+        `,
+        {
+          studentRoll:
+            cleanStudentRoll,
+
+          notificationTitle:
+            "New Exam Scheduled",
+
+          messageText:
+            notificationMessage,
+
+          relatedId:
+            examId,
         }
       );
 
 
-    // -------------------------------------------------
-    // GET GENERATED EXAM ID
-    // -------------------------------------------------
+      // -------------------------------------------------
+      // COMMIT EXAM + NOTIFICATION TOGETHER
+      // -------------------------------------------------
 
-    const examId =
-      examResult.outBinds.examId[0];
-
-
-    // -------------------------------------------------
-    // BUILD NOTIFICATION MESSAGE
-    // -------------------------------------------------
-
-    let notificationMessage =
-      `${cleanExamType} for ${subjectName} is scheduled on ${examDate} from ${cleanStartTime} to ${cleanEndTime}`;
-
-    if (cleanRoom) {
-      notificationMessage +=
-        ` in ${cleanRoom}`;
-    }
-
-    notificationMessage += ".";
+      await connection.commit();
 
 
-    // -------------------------------------------------
-    // CREATE EXAM NOTIFICATION
-    // -------------------------------------------------
+      return res
+        .status(201)
+        .json({
+          message:
+            "Exam created successfully",
 
-    await connection.execute(
-      `
-      INSERT INTO notifications (
-        student_roll,
-        notification_type,
-        title,
-        message_text,
-        related_type,
-        related_id,
-        action_url,
-        is_read
-      )
-      VALUES (
-        :studentRoll,
-        'EXAM',
-        :notificationTitle,
-        :messageText,
-        'EXAM',
-        :relatedId,
-        '/exams',
-        0
-      )
-      `,
-      {
-        studentRoll:
-          cleanStudentRoll,
-
-        notificationTitle:
-          "New Exam Scheduled",
-
-        messageText:
-          notificationMessage,
-
-        relatedId:
           examId,
-      }
-    );
 
+          notificationCreated:
+            true,
+        });
 
-    // -------------------------------------------------
-    // COMMIT EXAM + NOTIFICATION TOGETHER
-    // -------------------------------------------------
+    } catch (error) {
+      // -------------------------------------------------
+      // ROLLBACK BOTH IF ANYTHING FAILS
+      // -------------------------------------------------
 
-    await connection.commit();
+      if (connection) {
+        try {
+          await connection.rollback();
 
-
-    return res.status(201).json({
-      message:
-        "Exam created successfully",
-
-      examId,
-
-      notificationCreated: true,
-    });
-
-  } catch (error) {
-
-    // -------------------------------------------------
-    // ROLLBACK BOTH IF ANYTHING FAILS
-    // -------------------------------------------------
-
-    if (connection) {
-      try {
-        await connection.rollback();
-      } catch (rollbackError) {
-        console.error(
-          "Rollback error:",
+        } catch (
           rollbackError
-        );
+        ) {
+          console.error(
+            "Rollback error:",
+            rollbackError
+          );
+        }
       }
-    }
 
 
-    console.error(
-      "Create exam error:",
-      error
-    );
+      console.error(
+        "Create exam error:",
+        error
+      );
 
 
-    return res.status(500).json({
-      error:
-        "Unable to create exam",
+      return res
+        .status(500)
+        .json({
+          error:
+            "Unable to create exam",
 
-      details:
-        error.message,
-    });
+          details:
+            error.message,
+        });
 
-  } finally {
+    } finally {
+      if (connection) {
+        try {
+          await connection.close();
 
-    if (connection) {
-      try {
-        await connection.close();
-      } catch (closeError) {
-        console.error(
-          "Connection close error:",
+        } catch (
           closeError
-        );
+        ) {
+          console.error(
+            "Connection close error:",
+            closeError
+          );
+        }
       }
     }
   }
-});
+);
 
 
 // =====================================================
@@ -409,244 +505,307 @@ router.post("/", async (req, res) => {
 // PUT /api/admin/exams/:id
 // =====================================================
 
-router.put("/:id", async (req, res) => {
-  let connection;
+router.put(
+  "/:id",
+  async (req, res) => {
+    let connection;
 
-  try {
-    const examId =
-      Number(req.params.id);
-
-
-    if (
-      !Number.isInteger(examId) ||
-      examId <= 0
-    ) {
-      return res.status(400).json({
-        error: "Invalid exam ID",
-      });
-    }
+    try {
+      const examId =
+        Number(
+          req.params.id
+        );
 
 
-    const {
-      studentRoll,
-      subjectCode,
-      examDate,
-      startTime,
-      endTime,
-      room,
-      examType,
-    } = req.body;
+      if (
+        !Number.isInteger(
+          examId
+        ) ||
+        examId <=
+          0
+      ) {
+        return res
+          .status(400)
+          .json({
+            error:
+              "Invalid exam ID",
+          });
+      }
 
 
-    if (
-      !studentRoll?.trim() ||
-      !subjectCode?.trim() ||
-      !examDate ||
-      !startTime?.trim() ||
-      !endTime?.trim() ||
-      !examType?.trim()
-    ) {
-      return res.status(400).json({
-        error:
-          "Student, subject, exam date, start time, end time and exam type are required",
-      });
-    }
+      const {
+        studentRoll,
+        subjectCode,
+        examDate,
+        startTime,
+        endTime,
+        room,
+        examType,
+      } =
+        req.body;
 
 
-    connection = await getConnection();
+      if (
+        !studentRoll?.trim() ||
+        !subjectCode?.trim() ||
+        !examDate ||
+        !startTime?.trim() ||
+        !endTime?.trim() ||
+        !examType?.trim()
+      ) {
+        return res
+          .status(400)
+          .json({
+            error:
+              "Student, subject, exam date, start time, end time and exam type are required",
+          });
+      }
 
 
-    // -------------------------------------------------
-    // CHECK EXAM EXISTS
-    // -------------------------------------------------
+      connection =
+        await getConnection();
 
-    const existing =
+
+      // -------------------------------------------------
+      // CHECK EXAM EXISTS
+      // -------------------------------------------------
+
+      const existing =
+        await connection.execute(
+          `
+          SELECT
+            id
+
+          FROM exams
+
+          WHERE id =
+                :id
+          `,
+          {
+            id:
+              examId,
+          },
+          {
+            outFormat:
+              oracledb.OUT_FORMAT_OBJECT,
+          }
+        );
+
+
+      if (
+        existing.rows.length ===
+        0
+      ) {
+        return res
+          .status(404)
+          .json({
+            error:
+              "Exam not found",
+          });
+      }
+
+
+      // -------------------------------------------------
+      // CHECK STUDENT
+      // -------------------------------------------------
+
+      const studentResult =
+        await connection.execute(
+          `
+          SELECT
+            student_roll
+
+          FROM students
+
+          WHERE LOWER(student_roll) =
+                LOWER(:studentRoll)
+          `,
+          {
+            studentRoll:
+              studentRoll.trim(),
+          },
+          {
+            outFormat:
+              oracledb.OUT_FORMAT_OBJECT,
+          }
+        );
+
+
+      if (
+        studentResult.rows.length ===
+        0
+      ) {
+        return res
+          .status(404)
+          .json({
+            error:
+              "Student not found",
+          });
+      }
+
+
+      // -------------------------------------------------
+      // CHECK SUBJECT
+      // -------------------------------------------------
+
+      const subjectResult =
+        await connection.execute(
+          `
+          SELECT
+            subject_code
+
+          FROM subjects
+
+          WHERE UPPER(subject_code) =
+                UPPER(:subjectCode)
+          `,
+          {
+            subjectCode:
+              subjectCode.trim(),
+          },
+          {
+            outFormat:
+              oracledb.OUT_FORMAT_OBJECT,
+          }
+        );
+
+
+      if (
+        subjectResult.rows.length ===
+        0
+      ) {
+        return res
+          .status(404)
+          .json({
+            error:
+              "Subject not found",
+          });
+      }
+
+
+      // -------------------------------------------------
+      // UPDATE EXAM
+      // -------------------------------------------------
+
       await connection.execute(
         `
-        SELECT id
-        FROM exams
-        WHERE id = :id
-        `,
-        {
-          id: examId,
-        },
-        {
-          outFormat:
-            oracledb.OUT_FORMAT_OBJECT,
-        }
-      );
+        UPDATE exams
 
+        SET
+          student_roll =
+            :studentRoll,
 
-    if (
-      existing.rows.length === 0
-    ) {
-      return res.status(404).json({
-        error: "Exam not found",
-      });
-    }
+          subject_code =
+            :subjectCode,
 
+          exam_date =
+            TO_DATE(
+              :examDate,
+              'YYYY-MM-DD'
+            ),
 
-    // -------------------------------------------------
-    // CHECK STUDENT
-    // -------------------------------------------------
+          start_time =
+            :startTime,
 
-    const studentResult =
-      await connection.execute(
-        `
-        SELECT student_roll
-        FROM students
-        WHERE LOWER(student_roll) =
-              LOWER(:studentRoll)
+          end_time =
+            :endTime,
+
+          room =
+            :room,
+
+          exam_type =
+            :examType
+
+        WHERE id =
+              :id
         `,
         {
           studentRoll:
             studentRoll.trim(),
-        },
-        {
-          outFormat:
-            oracledb.OUT_FORMAT_OBJECT,
-        }
-      );
 
-
-    if (
-      studentResult.rows.length === 0
-    ) {
-      return res.status(404).json({
-        error: "Student not found",
-      });
-    }
-
-
-    // -------------------------------------------------
-    // CHECK SUBJECT
-    // -------------------------------------------------
-
-    const subjectResult =
-      await connection.execute(
-        `
-        SELECT subject_code
-        FROM subjects
-        WHERE UPPER(subject_code) =
-              UPPER(:subjectCode)
-        `,
-        {
           subjectCode:
-            subjectCode.trim(),
-        },
-        {
-          outFormat:
-            oracledb.OUT_FORMAT_OBJECT,
+            subjectCode
+              .trim()
+              .toUpperCase(),
+
+          examDate,
+
+          startTime:
+            startTime.trim(),
+
+          endTime:
+            endTime.trim(),
+
+          room:
+            room?.trim() ||
+            null,
+
+          examType:
+            examType.trim(),
+
+          id:
+            examId,
         }
       );
 
 
-    if (
-      subjectResult.rows.length === 0
-    ) {
-      return res.status(404).json({
-        error: "Subject not found",
+      await connection.commit();
+
+
+      return res.json({
+        message:
+          "Exam updated successfully",
       });
-    }
 
+    } catch (error) {
+      if (connection) {
+        try {
+          await connection.rollback();
 
-    // -------------------------------------------------
-    // UPDATE EXAM
-    // -------------------------------------------------
-
-    await connection.execute(
-      `
-      UPDATE exams
-      SET
-        student_roll = :studentRoll,
-        subject_code = :subjectCode,
-        exam_date =
-          TO_DATE(:examDate, 'YYYY-MM-DD'),
-        start_time = :startTime,
-        end_time = :endTime,
-        room = :room,
-        exam_type = :examType
-      WHERE id = :id
-      `,
-      {
-        studentRoll:
-          studentRoll.trim(),
-
-        subjectCode:
-          subjectCode
-            .trim()
-            .toUpperCase(),
-
-        examDate,
-
-        startTime:
-          startTime.trim(),
-
-        endTime:
-          endTime.trim(),
-
-        room:
-          room?.trim() || null,
-
-        examType:
-          examType.trim(),
-
-        id:
-          examId,
-      }
-    );
-
-
-    await connection.commit();
-
-
-    return res.json({
-      message:
-        "Exam updated successfully",
-    });
-
-  } catch (error) {
-
-    if (connection) {
-      try {
-        await connection.rollback();
-      } catch (rollbackError) {
-        console.error(
-          "Rollback error:",
+        } catch (
           rollbackError
-        );
+        ) {
+          console.error(
+            "Rollback error:",
+            rollbackError
+          );
+        }
       }
-    }
 
 
-    console.error(
-      "Update exam error:",
-      error
-    );
+      console.error(
+        "Update exam error:",
+        error
+      );
 
 
-    return res.status(500).json({
-      error:
-        "Unable to update exam",
+      return res
+        .status(500)
+        .json({
+          error:
+            "Unable to update exam",
 
-      details:
-        error.message,
-    });
+          details:
+            error.message,
+        });
 
-  } finally {
+    } finally {
+      if (connection) {
+        try {
+          await connection.close();
 
-    if (connection) {
-      try {
-        await connection.close();
-      } catch (closeError) {
-        console.error(
-          "Connection close error:",
+        } catch (
           closeError
-        );
+        ) {
+          console.error(
+            "Connection close error:",
+            closeError
+          );
+        }
       }
     }
   }
-});
+);
 
 
 // =====================================================
@@ -654,100 +813,127 @@ router.put("/:id", async (req, res) => {
 // DELETE /api/admin/exams/:id
 // =====================================================
 
-router.delete("/:id", async (req, res) => {
-  let connection;
+router.delete(
+  "/:id",
+  async (req, res) => {
+    let connection;
 
-  try {
-    const examId =
-      Number(req.params.id);
+    try {
+      const examId =
+        Number(
+          req.params.id
+        );
 
 
-    if (
-      !Number.isInteger(examId) ||
-      examId <= 0
-    ) {
-      return res.status(400).json({
-        error: "Invalid exam ID",
+      if (
+        !Number.isInteger(
+          examId
+        ) ||
+        examId <=
+          0
+      ) {
+        return res
+          .status(400)
+          .json({
+            error:
+              "Invalid exam ID",
+          });
+      }
+
+
+      connection =
+        await getConnection();
+
+
+      const result =
+        await connection.execute(
+          `
+          DELETE FROM exams
+
+          WHERE id =
+                :id
+          `,
+          {
+            id:
+              examId,
+          }
+        );
+
+
+      if (
+        result.rowsAffected ===
+        0
+      ) {
+        await connection.rollback();
+
+
+        return res
+          .status(404)
+          .json({
+            error:
+              "Exam not found",
+          });
+      }
+
+
+      await connection.commit();
+
+
+      return res.json({
+        message:
+          "Exam deleted successfully",
       });
-    }
 
+    } catch (error) {
+      if (connection) {
+        try {
+          await connection.rollback();
 
-    connection = await getConnection();
-
-
-    const result =
-      await connection.execute(
-        `
-        DELETE FROM exams
-        WHERE id = :id
-        `,
-        {
-          id: examId,
+        } catch (
+          rollbackError
+        ) {
+          console.error(
+            "Rollback error:",
+            rollbackError
+          );
         }
+      }
+
+
+      console.error(
+        "Delete exam error:",
+        error
       );
 
 
-    if (
-      result.rowsAffected === 0
-    ) {
-      await connection.rollback();
+      return res
+        .status(500)
+        .json({
+          error:
+            "Unable to delete exam",
 
-      return res.status(404).json({
-        error: "Exam not found",
-      });
-    }
+          details:
+            error.message,
+        });
 
+    } finally {
+      if (connection) {
+        try {
+          await connection.close();
 
-    await connection.commit();
-
-
-    return res.json({
-      message:
-        "Exam deleted successfully",
-    });
-
-  } catch (error) {
-
-    if (connection) {
-      try {
-        await connection.rollback();
-      } catch (rollbackError) {
-        console.error(
-          "Rollback error:",
-          rollbackError
-        );
-      }
-    }
-
-
-    console.error(
-      "Delete exam error:",
-      error
-    );
-
-
-    return res.status(500).json({
-      error:
-        "Unable to delete exam",
-
-      details:
-        error.message,
-    });
-
-  } finally {
-
-    if (connection) {
-      try {
-        await connection.close();
-      } catch (closeError) {
-        console.error(
-          "Connection close error:",
+        } catch (
           closeError
-        );
+        ) {
+          console.error(
+            "Connection close error:",
+            closeError
+          );
+        }
       }
     }
   }
-});
+);
 
 
-module.exports = router;
+module.exports =
+  router;
