@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import AdminSidebar from "../../components/admin/AdminSidebar";
+import { getAuthHeader } from "../../services/api";
 
 const API_URL = "http://localhost:5000";
 
@@ -113,11 +114,19 @@ export default function UpdateAttendance() {
           sectionsResponse,
         ] = await Promise.all([
           fetch(
-            `${API_URL}/api/attendance/subjects`
+            `${API_URL}/api/attendance/subjects`,
+            {
+              headers:
+                getAuthHeader(),
+            }
           ),
 
           fetch(
-            `${API_URL}/api/attendance/sections`
+            `${API_URL}/api/attendance/sections`,
+            {
+              headers:
+                getAuthHeader(),
+            }
           ),
         ]);
 
@@ -165,6 +174,7 @@ export default function UpdateAttendance() {
             realSections[0].SECTION
           );
         }
+
       } catch (err) {
         console.error(
           "Attendance setup error:",
@@ -175,6 +185,7 @@ export default function UpdateAttendance() {
           err.message ||
             "Unable to load attendance data."
         );
+
       } finally {
         setLoading(false);
       }
@@ -202,7 +213,11 @@ export default function UpdateAttendance() {
         const response = await fetch(
           `${API_URL}/api/attendance/roster?section=${encodeURIComponent(
             selectedSection
-          )}`
+          )}`,
+          {
+            headers:
+              getAuthHeader(),
+          }
         );
 
         const data =
@@ -238,6 +253,7 @@ export default function UpdateAttendance() {
         setStudentList(
           realStudents
         );
+
       } catch (err) {
         console.error(
           "Roster load error:",
@@ -250,6 +266,7 @@ export default function UpdateAttendance() {
           err.message ||
             "Unable to load student roster."
         );
+
       } finally {
         setLoadingStudents(false);
       }
@@ -477,6 +494,8 @@ export default function UpdateAttendance() {
             headers: {
               "Content-Type":
                 "application/json",
+
+              ...getAuthHeader(),
             },
 
             body: JSON.stringify({
@@ -498,6 +517,7 @@ export default function UpdateAttendance() {
       try {
         data =
           await response.json();
+
       } catch {
         data = {};
       }
@@ -524,6 +544,7 @@ export default function UpdateAttendance() {
         data.message ||
           "Attendance saved successfully"
       );
+
     } catch (err) {
       console.error(
         "Attendance save error:",
@@ -549,6 +570,7 @@ export default function UpdateAttendance() {
         err.message ||
           "Unable to save attendance."
       );
+
     } finally {
       setIsSubmitting(false);
     }
@@ -1086,8 +1108,7 @@ export default function UpdateAttendance() {
                   <span className="font-semibold text-on-surface">
                     {presentCount}
                   </span>{" "}
-                  present,
-                  {" "}
+                  present,{" "}
                   <span className="font-semibold text-on-surface">
                     {absentCount}
                   </span>{" "}

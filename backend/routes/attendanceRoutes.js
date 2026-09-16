@@ -2,11 +2,17 @@ const express = require("express");
 const oracledb = require("oracledb");
 const getConnection = require("../db");
 
+const {
+  authenticateToken,
+  requireAdmin,
+} = require("../middleware/authMiddleware");
+
 const router = express.Router();
 
 const OUT_FORMAT = {
   outFormat: oracledb.OUT_FORMAT_OBJECT,
 };
+
 
 // =====================================================
 // HELPERS
@@ -15,6 +21,7 @@ const OUT_FORMAT = {
 function cleanText(value) {
   return String(value || "").trim();
 }
+
 
 async function closeConnection(
   connection,
@@ -26,6 +33,7 @@ async function closeConnection(
 
   try {
     await connection.close();
+
   } catch (error) {
     console.error(
       `${label} close error:`,
@@ -33,6 +41,7 @@ async function closeConnection(
     );
   }
 }
+
 
 // =====================================================
 // LOAD SESSION-LEVEL HISTORY
@@ -83,8 +92,10 @@ async function getSessionHistoryRows(
       OUT_FORMAT
     );
 
+
   return result.rows;
 }
+
 
 // =====================================================
 // UPDATE OVERALL TREND SNAPSHOT
@@ -119,17 +130,20 @@ async function updateOverallTrendSnapshot(
       OUT_FORMAT
     );
 
+
   const attendedClasses =
     Number(
       overallResult.rows[0]
         ?.ATTENDED_CLASSES || 0
     );
 
+
   const totalClasses =
     Number(
       overallResult.rows[0]
         ?.TOTAL_CLASSES || 0
     );
+
 
   const attendancePercentage =
     totalClasses > 0
@@ -143,6 +157,7 @@ async function updateOverallTrendSnapshot(
           ).toFixed(2)
         )
       : 0;
+
 
   await connection.execute(
     `
@@ -219,12 +234,14 @@ async function updateOverallTrendSnapshot(
     }
   );
 
+
   return {
     attendedClasses,
     totalClasses,
     attendancePercentage,
   };
 }
+
 
 // =====================================================
 // CREATE LOW ATTENDANCE NOTIFICATION
@@ -246,9 +263,11 @@ async function createLowAttendanceNotificationIfNeeded({
         ) * 100
       : 0;
 
+
   if (percentage >= 75) {
     return false;
   }
+
 
   const existingResult =
     await connection.execute(
@@ -279,17 +298,20 @@ async function createLowAttendanceNotificationIfNeeded({
       OUT_FORMAT
     );
 
+
   if (
     existingResult.rows.length > 0
   ) {
     return false;
   }
 
+
   const messageText =
     `Your ${subjectName} attendance is ` +
     `${percentage.toFixed(1)}% ` +
     `(${attendedClasses}/${totalClasses}). ` +
     `This is below the required 75% attendance.`;
+
 
   await connection.execute(
     `
@@ -328,22 +350,32 @@ async function createLowAttendanceNotificationIfNeeded({
     }
   );
 
+
   return true;
 }
+
 
 // =====================================================
 // GET ALL ATTENDANCE RECORDS
 // GET /api/attendance
+//
+// ADMIN ONLY
 // =====================================================
 
 router.get(
   "/",
+
+  authenticateToken,
+  requireAdmin,
+
   async (req, res) => {
     let connection;
+
 
     try {
       connection =
         await getConnection();
+
 
       const result =
         await connection.execute(
@@ -376,22 +408,28 @@ router.get(
           OUT_FORMAT
         );
 
+
       return res.json(
         result.rows
       );
+
     } catch (error) {
       console.error(
         "Attendance route error:",
         error
       );
 
-      return res.status(500).json({
-        error:
-          "Unable to load attendance",
 
-        details:
-          error.message,
-      });
+      return res
+        .status(500)
+        .json({
+          error:
+            "Unable to load attendance",
+
+          details:
+            error.message,
+        });
+
     } finally {
       await closeConnection(
         connection,
@@ -401,19 +439,28 @@ router.get(
   }
 );
 
+
 // =====================================================
 // GET SUBJECTS
 // GET /api/attendance/subjects
+//
+// ADMIN ONLY
 // =====================================================
 
 router.get(
   "/subjects",
+
+  authenticateToken,
+  requireAdmin,
+
   async (req, res) => {
     let connection;
+
 
     try {
       connection =
         await getConnection();
+
 
       const result =
         await connection.execute(
@@ -431,22 +478,28 @@ router.get(
           OUT_FORMAT
         );
 
+
       return res.json(
         result.rows
       );
+
     } catch (error) {
       console.error(
         "Load subjects error:",
         error
       );
 
-      return res.status(500).json({
-        error:
-          "Unable to load subjects",
 
-        details:
-          error.message,
-      });
+      return res
+        .status(500)
+        .json({
+          error:
+            "Unable to load subjects",
+
+          details:
+            error.message,
+        });
+
     } finally {
       await closeConnection(
         connection,
@@ -456,19 +509,28 @@ router.get(
   }
 );
 
+
 // =====================================================
 // GET AVAILABLE SECTIONS
 // GET /api/attendance/sections
+//
+// ADMIN ONLY
 // =====================================================
 
 router.get(
   "/sections",
+
+  authenticateToken,
+  requireAdmin,
+
   async (req, res) => {
     let connection;
+
 
     try {
       connection =
         await getConnection();
+
 
       const result =
         await connection.execute(
@@ -488,22 +550,28 @@ router.get(
           OUT_FORMAT
         );
 
+
       return res.json(
         result.rows
       );
+
     } catch (error) {
       console.error(
         "Load sections error:",
         error
       );
 
-      return res.status(500).json({
-        error:
-          "Unable to load sections",
 
-        details:
-          error.message,
-      });
+      return res
+        .status(500)
+        .json({
+          error:
+            "Unable to load sections",
+
+          details:
+            error.message,
+        });
+
     } finally {
       await closeConnection(
         connection,
@@ -513,21 +581,30 @@ router.get(
   }
 );
 
+
 // =====================================================
 // GET STUDENTS OF A SECTION
 // GET /api/attendance/roster?section=A
+//
+// ADMIN ONLY
 // =====================================================
 
 router.get(
   "/roster",
+
+  authenticateToken,
+  requireAdmin,
+
   async (req, res) => {
     let connection;
+
 
     try {
       const section =
         cleanText(
           req.query.section
         );
+
 
       if (!section) {
         return res
@@ -538,8 +615,10 @@ router.get(
           });
       }
 
+
       connection =
         await getConnection();
+
 
       const result =
         await connection.execute(
@@ -566,22 +645,28 @@ router.get(
           OUT_FORMAT
         );
 
+
       return res.json(
         result.rows
       );
+
     } catch (error) {
       console.error(
         "Load roster error:",
         error
       );
 
-      return res.status(500).json({
-        error:
-          "Unable to load student roster",
 
-        details:
-          error.message,
-      });
+      return res
+        .status(500)
+        .json({
+          error:
+            "Unable to load student roster",
+
+          details:
+            error.message,
+        });
+
     } finally {
       await closeConnection(
         connection,
@@ -590,6 +675,7 @@ router.get(
     }
   }
 );
+
 
 // =====================================================
 // GET SESSION-TRACKED ATTENDANCE
@@ -612,14 +698,17 @@ router.get(
 
 router.get(
   "/sessions/:studentRoll",
+
   async (req, res) => {
     let connection;
+
 
     try {
       const studentRoll =
         cleanText(
           req.params.studentRoll
         );
+
 
       if (!studentRoll) {
         return res
@@ -630,8 +719,10 @@ router.get(
           });
       }
 
+
       connection =
         await getConnection();
+
 
       // -----------------------------------------------
       // VERIFY STUDENT
@@ -655,8 +746,10 @@ router.get(
           OUT_FORMAT
         );
 
+
       if (
-        studentResult.rows.length === 0
+        studentResult.rows.length ===
+        0
       ) {
         return res
           .status(404)
@@ -665,6 +758,7 @@ router.get(
               "Student not found",
           });
       }
+
 
       // -----------------------------------------------
       // LOAD SESSION HISTORY
@@ -676,8 +770,10 @@ router.get(
           studentRoll
         );
 
+
       let trackedFrom =
         null;
+
 
       if (rows.length > 0) {
         const oldestRecord =
@@ -685,11 +781,13 @@ router.get(
             rows.length - 1
           ];
 
+
         trackedFrom =
           oldestRecord
             .SESSION_DATE ||
           null;
       }
+
 
       return res.json({
         studentRoll:
@@ -713,11 +811,13 @@ router.get(
         sessions:
           rows,
       });
+
     } catch (error) {
       console.error(
         "Session attendance error:",
         error
       );
+
 
       return res
         .status(500)
@@ -728,6 +828,7 @@ router.get(
           details:
             error.message,
         });
+
     } finally {
       await closeConnection(
         connection,
@@ -737,11 +838,14 @@ router.get(
   }
 );
 
+
 // =====================================================
 // MARK ATTENDANCE
 //
 // POST:
 // /api/attendance/mark
+//
+// ADMIN ONLY
 //
 // NEW SESSION:
 //
@@ -764,8 +868,13 @@ router.get(
 
 router.post(
   "/mark",
+
+  authenticateToken,
+  requireAdmin,
+
   async (req, res) => {
     let connection;
+
 
     try {
       const {
@@ -775,6 +884,7 @@ router.post(
         records,
       } =
         req.body || {};
+
 
       // =================================================
       // VALIDATION
@@ -793,8 +903,11 @@ router.post(
           });
       }
 
+
       if (
-        !cleanText(section)
+        !cleanText(
+          section
+        )
       ) {
         return res
           .status(400)
@@ -803,6 +916,7 @@ router.post(
               "Section is required",
           });
       }
+
 
       if (
         !cleanText(
@@ -816,6 +930,7 @@ router.post(
               "Session type is required",
           });
       }
+
 
       if (
         !Array.isArray(
@@ -831,20 +946,24 @@ router.post(
           });
       }
 
+
       const cleanSubjectCode =
         cleanText(
           subjectCode
         ).toUpperCase();
+
 
       const cleanSection =
         cleanText(
           section
         );
 
+
       const cleanSessionType =
         cleanText(
           sessionType
         );
+
 
       // =================================================
       // VALIDATE EACH STUDENT RECORD
@@ -852,6 +971,7 @@ router.post(
 
       const seenRolls =
         new Set();
+
 
       for (
         const record
@@ -863,10 +983,12 @@ router.post(
               ?.studentRoll
           );
 
+
         const status =
           cleanText(
             record?.status
           ).toLowerCase();
+
 
         if (
           !studentRoll ||
@@ -885,9 +1007,11 @@ router.post(
             });
         }
 
+
         const rollKey =
           studentRoll
             .toUpperCase();
+
 
         if (
           seenRolls.has(
@@ -902,13 +1026,16 @@ router.post(
             });
         }
 
+
         seenRolls.add(
           rollKey
         );
       }
 
+
       connection =
         await getConnection();
+
 
       // =================================================
       // CHECK SUBJECT
@@ -933,6 +1060,7 @@ router.post(
           OUT_FORMAT
         );
 
+
       if (
         subjectResult
           .rows.length === 0
@@ -945,11 +1073,13 @@ router.post(
           });
       }
 
+
       const subjectName =
         subjectResult
           .rows[0]
           .SUBJECT_NAME ||
         cleanSubjectCode;
+
 
       // =================================================
       // CREATE OR REUSE SESSION
@@ -958,8 +1088,10 @@ router.post(
       let sessionId =
         null;
 
+
       let isHistoryBackfill =
         false;
+
 
       try {
         // -----------------------------------------------
@@ -1011,10 +1143,12 @@ router.post(
             }
           );
 
+
         sessionId =
           sessionResult
             .outBinds
             .sessionId[0];
+
       } catch (
         sessionError
       ) {
@@ -1036,7 +1170,9 @@ router.post(
           throw sessionError;
         }
 
+
         await connection.rollback();
+
 
         // -----------------------------------------------
         // FIND EXISTING SESSION
@@ -1079,6 +1215,7 @@ router.post(
             OUT_FORMAT
           );
 
+
         if (
           existingSessionResult
             .rows.length === 0
@@ -1088,10 +1225,12 @@ router.post(
           );
         }
 
+
         sessionId =
           existingSessionResult
             .rows[0]
             .SESSION_ID;
+
 
         // -----------------------------------------------
         // CHECK SESSION HISTORY
@@ -1115,6 +1254,7 @@ router.post(
             OUT_FORMAT
           );
 
+
         const historyCount =
           Number(
             historyResult
@@ -1122,6 +1262,7 @@ router.post(
               ?.HISTORY_COUNT ||
               0
           );
+
 
         // -----------------------------------------------
         // TRUE DUPLICATE
@@ -1138,6 +1279,7 @@ router.post(
             });
         }
 
+
         // -----------------------------------------------
         // OLD SESSION CREATED BEFORE ATTENDANCE_RECORDS
         //
@@ -1150,11 +1292,13 @@ router.post(
           true;
       }
 
+
       if (!sessionId) {
         throw new Error(
           "Attendance session ID could not be resolved."
         );
       }
+
 
       // =================================================
       // COUNTERS
@@ -1163,11 +1307,14 @@ router.post(
       let notificationsCreated =
         0;
 
+
       let historyRecordsCreated =
         0;
 
+
       let aggregateRecordsUpdated =
         0;
+
 
       // =================================================
       // PROCESS STUDENTS
@@ -1183,16 +1330,19 @@ router.post(
               .studentRoll
           );
 
+
         const status =
           cleanText(
             record.status
           ).toLowerCase();
+
 
         const presentIncrement =
           status ===
           "present"
             ? 1
             : 0;
+
 
         // ===============================================
         // SAVE SESSION HISTORY
@@ -1223,7 +1373,9 @@ router.post(
           }
         );
 
+
         historyRecordsCreated++;
+
 
         // ===============================================
         // HISTORY BACKFILL
@@ -1236,6 +1388,7 @@ router.post(
         ) {
           continue;
         }
+
 
         // ===============================================
         // UPDATE SUBJECT AGGREGATE
@@ -1314,7 +1467,9 @@ router.post(
           }
         );
 
+
         aggregateRecordsUpdated++;
+
 
         // ===============================================
         // UPDATE OVERALL TREND HISTORY
@@ -1324,6 +1479,7 @@ router.post(
           connection,
           studentRoll
         );
+
 
         // ===============================================
         // READ UPDATED SUBJECT ATTENDANCE
@@ -1354,6 +1510,7 @@ router.post(
             OUT_FORMAT
           );
 
+
         if (
           updatedAttendanceResult
             .rows.length === 0
@@ -1363,12 +1520,15 @@ router.post(
           );
         }
 
+
         const attendanceRow =
           updatedAttendanceResult
             .rows[0];
 
+
         const attendanceId =
           attendanceRow.ID;
+
 
         const attendedClasses =
           Number(
@@ -1377,12 +1537,14 @@ router.post(
               0
           );
 
+
         const totalClasses =
           Number(
             attendanceRow
               .TOTAL_CLASSES ||
               0
           );
+
 
         // ===============================================
         // LOW ATTENDANCE NOTIFICATION
@@ -1405,6 +1567,7 @@ router.post(
             }
           );
 
+
         if (
           notificationCreated
         ) {
@@ -1412,11 +1575,13 @@ router.post(
         }
       }
 
+
       // =================================================
       // COMMIT
       // =================================================
 
       await connection.commit();
+
 
       // =================================================
       // RESPONSE
@@ -1453,10 +1618,13 @@ router.post(
 
         notificationsCreated,
       });
+
     } catch (error) {
+
       if (connection) {
         try {
           await connection.rollback();
+
         } catch (
           rollbackError
         ) {
@@ -1467,10 +1635,12 @@ router.post(
         }
       }
 
+
       console.error(
         "Mark attendance error:",
         error
       );
+
 
       return res
         .status(500)
@@ -1481,6 +1651,7 @@ router.post(
           details:
             error.message,
         });
+
     } finally {
       await closeConnection(
         connection,
@@ -1489,6 +1660,7 @@ router.post(
     }
   }
 );
+
 
 // =====================================================
 // GET REAL SESSION ATTENDANCE TREND
@@ -1505,8 +1677,10 @@ router.post(
 
 router.get(
   "/:studentRoll/trend",
+
   async (req, res) => {
     let connection;
+
 
     try {
       const studentRoll =
@@ -1514,6 +1688,7 @@ router.get(
           req.params
             .studentRoll
         );
+
 
       if (!studentRoll) {
         return res
@@ -1524,11 +1699,13 @@ router.get(
           });
       }
 
+
       const requestedWeeks =
         Number.parseInt(
           req.query.weeks,
           10
         );
+
 
       const weeks =
         Number.isFinite(
@@ -1543,8 +1720,10 @@ router.get(
             )
           : 8;
 
+
       connection =
         await getConnection();
+
 
       // -----------------------------------------------
       // VERIFY STUDENT
@@ -1568,6 +1747,7 @@ router.get(
           OUT_FORMAT
         );
 
+
       if (
         studentResult
           .rows.length === 0
@@ -1579,6 +1759,7 @@ router.get(
               "Student not found",
           });
       }
+
 
       // -----------------------------------------------
       // WEEKLY SESSION HISTORY
@@ -1682,6 +1863,7 @@ router.get(
           OUT_FORMAT
         );
 
+
       // -----------------------------------------------
       // FORMAT RESPONSE
       // -----------------------------------------------
@@ -1696,12 +1878,14 @@ router.get(
                 0
               );
 
+
             const totalClasses =
               Number(
                 row
                   .TOTAL_CLASSES ||
                 0
               );
+
 
             const percentage =
               totalClasses > 0
@@ -1715,6 +1899,7 @@ router.get(
                     ).toFixed(1)
                   )
                 : null;
+
 
             return {
               weekStart:
@@ -1732,17 +1917,20 @@ router.get(
           }
         );
 
+
       const firstTrackedWeek =
         trendData.find(
           (week) =>
             week.totalClasses > 0
         );
 
+
       const trackedWeeks =
         trendData.filter(
           (week) =>
             week.totalClasses > 0
         ).length;
+
 
       return res.json({
         studentRoll:
@@ -1769,11 +1957,13 @@ router.get(
         data:
           trendData,
       });
+
     } catch (error) {
       console.error(
         "Attendance trend error:",
         error
       );
+
 
       return res
         .status(500)
@@ -1784,6 +1974,7 @@ router.get(
           details:
             error.message,
         });
+
     } finally {
       await closeConnection(
         connection,
@@ -1792,6 +1983,7 @@ router.get(
     }
   }
 );
+
 
 // =====================================================
 // GET INDIVIDUAL SESSION HISTORY
@@ -1805,8 +1997,10 @@ router.get(
 
 router.get(
   "/:studentRoll/history",
+
   async (req, res) => {
     let connection;
+
 
     try {
       const studentRoll =
@@ -1814,6 +2008,7 @@ router.get(
           req.params
             .studentRoll
         );
+
 
       if (!studentRoll) {
         return res
@@ -1824,8 +2019,10 @@ router.get(
           });
       }
 
+
       connection =
         await getConnection();
+
 
       const rows =
         await getSessionHistoryRows(
@@ -1833,14 +2030,17 @@ router.get(
           studentRoll
         );
 
+
       return res.json(
         rows
       );
+
     } catch (error) {
       console.error(
         "Attendance history error:",
         error
       );
+
 
       return res
         .status(500)
@@ -1851,6 +2051,7 @@ router.get(
           details:
             error.message,
         });
+
     } finally {
       await closeConnection(
         connection,
@@ -1859,6 +2060,7 @@ router.get(
     }
   }
 );
+
 
 // =====================================================
 // GET REAL OVERALL ATTENDANCE SNAPSHOT HISTORY
@@ -1875,8 +2077,10 @@ router.get(
 
 router.get(
   "/:studentRoll/trend-history",
+
   async (req, res) => {
     let connection;
+
 
     try {
       const studentRoll =
@@ -1884,6 +2088,7 @@ router.get(
           req.params
             .studentRoll
         );
+
 
       if (!studentRoll) {
         return res
@@ -1894,8 +2099,10 @@ router.get(
           });
       }
 
+
       let weeks =
         null;
+
 
       // -----------------------------------------------
       // OPTIONAL WEEK FILTER
@@ -1913,6 +2120,7 @@ router.get(
             10
           );
 
+
         if (
           !Number.isFinite(
             requestedWeeks
@@ -1926,6 +2134,7 @@ router.get(
             });
         }
 
+
         weeks =
           Math.min(
             52,
@@ -1936,8 +2145,10 @@ router.get(
           );
       }
 
+
       connection =
         await getConnection();
+
 
       const weeksFilter =
         weeks === null
@@ -1957,9 +2168,11 @@ router.get(
                 )
           `;
 
+
       const binds = {
         studentRoll,
       };
+
 
       if (
         weeks !== null
@@ -1967,6 +2180,7 @@ router.get(
         binds.weeks =
           weeks;
       }
+
 
       // -----------------------------------------------
       // LOAD REAL SNAPSHOTS
@@ -2015,6 +2229,7 @@ router.get(
           OUT_FORMAT
         );
 
+
       const historyData =
         result.rows.map(
           (row) => ({
@@ -2049,17 +2264,20 @@ router.get(
           })
         );
 
+
       return res.json({
         studentRoll,
 
         data:
           historyData,
       });
+
     } catch (error) {
       console.error(
         "Attendance trend history error:",
         error
       );
+
 
       return res
         .status(500)
@@ -2070,6 +2288,7 @@ router.get(
           details:
             error.message,
         });
+
     } finally {
       await closeConnection(
         connection,
@@ -2078,6 +2297,7 @@ router.get(
     }
   }
 );
+
 
 // =====================================================
 // GET ATTENDANCE OF ONE STUDENT
@@ -2108,8 +2328,10 @@ router.get(
 
 router.get(
   "/:studentRoll",
+
   async (req, res) => {
     let connection;
+
 
     try {
       const studentRoll =
@@ -2117,6 +2339,7 @@ router.get(
           req.params
             .studentRoll
         );
+
 
       if (!studentRoll) {
         return res
@@ -2127,8 +2350,10 @@ router.get(
           });
       }
 
+
       connection =
         await getConnection();
+
 
       const result =
         await connection.execute(
@@ -2175,14 +2400,17 @@ router.get(
           OUT_FORMAT
         );
 
+
       return res.json(
         result.rows
       );
+
     } catch (error) {
       console.error(
         "Student attendance error:",
         error
       );
+
 
       return res
         .status(500)
@@ -2193,6 +2421,7 @@ router.get(
           details:
             error.message,
         });
+
     } finally {
       await closeConnection(
         connection,
@@ -2202,8 +2431,10 @@ router.get(
   }
 );
 
+
 // =====================================================
 // EXPORT
 // =====================================================
 
-module.exports = router;
+module.exports =
+  router;

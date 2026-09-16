@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import AdminSidebar from "../../components/admin/AdminSidebar";
-import { getAuthHeader } from "../../services/api";
 
 const API_URL = "http://localhost:5000";
-
 
 // =====================================================
 // EMPTY STATE FACTORIES
@@ -22,7 +20,6 @@ function createEmptyStudent() {
   };
 }
 
-
 function createEmptyNewStudent() {
   return {
     fullName: "",
@@ -35,7 +32,6 @@ function createEmptyNewStudent() {
   };
 }
 
-
 function createEmptyAcademicSummary() {
   return {
     cgpa: "",
@@ -45,30 +41,22 @@ function createEmptyAcademicSummary() {
   };
 }
 
-
 // =====================================================
 // AUTH & NETWORK HELPERS
 // =====================================================
 
 function getToken() {
-  return (
-    localStorage.getItem(
-      "campus_token"
-    ) || ""
-  );
+  return localStorage.getItem("campus_token") || "";
 }
-
 
 async function readJson(response) {
   let data = {};
 
   try {
-    data =
-      await response.json();
+    data = await response.json();
   } catch {
     data = {};
   }
-
 
   if (!response.ok) {
     throw new Error(
@@ -78,840 +66,474 @@ async function readJson(response) {
     );
   }
 
-
   return data;
 }
 
-
-// =====================================================
-// LOAD ALL STUDENTS
-// =====================================================
-
 async function fetchAllStudents() {
-  const response =
-    await fetch(
-      `${API_URL}/api/students`
-    );
-
-
-  const data =
-    await readJson(
-      response
-    );
-
+  const response = await fetch(`${API_URL}/api/students`);
+  const data = await readJson(response);
 
   return Array.isArray(data)
     ? data
     : [];
 }
 
-
-// =====================================================
-// SEARCH STUDENTS
-// =====================================================
-
-async function fetchStudentSearchResults(
-  query
-) {
-  const response =
-    await fetch(
-      `${API_URL}/api/students/search?q=${encodeURIComponent(
-        query
-      )}`
-    );
-
-
-  const data =
-    await readJson(
-      response
-    );
-
-
-  return Array.isArray(data)
-    ? data
-    : [];
-}
-
-
-// =====================================================
-// LOAD ACADEMIC SUMMARY
-// =====================================================
-
-async function fetchAcademicSummary(
-  studentRoll
-) {
-  const token =
-    getToken();
-
-
-  const response =
-    await fetch(
-      `${API_URL}/api/students/${encodeURIComponent(
-        studentRoll
-      )}/academic-summary`,
-      {
-        headers: token
-          ? {
-              Authorization:
-                `Bearer ${token}`,
-            }
-          : {},
-      }
-    );
-
-
-  return readJson(
-    response
+async function fetchStudentSearchResults(query) {
+  const response = await fetch(
+    `${API_URL}/api/students/search?q=${encodeURIComponent(query)}`
   );
+
+  const data = await readJson(response);
+
+  return Array.isArray(data)
+    ? data
+    : [];
 }
 
+async function fetchAcademicSummary(studentRoll) {
+  const token = getToken();
 
-// =====================================================
-// FIND EXACT STUDENT
-// =====================================================
+  const response = await fetch(
+    `${API_URL}/api/students/${encodeURIComponent(
+      studentRoll
+    )}/academic-summary`,
+    {
+      headers: token
+        ? {
+            Authorization: `Bearer ${token}`,
+          }
+        : {},
+    }
+  );
 
-function findExactStudent(
-  students,
-  query
-) {
-  const normalizedQuery =
-    String(
-      query || ""
-    )
-      .trim()
-      .toLowerCase();
+  return readJson(response);
+}
 
+function findExactStudent(students, query) {
+  const normalizedQuery = String(query || "")
+    .trim()
+    .toLowerCase();
 
-  const exact =
-    students.find(
-      (student) =>
-        String(
-          student.STUDENT_ROLL ||
-            ""
-        )
-          .trim()
-          .toLowerCase() ===
-        normalizedQuery
-    );
-
+  const exact = students.find(
+    (student) =>
+      String(student.STUDENT_ROLL || "")
+        .trim()
+        .toLowerCase() === normalizedQuery
+  );
 
   if (exact) {
     return exact;
   }
 
-
-  if (
-    students.length === 1
-  ) {
+  if (students.length === 1) {
     return students[0];
   }
-
 
   return null;
 }
 
-
-// =====================================================
-// ADMIN STUDENT MANAGEMENT PATH
-// =====================================================
-
-function getStudentManagementPath(
-  studentRoll
-) {
+function getStudentManagementPath(studentRoll) {
   if (!studentRoll) {
     return "/admin/students";
   }
-
 
   return `/admin/students?student=${encodeURIComponent(
     studentRoll
   )}`;
 }
 
-
 // =====================================================
 // MAIN COMPONENT
 // =====================================================
 
 export default function UpdateStudent() {
-  const [
-    searchParams,
-  ] =
-    useSearchParams();
+  const [searchParams] = useSearchParams();
 
+  const selectedStudentRoll = String(
+    searchParams.get("student") || ""
+  ).trim();
 
-  const selectedStudentRoll =
-    String(
-      searchParams.get(
-        "student"
-      ) || ""
-    ).trim();
-
-
-  // ===================================================
+  // ---------------------------------------------------
   // SEARCH STATE
-  // ===================================================
+  // ---------------------------------------------------
 
-  const [
-    searchInput,
-    setSearchInput,
-  ] =
-    useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
 
-
-  const [
-    searchResults,
-    setSearchResults,
-  ] =
-    useState([]);
-
-
-  const [
-    searching,
-    setSearching,
-  ] =
-    useState(false);
-
-
-  // ===================================================
+  // ---------------------------------------------------
   // UI & FORM STATES
-  // ===================================================
+  // ---------------------------------------------------
 
-  const [
-    mode,
-    setMode,
-  ] =
-    useState(
-      "search"
-    );
+  const [mode, setMode] = useState("search");
 
+  const [studentData, setStudentData] =
+    useState(createEmptyStudent);
 
-  const [
-    studentData,
-    setStudentData,
-  ] =
-    useState(
-      createEmptyStudent
-    );
-
-
-  const [
-    studentLoaded,
-    setStudentLoaded,
-  ] =
+  const [studentLoaded, setStudentLoaded] =
     useState(false);
 
+  const [newStudent, setNewStudent] =
+    useState(createEmptyNewStudent);
 
-  const [
-    newStudent,
-    setNewStudent,
-  ] =
-    useState(
-      createEmptyNewStudent
-    );
-
-
-  // ===================================================
+  // ---------------------------------------------------
   // ACADEMIC SUMMARY STATE
-  // ===================================================
+  // ---------------------------------------------------
 
-  const [
-    academicSummary,
-    setAcademicSummary,
-  ] =
-    useState(
-      createEmptyAcademicSummary
-    );
-
+  const [academicSummary, setAcademicSummary] =
+    useState(createEmptyAcademicSummary);
 
   const [
     academicSummaryExists,
     setAcademicSummaryExists,
-  ] =
-    useState(false);
-
+  ] = useState(false);
 
   const [
     academicSummaryLoading,
     setAcademicSummaryLoading,
-  ] =
-    useState(false);
-
+  ] = useState(false);
 
   const [
     academicSummarySaving,
     setAcademicSummarySaving,
-  ] =
-    useState(false);
-
+  ] = useState(false);
 
   const [
     academicSummaryError,
     setAcademicSummaryError,
-  ] =
-    useState("");
+  ] = useState("");
 
-
-  // ===================================================
+  // ---------------------------------------------------
   // ACTION & FEEDBACK STATES
-  // ===================================================
+  // ---------------------------------------------------
 
-  const [
-    saving,
-    setSaving,
-  ] =
+  const [saving, setSaving] =
     useState(false);
 
-
-  const [
-    creating,
-    setCreating,
-  ] =
+  const [creating, setCreating] =
     useState(false);
 
-
-  const [
-    deleting,
-    setDeleting,
-  ] =
+  const [deleting, setDeleting] =
     useState(false);
 
-
-  const [
-    error,
-    setError,
-  ] =
+  const [error, setError] =
     useState("");
 
-
-  const [
-    success,
-    setSuccess,
-  ] =
+  const [success, setSuccess] =
     useState("");
 
-
-  // ===================================================
+  // ---------------------------------------------------
   // DIRECTORY STATE
-  // ===================================================
+  // ---------------------------------------------------
 
-  const [
-    students,
-    setStudents,
-  ] =
+  const [students, setStudents] =
     useState([]);
-
 
   const [
     studentsLoading,
     setStudentsLoading,
-  ] =
-    useState(true);
-
+  ] = useState(true);
 
   const [
     studentsError,
     setStudentsError,
-  ] =
-    useState("");
-
-
-  // ===================================================
-  // CLEAR MESSAGES
-  // ===================================================
+  ] = useState("");
 
   const clearMessages =
-    useCallback(
-      () => {
-        setError("");
-        setSuccess("");
-      },
-      []
-    );
-
-
-  // ===================================================
-  // RESET ACADEMIC SUMMARY
-  // ===================================================
+    useCallback(() => {
+      setError("");
+      setSuccess("");
+    }, []);
 
   function resetAcademicSummary() {
     setAcademicSummary(
       createEmptyAcademicSummary()
     );
 
-    setAcademicSummaryExists(
-      false
-    );
+    setAcademicSummaryExists(false);
 
-    setAcademicSummaryError(
-      ""
-    );
+    setAcademicSummaryError("");
   }
 
-
-  // ===================================================
-  // LOAD STUDENT DIRECTORY
-  // ===================================================
+  // ---------------------------------------------------
+  // LOAD DIRECTORY
+  // ---------------------------------------------------
 
   const loadStudents =
-    useCallback(
-      async () => {
-        try {
-          setStudentsLoading(
-            true
-          );
+    useCallback(async () => {
+      try {
+        setStudentsLoading(true);
 
-          setStudentsError(
-            ""
-          );
+        setStudentsError("");
 
+        const data =
+          await fetchAllStudents();
 
-          const data =
-            await fetchAllStudents();
+        setStudents(data);
+      } catch (err) {
+        console.error(
+          "Students directory error:",
+          err
+        );
 
+        setStudents([]);
 
-          setStudents(
-            data
-          );
+        setStudentsError(
+          err.message ||
+            "Unable to load students."
+        );
+      } finally {
+        setStudentsLoading(false);
+      }
+    }, []);
 
-        } catch (err) {
-          console.error(
-            "Students directory error:",
-            err
-          );
+  useEffect(() => {
+    loadStudents();
+  }, [loadStudents]);
 
+  // ---------------------------------------------------
+  // APPLY LOADED DATA TO STATE
+  // ---------------------------------------------------
 
-          setStudents(
-            []
-          );
-
-
-          setStudentsError(
-            err.message ||
-              "Unable to load students."
-          );
-
-        } finally {
-          setStudentsLoading(
-            false
-          );
-        }
-      },
-      []
-    );
-
-
-  useEffect(
-    () => {
-      loadStudents();
-    },
-    [
-      loadStudents,
-    ]
-  );
-
-
-  // ===================================================
-  // APPLY LOADED STUDENT
-  // ===================================================
-
-  function applyStudent(
-    student
-  ) {
-    const roll =
-      String(
-        student?.STUDENT_ROLL ||
-          ""
-      ).trim();
-
+  function applyStudent(student) {
+    const roll = String(
+      student?.STUDENT_ROLL || ""
+    ).trim();
 
     setStudentData({
       studentId:
-        student?.STUDENT_ID ??
-        null,
+        student?.STUDENT_ID ?? null,
 
       fullName:
-        student?.NAME ||
-        "",
+        student?.NAME || "",
 
       rollNumber:
         roll,
 
       email:
-        student?.EMAIL ||
-        "",
+        student?.EMAIL || "",
 
       department:
-        student?.DEPARTMENT ||
-        "",
+        student?.DEPARTMENT || "",
 
       semester:
-        student?.SEMESTER ===
-          null ||
-        student?.SEMESTER ===
-          undefined
+        student?.SEMESTER === null ||
+        student?.SEMESTER === undefined
           ? ""
-          : String(
-              student.SEMESTER
-            ),
+          : String(student.SEMESTER),
 
       section:
-        student?.SECTION ||
-        "",
+        student?.SECTION || "",
     });
 
+    setStudentLoaded(true);
 
-    setStudentLoaded(
-      true
-    );
+    setSearchResults([]);
 
-
-    setSearchResults(
-      []
-    );
-
-
-    setMode(
-      "edit"
-    );
+    setMode("edit");
   }
 
-
-  // ===================================================
-  // APPLY ACADEMIC SUMMARY
-  // ===================================================
-
-  function applyAcademicSummary(
-    data
-  ) {
+  function applyAcademicSummary(data) {
     setAcademicSummary({
       cgpa:
-        data?.cgpa ===
-          null ||
-        data?.cgpa ===
-          undefined
+        data?.cgpa === null ||
+        data?.cgpa === undefined
           ? ""
-          : String(
-              data.cgpa
-            ),
+          : String(data.cgpa),
 
       creditsEarned:
-        data?.creditsEarned ===
-          null ||
-        data?.creditsEarned ===
-          undefined
+        data?.creditsEarned === null ||
+        data?.creditsEarned === undefined
           ? ""
-          : String(
-              data.creditsEarned
-            ),
+          : String(data.creditsEarned),
 
       totalProgramCredits:
-        data?.totalProgramCredits ===
-          null ||
-        data?.totalProgramCredits ===
-          undefined
+        data?.totalProgramCredits === null ||
+        data?.totalProgramCredits === undefined
           ? ""
-          : String(
-              data.totalProgramCredits
-            ),
+          : String(data.totalProgramCredits),
 
       completedSemesters:
-        data?.completedSemesters ===
-          null ||
-        data?.completedSemesters ===
-          undefined
+        data?.completedSemesters === null ||
+        data?.completedSemesters === undefined
           ? ""
-          : String(
-              data.completedSemesters
-            ),
+          : String(data.completedSemesters),
     });
 
-
     setAcademicSummaryExists(
-      Boolean(
-        data?.hasAcademicSummary
-      )
+      Boolean(data?.hasAcademicSummary)
     );
   }
-
-
-  // ===================================================
-  // LOAD ACADEMIC SUMMARY
-  // ===================================================
 
   async function loadAcademicSummary(
     studentRoll
   ) {
     if (!studentRoll) {
       resetAcademicSummary();
-
       return;
     }
 
-
     try {
-      setAcademicSummaryLoading(
-        true
-      );
+      setAcademicSummaryLoading(true);
 
-      setAcademicSummaryError(
-        ""
-      );
-
+      setAcademicSummaryError("");
 
       const data =
         await fetchAcademicSummary(
           studentRoll
         );
 
-
-      applyAcademicSummary(
-        data
-      );
-
+      applyAcademicSummary(data);
     } catch (err) {
       console.error(
         "Academic summary load error:",
         err
       );
 
-
       resetAcademicSummary();
-
 
       setAcademicSummaryError(
         err.message ||
           "Unable to load academic summary."
       );
-
     } finally {
-      setAcademicSummaryLoading(
-        false
-      );
+      setAcademicSummaryLoading(false);
     }
   }
 
-
-  // ===================================================
-  // SELECT STUDENT
-  // ===================================================
-
-  async function selectStudent(
-    student
-  ) {
+  async function selectStudent(student) {
     clearMessages();
 
+    applyStudent(student);
 
-    applyStudent(
-      student
-    );
-
-
-    const roll =
-      String(
-        student?.STUDENT_ROLL ||
-          ""
-      ).trim();
-
+    const roll = String(
+      student?.STUDENT_ROLL || ""
+    ).trim();
 
     resetAcademicSummary();
 
-
     if (roll) {
-      await loadAcademicSummary(
-        roll
-      );
+      await loadAcademicSummary(roll);
     }
   }
 
+  // ---------------------------------------------------
+  // URL PARAM AUTO-LOAD EFFECT
+  // ---------------------------------------------------
 
-  // ===================================================
-  // URL PARAM AUTO LOAD
-  // ===================================================
+  useEffect(() => {
+    if (!selectedStudentRoll) {
+      return undefined;
+    }
 
-  useEffect(
-    () => {
-      if (
-        !selectedStudentRoll
-      ) {
-        return undefined;
-      }
+    let cancelled = false;
 
+    async function loadUrlStudent() {
+      try {
+        setSearching(true);
 
-      let cancelled =
-        false;
+        setError("");
 
+        const results =
+          await fetchStudentSearchResults(
+            selectedStudentRoll
+          );
 
-      async function loadUrlStudent() {
+        if (cancelled) {
+          return;
+        }
+
+        if (results.length === 0) {
+          setError("No student found.");
+          return;
+        }
+
+        const student =
+          findExactStudent(
+            results,
+            selectedStudentRoll
+          );
+
+        if (!student) {
+          setSearchResults(results);
+          return;
+        }
+
+        applyStudent(student);
+
+        const roll = String(
+          student.STUDENT_ROLL || ""
+        ).trim();
+
+        if (!roll) {
+          return;
+        }
+
+        setAcademicSummaryLoading(true);
+
         try {
-          setSearching(
-            true
-          );
-
-          setError(
-            ""
-          );
-
-
-          const results =
-            await fetchStudentSearchResults(
-              selectedStudentRoll
+          const summary =
+            await fetchAcademicSummary(
+              roll
             );
 
-
-          if (
-            cancelled
-          ) {
-            return;
-          }
-
-
-          if (
-            results.length ===
-            0
-          ) {
-            setError(
-              "No student found."
+          if (!cancelled) {
+            applyAcademicSummary(
+              summary
             );
-
-            return;
           }
-
-
-          const student =
-            findExactStudent(
-              results,
-              selectedStudentRoll
-            );
-
-
-          if (!student) {
-            setSearchResults(
-              results
-            );
-
-            return;
-          }
-
-
-          applyStudent(
-            student
-          );
-
-
-          const roll =
-            String(
-              student.STUDENT_ROLL ||
-                ""
-            ).trim();
-
-
-          if (!roll) {
-            return;
-          }
-
-
-          setAcademicSummaryLoading(
-            true
-          );
-
-
-          try {
-            const summary =
-              await fetchAcademicSummary(
-                roll
-              );
-
-
-            if (
-              !cancelled
-            ) {
-              applyAcademicSummary(
-                summary
-              );
-            }
-
-          } catch (
-            summaryError
-          ) {
-            if (
-              !cancelled
-            ) {
-              console.error(
-                "Academic summary load error:",
-                summaryError
-              );
-
-
-              resetAcademicSummary();
-
-
-              setAcademicSummaryError(
-                summaryError.message ||
-                  "Unable to load academic summary."
-              );
-            }
-
-          } finally {
-            if (
-              !cancelled
-            ) {
-              setAcademicSummaryLoading(
-                false
-              );
-            }
-          }
-
-        } catch (err) {
-          if (
-            !cancelled
-          ) {
+        } catch (summaryError) {
+          if (!cancelled) {
             console.error(
-              "URL student load error:",
-              err
+              "Academic summary load error:",
+              summaryError
             );
 
+            resetAcademicSummary();
 
-            setError(
-              err.message ||
-                "Unable to load student."
+            setAcademicSummaryError(
+              summaryError.message ||
+                "Unable to load academic summary."
             );
           }
-
         } finally {
-          if (
-            !cancelled
-          ) {
-            setSearching(
+          if (!cancelled) {
+            setAcademicSummaryLoading(
               false
             );
           }
         }
+      } catch (err) {
+        if (!cancelled) {
+          console.error(
+            "URL student load error:",
+            err
+          );
+
+          setError(
+            err.message ||
+              "Unable to load student."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setSearching(false);
+        }
       }
+    }
 
+    loadUrlStudent();
 
-      loadUrlStudent();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedStudentRoll]);
 
-
-      return () => {
-        cancelled =
-          true;
-      };
-
-    },
-    [
-      selectedStudentRoll,
-    ]
-  );
-
-
-  // ===================================================
+  // ---------------------------------------------------
   // SEARCH HANDLER
-  // ===================================================
+  // ---------------------------------------------------
 
-  async function handleSearch(
-    event
-  ) {
+  async function handleSearch(event) {
     if (
       event &&
       event.preventDefault
@@ -919,10 +541,8 @@ export default function UpdateStudent() {
       event.preventDefault();
     }
 
-
     const query =
       searchInput.trim();
-
 
     if (!query) {
       setError(
@@ -932,35 +552,20 @@ export default function UpdateStudent() {
       return;
     }
 
-
     try {
-      setSearching(
-        true
-      );
-
+      setSearching(true);
 
       clearMessages();
 
-
-      setSearchResults(
-        []
-      );
-
+      setSearchResults([]);
 
       const results =
         await fetchStudentSearchResults(
           query
         );
 
-
-      if (
-        results.length ===
-        0
-      ) {
-        setStudentLoaded(
-          false
-        );
-
+      if (results.length === 0) {
+        setStudentLoaded(false);
 
         setError(
           "No student found."
@@ -969,58 +574,41 @@ export default function UpdateStudent() {
         return;
       }
 
-
       const exactStudent =
         findExactStudent(
           results,
           query
         );
 
-
-      if (
-        exactStudent
-      ) {
+      if (exactStudent) {
         await selectStudent(
           exactStudent
         );
-
       } else {
-        setStudentLoaded(
-          false
-        );
-
+        setStudentLoaded(false);
 
         resetAcademicSummary();
 
-
-        setSearchResults(
-          results
-        );
+        setSearchResults(results);
       }
-
     } catch (err) {
       console.error(
         "Student search error:",
         err
       );
 
-
       setError(
         err.message ||
           "Unable to search student."
       );
-
     } finally {
-      setSearching(
-        false
-      );
+      setSearching(false);
     }
   }
 
-
-  // ===================================================
+  // ---------------------------------------------------
   // INPUT CHANGE HANDLERS
-  // ===================================================
+  // ---------------------------------------------------
 
   function handleStudentChange(
     event
@@ -1028,20 +616,15 @@ export default function UpdateStudent() {
     const {
       name,
       value,
-    } =
-      event.target;
-
+    } = event.target;
 
     setStudentData(
       (previous) => ({
         ...previous,
-
-        [name]:
-          value,
+        [name]: value,
       })
     );
   }
-
 
   function handleNewStudentChange(
     event
@@ -1049,20 +632,15 @@ export default function UpdateStudent() {
     const {
       name,
       value,
-    } =
-      event.target;
-
+    } = event.target;
 
     setNewStudent(
       (previous) => ({
         ...previous,
-
-        [name]:
-          value,
+        [name]: value,
       })
     );
   }
-
 
   function handleAcademicSummaryChange(
     event
@@ -1070,39 +648,28 @@ export default function UpdateStudent() {
     const {
       name,
       value,
-    } =
-      event.target;
-
+    } = event.target;
 
     setAcademicSummary(
       (previous) => ({
         ...previous,
-
-        [name]:
-          value,
+        [name]: value,
       })
     );
 
-
-    setAcademicSummaryError(
-      ""
-    );
+    setAcademicSummaryError("");
   }
 
-
-  // ===================================================
+  // ---------------------------------------------------
   // SAVE STUDENT DETAILS
-  // ===================================================
+  // ---------------------------------------------------
 
   async function handleSaveStudent(
     event
   ) {
     event.preventDefault();
 
-
-    if (
-      !studentData.rollNumber
-    ) {
+    if (!studentData.rollNumber) {
       setError(
         "No student selected."
       );
@@ -1110,15 +677,10 @@ export default function UpdateStudent() {
       return;
     }
 
-
     try {
-      setSaving(
-        true
-      );
-
+      setSaving(true);
 
       clearMessages();
-
 
       const response =
         await fetch(
@@ -1126,82 +688,64 @@ export default function UpdateStudent() {
             studentData.rollNumber
           )}`,
           {
-            method:
-              "PUT",
+            method: "PUT",
 
             headers: {
               "Content-Type":
                 "application/json",
-
-              ...getAuthHeader(),
             },
 
-            body:
-              JSON.stringify({
-                name:
-                  studentData.fullName,
+            body: JSON.stringify({
+              name:
+                studentData.fullName,
 
-                email:
-                  studentData.email,
+              email:
+                studentData.email,
 
-                department:
-                  studentData.department,
+              department:
+                studentData.department,
 
-                semester:
-                  studentData.semester,
+              semester:
+                studentData.semester,
 
-                section:
-                  studentData.section,
-              }),
+              section:
+                studentData.section,
+            }),
           }
         );
 
-
-      await readJson(
-        response
-      );
-
+      await readJson(response);
 
       await loadStudents();
-
 
       setSuccess(
         "Student details updated successfully."
       );
-
     } catch (err) {
       console.error(
         "Student update error:",
         err
       );
 
-
       setError(
         err.message ||
           "Unable to update student."
       );
-
     } finally {
-      setSaving(
-        false
-      );
+      setSaving(false);
     }
   }
 
-
-  // ===================================================
+  // ---------------------------------------------------
   // SAVE ACADEMIC SUMMARY
-  // ===================================================
+  // ---------------------------------------------------
 
   async function handleSaveAcademicSummary(
     event
   ) {
     event.preventDefault();
 
-
-    if (
-      !studentData.rollNumber
-    ) {
+    if (!studentData.rollNumber) {
       setError(
         "No student selected."
       );
@@ -1209,24 +753,18 @@ export default function UpdateStudent() {
       return;
     }
 
-
     const {
       cgpa,
       creditsEarned,
       totalProgramCredits,
       completedSemesters,
-    } =
-      academicSummary;
-
+    } = academicSummary;
 
     if (
       cgpa === "" ||
-      creditsEarned ===
-        "" ||
-      totalProgramCredits ===
-        "" ||
-      completedSemesters ===
-        ""
+      creditsEarned === "" ||
+      totalProgramCredits === "" ||
+      completedSemesters === ""
     ) {
       setError(
         "Enter all four academic summary values."
@@ -1235,39 +773,24 @@ export default function UpdateStudent() {
       return;
     }
 
-
     const parsedCgpa =
-      Number(
-        cgpa
-      );
-
+      Number(cgpa);
 
     const parsedCreditsEarned =
-      Number(
-        creditsEarned
-      );
-
+      Number(creditsEarned);
 
     const parsedTotalProgramCredits =
-      Number(
-        totalProgramCredits
-      );
-
+      Number(totalProgramCredits);
 
     const parsedCompletedSemesters =
-      Number(
-        completedSemesters
-      );
-
+      Number(completedSemesters);
 
     if (
       !Number.isFinite(
         parsedCgpa
       ) ||
-      parsedCgpa <
-        0 ||
-      parsedCgpa >
-        10
+      parsedCgpa < 0 ||
+      parsedCgpa > 10
     ) {
       setError(
         "CGPA must be between 0 and 10."
@@ -1276,13 +799,11 @@ export default function UpdateStudent() {
       return;
     }
 
-
     if (
       !Number.isInteger(
         parsedCreditsEarned
       ) ||
-      parsedCreditsEarned <
-        0
+      parsedCreditsEarned < 0
     ) {
       setError(
         "Credits earned must be a whole number of 0 or more."
@@ -1290,7 +811,6 @@ export default function UpdateStudent() {
 
       return;
     }
-
 
     if (
       !Number.isInteger(
@@ -1306,7 +826,6 @@ export default function UpdateStudent() {
       return;
     }
 
-
     if (
       parsedCreditsEarned >
       parsedTotalProgramCredits
@@ -1317,7 +836,6 @@ export default function UpdateStudent() {
 
       return;
     }
-
 
     if (
       !Number.isInteger(
@@ -1335,19 +853,16 @@ export default function UpdateStudent() {
       return;
     }
 
-
     const currentSemester =
       Number(
         studentData.semester
       );
 
-
     if (
       Number.isInteger(
         currentSemester
       ) &&
-      currentSemester >=
-        1 &&
+      currentSemester >= 1 &&
       parsedCompletedSemesters >=
         currentSemester
     ) {
@@ -1358,10 +873,7 @@ export default function UpdateStudent() {
       return;
     }
 
-
-    const token =
-      getToken();
-
+    const token = getToken();
 
     if (!token) {
       setError(
@@ -1371,20 +883,14 @@ export default function UpdateStudent() {
       return;
     }
 
-
     try {
       setAcademicSummarySaving(
         true
       );
 
-
       clearMessages();
 
-
-      setAcademicSummaryError(
-        ""
-      );
-
+      setAcademicSummaryError("");
 
       const response =
         await fetch(
@@ -1392,8 +898,7 @@ export default function UpdateStudent() {
             studentData.rollNumber
           )}/academic-summary`,
           {
-            method:
-              "PUT",
+            method: "PUT",
 
             headers: {
               "Content-Type":
@@ -1403,50 +908,41 @@ export default function UpdateStudent() {
                 `Bearer ${token}`,
             },
 
-            body:
-              JSON.stringify({
-                cgpa:
-                  parsedCgpa,
+            body: JSON.stringify({
+              cgpa:
+                parsedCgpa,
 
-                creditsEarned:
-                  parsedCreditsEarned,
+              creditsEarned:
+                parsedCreditsEarned,
 
-                totalProgramCredits:
-                  parsedTotalProgramCredits,
+              totalProgramCredits:
+                parsedTotalProgramCredits,
 
-                completedSemesters:
-                  parsedCompletedSemesters,
-              }),
+              completedSemesters:
+                parsedCompletedSemesters,
+            }),
           }
         );
 
-
-      await readJson(
-        response
-      );
-
+      await readJson(response);
 
       await loadAcademicSummary(
         studentData.rollNumber
       );
 
-
       setSuccess(
         "Official academic summary saved successfully."
       );
-
     } catch (err) {
       console.error(
         "Academic summary save error:",
         err
       );
 
-
       setError(
         err.message ||
           "Unable to save academic summary."
       );
-
     } finally {
       setAcademicSummarySaving(
         false
@@ -1454,15 +950,12 @@ export default function UpdateStudent() {
     }
   }
 
-
-  // ===================================================
+  // ---------------------------------------------------
   // DELETE STUDENT
-  // ===================================================
+  // ---------------------------------------------------
 
   async function handleDeleteStudent() {
-    if (
-      !studentData.rollNumber
-    ) {
+    if (!studentData.rollNumber) {
       setError(
         "No student selected."
       );
@@ -1470,26 +963,19 @@ export default function UpdateStudent() {
       return;
     }
 
-
     const confirmed =
       window.confirm(
         `Are you sure you want to delete ${studentData.fullName} (${studentData.rollNumber})?\n\nThis will delete the student and related academic data.`
       );
 
-
     if (!confirmed) {
       return;
     }
 
-
     try {
-      setDeleting(
-        true
-      );
-
+      setDeleting(true);
 
       clearMessages();
-
 
       const response =
         await fetch(
@@ -1497,79 +983,52 @@ export default function UpdateStudent() {
             studentData.rollNumber
           )}`,
           {
-            method:
-              "DELETE",
-
-            headers:
-              getAuthHeader(),
+            method: "DELETE",
           }
         );
 
-
-      await readJson(
-        response
-      );
-
+      await readJson(response);
 
       setStudentData(
         createEmptyStudent()
       );
 
+      setStudentLoaded(false);
 
-      setStudentLoaded(
-        false
-      );
-
-
-      setSearchResults(
-        []
-      );
-
+      setSearchResults([]);
 
       resetAcademicSummary();
 
-
-      setMode(
-        "search"
-      );
-
+      setMode("search");
 
       await loadStudents();
-
 
       setSuccess(
         "Student deleted successfully."
       );
-
     } catch (err) {
       console.error(
         "Delete student error:",
         err
       );
 
-
       setError(
         err.message ||
           "Unable to delete student."
       );
-
     } finally {
-      setDeleting(
-        false
-      );
+      setDeleting(false);
     }
   }
 
-
-  // ===================================================
+  // ---------------------------------------------------
   // CREATE STUDENT
-  // ===================================================
+  // ---------------------------------------------------
 
   async function handleAddStudent(
     event
   ) {
     event.preventDefault();
-
 
     if (
       !newStudent.fullName.trim() ||
@@ -1584,65 +1043,51 @@ export default function UpdateStudent() {
       return;
     }
 
-
     try {
-      setCreating(
-        true
-      );
-
+      setCreating(true);
 
       clearMessages();
-
 
       const response =
         await fetch(
           `${API_URL}/api/students`,
           {
-            method:
-              "POST",
+            method: "POST",
 
             headers: {
               "Content-Type":
                 "application/json",
-
-              ...getAuthHeader(),
             },
 
-            body:
-              JSON.stringify({
-                name:
-                  newStudent.fullName,
+            body: JSON.stringify({
+              name:
+                newStudent.fullName,
 
-                email:
-                  newStudent.email,
+              email:
+                newStudent.email,
 
-                password:
-                  newStudent.password,
+              password:
+                newStudent.password,
 
-                studentRoll:
-                  newStudent.rollNumber,
+              studentRoll:
+                newStudent.rollNumber,
 
-                department:
-                  newStudent.department,
+              department:
+                newStudent.department,
 
-                semester:
-                  newStudent.semester,
+              semester:
+                newStudent.semester,
 
-                section:
-                  newStudent.section,
-              }),
+              section:
+                newStudent.section,
+            }),
           }
         );
 
-
-      await readJson(
-        response
-      );
-
+      await readJson(response);
 
       const createdStudent = {
-        STUDENT_ID:
-          null,
+        STUDENT_ID: null,
 
         NAME:
           newStudent.fullName,
@@ -1663,140 +1108,81 @@ export default function UpdateStudent() {
           newStudent.section,
       };
 
-
       setNewStudent(
         createEmptyNewStudent()
       );
 
-
       await loadStudents();
-
 
       await selectStudent(
         createdStudent
       );
 
-
       setSuccess(
         "Student created successfully."
       );
-
     } catch (err) {
       console.error(
         "Create student error:",
         err
       );
 
-
       setError(
         err.message ||
           "Unable to create student."
       );
-
     } finally {
-      setCreating(
-        false
-      );
+      setCreating(false);
     }
   }
 
-
-  // ===================================================
-  // ADD MODE
-  // ===================================================
-
   function openAddMode() {
-    setMode(
-      "add"
-    );
+    setMode("add");
 
+    setStudentLoaded(false);
 
-    setStudentLoaded(
-      false
-    );
-
-
-    setSearchResults(
-      []
-    );
-
+    setSearchResults([]);
 
     resetAcademicSummary();
-
 
     setNewStudent(
       createEmptyNewStudent()
     );
 
-
     clearMessages();
   }
 
-
-  // ===================================================
-  // SEARCH MODE
-  // ===================================================
-
   function openSearchMode() {
-    setMode(
-      "search"
-    );
+    setMode("search");
 
+    setStudentLoaded(false);
 
-    setStudentLoaded(
-      false
-    );
-
-
-    setSearchResults(
-      []
-    );
-
+    setSearchResults([]);
 
     resetAcademicSummary();
 
-
     clearMessages();
   }
 
-
-  // ===================================================
-  // INITIALS
-  // ===================================================
-
   function getInitials() {
-    const name =
-      String(
-        studentData.fullName ||
-          ""
-      ).trim();
-
+    const name = String(
+      studentData.fullName || ""
+    ).trim();
 
     if (!name) {
       return "?";
     }
 
-
     return name
-      .split(
-        /\s+/
-      )
-      .filter(
-        Boolean
-      )
-      .slice(
-        0,
-        2
-      )
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
       .map(
         (word) =>
           word[0]?.toUpperCase()
       )
-      .join(
-        ""
-      );
+      .join("");
   }
-
 
   // ===================================================
   // RENDER
@@ -1804,18 +1190,12 @@ export default function UpdateStudent() {
 
   return (
     <div className="min-h-screen bg-surface text-on-surface font-body-md antialiased">
+
       <AdminSidebar />
-
-
-      {/* =================================================
-          MAIN CONTENT
-      ================================================= */}
 
       <main className="min-h-screen md:ml-[280px] min-w-0">
 
-        {/* ===============================================
-            HEADER
-        =============================================== */}
+        {/* HEADER */}
 
         <header className="sticky top-0 z-30 w-full bg-surface border-b border-outline-variant/50">
 
@@ -1839,7 +1219,6 @@ export default function UpdateStudent() {
                   Student Management
                 </h1>
 
-
                 <p className="text-xs text-on-surface-variant mt-0.5">
                   Add, search and update student records
                 </p>
@@ -1851,11 +1230,10 @@ export default function UpdateStudent() {
 
             <button
               type="button"
-              onClick={
-                openAddMode
-              }
+              onClick={openAddMode}
               className="px-4 py-2 bg-primary text-on-primary rounded-xl font-semibold text-sm flex items-center gap-2 hover:opacity-90 transition-opacity shrink-0 cursor-pointer"
             >
+
               <span className="material-symbols-outlined text-[18px]">
                 person_add
               </span>
@@ -1863,6 +1241,7 @@ export default function UpdateStudent() {
               <span className="hidden sm:inline">
                 Add Student
               </span>
+
             </button>
 
           </div>
@@ -1870,26 +1249,20 @@ export default function UpdateStudent() {
         </header>
 
 
-        {/* ===============================================
-            PAGE CONTENT
-        =============================================== */}
+        {/* PAGE CONTENT */}
 
         <div className="w-full max-w-[1440px] mx-auto px-4 md:px-6 lg:px-8 py-6 space-y-5">
 
-          {/* =============================================
-              MODE SWITCH
-          ============================================= */}
+
+          {/* MODE BUTTONS */}
 
           <div className="flex flex-wrap gap-2">
 
             <button
               type="button"
-              onClick={
-                openSearchMode
-              }
+              onClick={openSearchMode}
               className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer ${
-                mode !==
-                "add"
+                mode !== "add"
                   ? "bg-secondary-container text-on-secondary-container"
                   : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high"
               }`}
@@ -1900,12 +1273,9 @@ export default function UpdateStudent() {
 
             <button
               type="button"
-              onClick={
-                openAddMode
-              }
+              onClick={openAddMode}
               className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer ${
-                mode ===
-                "add"
+                mode === "add"
                   ? "bg-primary text-on-primary"
                   : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high"
               }`}
@@ -1916,39 +1286,28 @@ export default function UpdateStudent() {
           </div>
 
 
-          {/* =============================================
-              FEEDBACK
-          ============================================= */}
+          {/* FEEDBACK */}
 
           {error && (
             <MessageBanner
               type="error"
               icon="error"
-              text={
-                error
-              }
+              text={error}
             />
           )}
-
 
           {success && (
             <MessageBanner
               type="success"
               icon="check_circle"
-              text={
-                success
-              }
+              text={success}
             />
           )}
 
 
-          {/* =============================================
-              ADD STUDENT
-          ============================================= */}
+          {/* ADD STUDENT */}
 
-          {mode ===
-            "add" && (
-
+          {mode === "add" && (
             <section className="bg-surface-container-lowest rounded-2xl border border-outline-variant/70 p-5 md:p-6 shadow-sm">
 
               <div className="flex items-start justify-between gap-4 mb-6">
@@ -1958,7 +1317,6 @@ export default function UpdateStudent() {
                   <h2 className="font-title-md font-bold text-on-surface text-lg">
                     Add New Student
                   </h2>
-
 
                   <p className="text-xs text-on-surface-variant mt-1">
                     Create a student academic profile and login account.
@@ -1979,9 +1337,7 @@ export default function UpdateStudent() {
 
 
               <form
-                onSubmit={
-                  handleAddStudent
-                }
+                onSubmit={handleAddStudent}
                 className="space-y-4"
               >
 
@@ -1990,12 +1346,8 @@ export default function UpdateStudent() {
                   <InputField
                     label="Full Name"
                     name="fullName"
-                    value={
-                      newStudent.fullName
-                    }
-                    onChange={
-                      handleNewStudentChange
-                    }
+                    value={newStudent.fullName}
+                    onChange={handleNewStudentChange}
                     required
                   />
 
@@ -2003,12 +1355,8 @@ export default function UpdateStudent() {
                   <InputField
                     label="Roll Number"
                     name="rollNumber"
-                    value={
-                      newStudent.rollNumber
-                    }
-                    onChange={
-                      handleNewStudentChange
-                    }
+                    value={newStudent.rollNumber}
+                    onChange={handleNewStudentChange}
                     required
                   />
 
@@ -2021,12 +1369,8 @@ export default function UpdateStudent() {
                     label="Email Address"
                     name="email"
                     type="email"
-                    value={
-                      newStudent.email
-                    }
-                    onChange={
-                      handleNewStudentChange
-                    }
+                    value={newStudent.email}
+                    onChange={handleNewStudentChange}
                     required
                   />
 
@@ -2035,15 +1379,9 @@ export default function UpdateStudent() {
                     label="Initial Password"
                     name="password"
                     type="password"
-                    minLength={
-                      6
-                    }
-                    value={
-                      newStudent.password
-                    }
-                    onChange={
-                      handleNewStudentChange
-                    }
+                    minLength={6}
+                    value={newStudent.password}
+                    onChange={handleNewStudentChange}
                     required
                   />
 
@@ -2053,12 +1391,8 @@ export default function UpdateStudent() {
                 <InputField
                   label="Department"
                   name="department"
-                  value={
-                    newStudent.department
-                  }
-                  onChange={
-                    handleNewStudentChange
-                  }
+                  value={newStudent.department}
+                  onChange={handleNewStudentChange}
                 />
 
 
@@ -2067,12 +1401,8 @@ export default function UpdateStudent() {
                   <SelectField
                     label="Semester"
                     name="semester"
-                    value={
-                      newStudent.semester
-                    }
-                    onChange={
-                      handleNewStudentChange
-                    }
+                    value={newStudent.semester}
+                    onChange={handleNewStudentChange}
                     placeholder="Select Semester"
                     options={[
                       "1",
@@ -2090,12 +1420,8 @@ export default function UpdateStudent() {
                   <SelectField
                     label="Section"
                     name="section"
-                    value={
-                      newStudent.section
-                    }
-                    onChange={
-                      handleNewStudentChange
-                    }
+                    value={newStudent.section}
+                    onChange={handleNewStudentChange}
                     placeholder="Select Section"
                     options={[
                       "A",
@@ -2111,11 +1437,10 @@ export default function UpdateStudent() {
 
                   <button
                     type="submit"
-                    disabled={
-                      creating
-                    }
+                    disabled={creating}
                     className="px-6 py-2.5 bg-primary text-on-primary rounded-xl font-bold text-sm flex items-center gap-2 disabled:opacity-50 cursor-pointer"
                   >
+
                     <span className="material-symbols-outlined text-[18px]">
                       person_add
                     </span>
@@ -2123,6 +1448,7 @@ export default function UpdateStudent() {
                     {creating
                       ? "Creating..."
                       : "Create Student"}
+
                   </button>
 
                 </div>
@@ -2130,27 +1456,19 @@ export default function UpdateStudent() {
               </form>
 
             </section>
-
           )}
 
 
-          {/* =============================================
-              SEARCH / MANAGE
-          ============================================= */}
+          {/* SEARCH & MANAGE */}
 
-          {mode !==
-            "add" && (
-
+          {mode !== "add" && (
             <>
 
-              {/* =========================================
-                  SEARCH BAR
-              ========================================= */}
+
+              {/* SEARCH BAR */}
 
               <form
-                onSubmit={
-                  handleSearch
-                }
+                onSubmit={handleSearch}
                 className="flex gap-2 w-full"
               >
 
@@ -2167,15 +1485,10 @@ export default function UpdateStudent() {
                     type="text"
                     autoComplete="off"
                     placeholder="Search student by name or roll number..."
-                    value={
-                      searchInput
-                    }
-                    onChange={(
-                      event
-                    ) =>
+                    value={searchInput}
+                    onChange={(e) =>
                       setSearchInput(
-                        event.target
-                          .value
+                        e.target.value
                       )
                     }
                     className="w-full pl-12 pr-4 py-3 rounded-xl border border-outline-variant bg-surface-container-lowest text-on-surface placeholder:text-outline text-sm font-medium focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
@@ -2186,33 +1499,26 @@ export default function UpdateStudent() {
 
                 <button
                   type="submit"
-                  disabled={
-                    searching
-                  }
+                  disabled={searching}
                   className="px-5 md:px-6 rounded-xl bg-primary text-on-primary font-semibold text-sm disabled:opacity-50 shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
                 >
+
                   {searching
                     ? "Searching..."
                     : "Search"}
+
                 </button>
 
               </form>
 
 
-              {/* =========================================
-                  SEARCH RESULTS
-              ========================================= */}
+              {/* SEARCH RESULTS */}
 
-              {searchResults.length >
-                0 && (
-
+              {searchResults.length > 0 && (
                 <section className="bg-surface-container-lowest rounded-2xl border border-outline-variant/70 overflow-hidden shadow-sm">
 
                   {searchResults.map(
-                    (
-                      student
-                    ) => (
-
+                    (student) => (
                       <button
                         key={
                           student.STUDENT_ID ||
@@ -2228,77 +1534,67 @@ export default function UpdateStudent() {
                       >
 
                         <p className="font-semibold text-on-surface">
-                          {
-                            student.NAME
-                          }
+                          {student.NAME}
                         </p>
 
-
                         <p className="text-xs text-on-surface-variant mt-1">
-                          {
-                            student.STUDENT_ROLL
-                          }{" "}
-                          •{" "}
+
+                          {student.STUDENT_ROLL}
+
+                          {" • "}
+
                           {student.DEPARTMENT ||
                             "No department"}
+
                         </p>
 
                       </button>
-
                     )
                   )}
 
                 </section>
-
               )}
 
 
-              {/* =========================================
-                  EMPTY SEARCH
-              ========================================= */}
+              {/* EMPTY SEARCH */}
 
               {!studentLoaded &&
-                searchResults.length ===
-                  0 && (
+                searchResults.length === 0 && (
+                  <section className="bg-surface-container-lowest border border-outline-variant/70 rounded-2xl p-10 text-center shadow-sm">
 
-                <section className="bg-surface-container-lowest border border-outline-variant/70 rounded-2xl p-10 text-center shadow-sm">
+                    <span className="material-symbols-outlined text-5xl text-outline">
+                      person_search
+                    </span>
 
-                  <span className="material-symbols-outlined text-5xl text-outline">
-                    person_search
-                  </span>
+                    <h2 className="font-bold text-lg mt-3">
+                      Search for a student
+                    </h2>
 
+                    <p className="text-sm text-on-surface-variant mt-1">
+                      Enter a student name or roll number above to manage their details and official academic summary.
+                    </p>
 
-                  <h2 className="font-bold text-lg mt-3">
-                    Search for a student
-                  </h2>
-
-
-                  <p className="text-sm text-on-surface-variant mt-1">
-                    Enter a student name or roll number above to manage their details and official academic summary.
-                  </p>
-
-                </section>
-
-              )}
+                  </section>
+                )}
 
 
-              {/* =========================================
-                  SELECTED STUDENT
-              ========================================= */}
+              {/* SELECTED STUDENT */}
 
               {studentLoaded && (
-
                 <>
 
-                  {/* =====================================
-                      PROFILE + DETAILS
-                  ===================================== */}
 
-                  <section className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+                  {/* PROFILE + EDIT */}
 
-                    {/* PROFILE */}
+                  <section className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
 
-                    <div className="lg:col-span-4 bg-surface-container-lowest rounded-2xl border border-outline-variant/70 p-6 shadow-sm">
+
+                    {/* LEFT PROFILE */}
+
+                    <div className="lg:col-span-4 h-full bg-surface-container-lowest rounded-2xl border border-outline-variant/70 p-6 shadow-sm flex flex-col">
+
+
+                      {/* EXISTING IDENTITY */}
 
                       <div className="flex flex-col items-center text-center">
 
@@ -2308,16 +1604,12 @@ export default function UpdateStudent() {
 
 
                         <h2 className="font-title-md font-bold text-on-surface text-lg mt-4">
-                          {
-                            studentData.fullName
-                          }
+                          {studentData.fullName}
                         </h2>
 
 
                         <p className="text-xs text-outline mt-1 break-all">
-                          {
-                            studentData.rollNumber
-                          }
+                          {studentData.rollNumber}
                         </p>
 
 
@@ -2328,14 +1620,121 @@ export default function UpdateStudent() {
                       </div>
 
 
-                      <div className="grid grid-cols-2 gap-3 mt-6">
+                      {/* STUDENT INFO - ADDED TO USE EMPTY SPACE */}
+
+                      <div className="w-full mt-5 pt-4 border-t border-outline-variant/60">
+
+                        <div className="flex items-center gap-2 mb-3">
+
+                          <span className="material-symbols-outlined text-primary text-[18px]">
+                            badge
+                          </span>
+
+                          <h3 className="text-sm font-bold text-on-surface">
+                            Student Info
+                          </h3>
+
+                        </div>
+
+
+                        <div className="space-y-3">
+
+
+                          {/* DEPARTMENT */}
+
+                          <div>
+
+                            <p className="text-[10px] uppercase tracking-wide text-outline font-semibold">
+                              Department
+                            </p>
+
+                            <p className="text-xs font-semibold text-on-surface mt-1 leading-relaxed">
+                              {studentData.department ||
+                                "--"}
+                            </p>
+
+                          </div>
+
+
+                          {/* SEMESTER + SECTION */}
+
+                          <div className="grid grid-cols-2 gap-3">
+
+                            <div>
+
+                              <p className="text-[10px] uppercase tracking-wide text-outline font-semibold">
+                                Semester
+                              </p>
+
+                              <p className="text-xs font-semibold text-on-surface mt-1">
+                                {studentData.semester ||
+                                  "--"}
+                              </p>
+
+                            </div>
+
+
+                            <div>
+
+                              <p className="text-[10px] uppercase tracking-wide text-outline font-semibold">
+                                Section
+                              </p>
+
+                              <p className="text-xs font-semibold text-on-surface mt-1">
+                                {studentData.section ||
+                                  "--"}
+                              </p>
+
+                            </div>
+
+                          </div>
+
+
+                          {/* EMAIL */}
+
+                          <div>
+
+                            <p className="text-[10px] uppercase tracking-wide text-outline font-semibold">
+                              Email
+                            </p>
+
+                            <p className="text-xs font-semibold text-on-surface mt-1 break-all">
+                              {studentData.email ||
+                                "--"}
+                            </p>
+
+                          </div>
+
+
+                          {/* STUDENT ID */}
+
+                          <div>
+
+                            <p className="text-[10px] uppercase tracking-wide text-outline font-semibold">
+                              Student ID
+                            </p>
+
+                            <p className="text-xs font-semibold text-on-surface mt-1">
+                              {studentData.studentId ??
+                                "--"}
+                            </p>
+
+                          </div>
+
+                        </div>
+
+                      </div>
+
+
+                      {/* EXISTING CGPA / CREDITS */}
+
+                      <div className="grid grid-cols-2 gap-3 mt-auto pt-5">
 
                         <MiniStat
                           label="CGPA"
                           value={
                             academicSummaryExists &&
-                            academicSummary.cgpa !==
-                              ""
+                            academicSummary.cgpa !== ""
                               ? academicSummary.cgpa
                               : "--"
                           }
@@ -2346,8 +1745,7 @@ export default function UpdateStudent() {
                           label="Credits"
                           value={
                             academicSummaryExists &&
-                            academicSummary.creditsEarned !==
-                              ""
+                            academicSummary.creditsEarned !== ""
                               ? academicSummary.creditsEarned
                               : "--"
                           }
@@ -2358,16 +1756,15 @@ export default function UpdateStudent() {
                     </div>
 
 
-                    {/* EDIT DETAILS */}
+                    {/* RIGHT EDIT STUDENT DETAILS */}
 
-                    <div className="lg:col-span-8 bg-surface-container-lowest rounded-2xl border border-outline-variant/70 p-5 md:p-6 shadow-sm">
+                    <div className="lg:col-span-8 h-full bg-surface-container-lowest rounded-2xl border border-outline-variant/70 p-5 md:p-6 shadow-sm">
 
                       <div className="mb-5">
 
                         <h2 className="font-title-md font-bold text-on-surface">
                           Edit Student Details
                         </h2>
-
 
                         <p className="text-xs text-on-surface-variant mt-1">
                           Update the student's core Oracle record.
@@ -2377,9 +1774,7 @@ export default function UpdateStudent() {
 
 
                       <form
-                        onSubmit={
-                          handleSaveStudent
-                        }
+                        onSubmit={handleSaveStudent}
                         className="space-y-4"
                       >
 
@@ -2388,21 +1783,15 @@ export default function UpdateStudent() {
                           <InputField
                             label="Full Name"
                             name="fullName"
-                            value={
-                              studentData.fullName
-                            }
-                            onChange={
-                              handleStudentChange
-                            }
+                            value={studentData.fullName}
+                            onChange={handleStudentChange}
                             required
                           />
 
 
                           <InputField
                             label="Roll / ID Number"
-                            value={
-                              studentData.rollNumber
-                            }
+                            value={studentData.rollNumber}
                             readOnly
                             className="bg-surface-container-high text-outline cursor-not-allowed"
                             helpText="Roll number cannot be edited here."
@@ -2415,12 +1804,8 @@ export default function UpdateStudent() {
                           label="Email Address"
                           name="email"
                           type="email"
-                          value={
-                            studentData.email
-                          }
-                          onChange={
-                            handleStudentChange
-                          }
+                          value={studentData.email}
+                          onChange={handleStudentChange}
                           required
                         />
 
@@ -2428,12 +1813,8 @@ export default function UpdateStudent() {
                         <InputField
                           label="Department"
                           name="department"
-                          value={
-                            studentData.department
-                          }
-                          onChange={
-                            handleStudentChange
-                          }
+                          value={studentData.department}
+                          onChange={handleStudentChange}
                         />
 
 
@@ -2442,12 +1823,8 @@ export default function UpdateStudent() {
                           <SelectField
                             label="Semester"
                             name="semester"
-                            value={
-                              studentData.semester
-                            }
-                            onChange={
-                              handleStudentChange
-                            }
+                            value={studentData.semester}
+                            onChange={handleStudentChange}
                             placeholder="Select Semester"
                             options={[
                               "1",
@@ -2465,12 +1842,8 @@ export default function UpdateStudent() {
                           <SelectField
                             label="Section"
                             name="section"
-                            value={
-                              studentData.section
-                            }
-                            onChange={
-                              handleStudentChange
-                            }
+                            value={studentData.section}
+                            onChange={handleStudentChange}
                             placeholder="Select Section"
                             options={[
                               "A",
@@ -2486,15 +1859,14 @@ export default function UpdateStudent() {
 
                           <button
                             type="button"
-                            onClick={
-                              handleDeleteStudent
-                            }
+                            onClick={handleDeleteStudent}
                             disabled={
                               deleting ||
                               saving
                             }
                             className="px-5 py-2.5 border border-error text-error font-bold text-sm rounded-xl hover:bg-error-container transition-colors flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
                           >
+
                             <span className="material-symbols-outlined text-[18px]">
                               delete
                             </span>
@@ -2502,6 +1874,7 @@ export default function UpdateStudent() {
                             {deleting
                               ? "Deleting..."
                               : "Delete Student"}
+
                           </button>
 
 
@@ -2513,6 +1886,7 @@ export default function UpdateStudent() {
                             }
                             className="px-6 py-2.5 bg-primary text-on-primary font-bold text-sm rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer hover:opacity-90 transition-opacity"
                           >
+
                             <span className="material-symbols-outlined text-[18px]">
                               save
                             </span>
@@ -2520,6 +1894,7 @@ export default function UpdateStudent() {
                             {saving
                               ? "Saving..."
                               : "Save Student Details"}
+
                           </button>
 
                         </div>
@@ -2531,9 +1906,7 @@ export default function UpdateStudent() {
                   </section>
 
 
-                  {/* =====================================
-                      ACADEMIC SUMMARY
-                  ===================================== */}
+                  {/* OFFICIAL ACADEMIC SUMMARY */}
 
                   <section className="w-full bg-surface-container-lowest rounded-2xl border border-outline-variant/70 p-5 md:p-6 shadow-sm">
 
@@ -2548,6 +1921,7 @@ export default function UpdateStudent() {
                           </span>
 
                           Official Academic Summary
+
                         </h2>
 
 
@@ -2565,28 +1939,26 @@ export default function UpdateStudent() {
                             : "bg-surface-container-high text-on-surface-variant"
                         }`}
                       >
+
                         {academicSummaryExists
                           ? "RECORDED"
                           : "NOT RECORDED"}
+
                       </span>
 
                     </div>
 
 
                     {academicSummaryError && (
-
                       <div className="mb-4 p-3 rounded-xl bg-error-container text-on-error-container text-sm flex items-center gap-2">
 
                         <span className="material-symbols-outlined">
                           error
                         </span>
 
-                        {
-                          academicSummaryError
-                        }
+                        {academicSummaryError}
 
                       </div>
-
                     )}
 
 
@@ -2598,7 +1970,6 @@ export default function UpdateStudent() {
                           progress_activity
                         </span>
 
-
                         <p className="mt-2 text-sm">
                           Loading academic summary...
                         </p>
@@ -2608,11 +1979,10 @@ export default function UpdateStudent() {
                     ) : (
 
                       <form
-                        onSubmit={
-                          handleSaveAcademicSummary
-                        }
+                        onSubmit={handleSaveAcademicSummary}
                         className="space-y-4"
                       >
+
 
                         {!academicSummaryExists && (
 
@@ -2621,7 +1991,6 @@ export default function UpdateStudent() {
                             <span className="material-symbols-outlined text-primary text-[20px]">
                               info
                             </span>
-
 
                             <p className="text-xs text-on-surface-variant">
                               No official academic summary is stored for this student yet. Enter all four values below.
@@ -2634,6 +2003,7 @@ export default function UpdateStudent() {
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
+
                           {/* CGPA */}
 
                           <div className="flex flex-col gap-1">
@@ -2641,7 +2011,6 @@ export default function UpdateStudent() {
                             <label className="font-label-caps text-outline text-xs uppercase">
                               CGPA
                             </label>
-
 
                             <input
                               type="text"
@@ -2670,7 +2039,6 @@ export default function UpdateStudent() {
                               Completed Semesters
                             </label>
 
-
                             <input
                               type="text"
                               inputMode="numeric"
@@ -2689,10 +2057,13 @@ export default function UpdateStudent() {
 
 
                             <span className="text-[10px] text-outline">
+
                               Must be strictly less than the current semester
+
                               {studentData.semester
                                 ? ` (${studentData.semester}).`
                                 : "."}
+
                             </span>
 
                           </div>
@@ -2702,6 +2073,7 @@ export default function UpdateStudent() {
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
+
                           {/* CREDITS EARNED */}
 
                           <div className="flex flex-col gap-1">
@@ -2709,7 +2081,6 @@ export default function UpdateStudent() {
                             <label className="font-label-caps text-outline text-xs uppercase">
                               Credits Earned
                             </label>
-
 
                             <input
                               type="text"
@@ -2737,7 +2108,6 @@ export default function UpdateStudent() {
                             <label className="font-label-caps text-outline text-xs uppercase">
                               Total Program Credits
                             </label>
-
 
                             <input
                               type="text"
@@ -2770,6 +2140,7 @@ export default function UpdateStudent() {
                             }
                             className="px-5 py-2.5 bg-secondary text-white font-bold text-sm rounded-xl hover:opacity-90 transition-opacity flex items-center gap-2 disabled:opacity-50 cursor-pointer"
                           >
+
                             <span className="material-symbols-outlined text-[18px]">
                               verified
                             </span>
@@ -2780,6 +2151,7 @@ export default function UpdateStudent() {
                               : academicSummaryExists
                               ? "Update Academic Summary"
                               : "Save Academic Summary"}
+
                           </button>
 
                         </div>
@@ -2791,31 +2163,19 @@ export default function UpdateStudent() {
                   </section>
 
                 </>
-
               )}
 
             </>
-
           )}
 
 
-          {/* =============================================
-              STUDENT DIRECTORY
-          ============================================= */}
+          {/* STUDENT DIRECTORY */}
 
           <StudentDirectory
-            students={
-              students
-            }
-            loading={
-              studentsLoading
-            }
-            error={
-              studentsError
-            }
-            onRetry={
-              loadStudents
-            }
+            students={students}
+            loading={studentsLoading}
+            error={studentsError}
+            onRetry={loadStudents}
           />
 
         </div>
@@ -2842,30 +2202,21 @@ function InputField({
     <div className="flex flex-col gap-1">
 
       {label && (
-
         <label className="font-label-caps text-outline text-xs uppercase">
           {label}
         </label>
-
       )}
 
-
       <input
-        value={
-          value ??
-          ""
-        }
+        value={value ?? ""}
         {...props}
         className={`w-full p-2.5 rounded-xl border border-outline-variant bg-surface-container-low text-sm font-semibold text-on-surface focus:outline-none focus:border-primary ${className}`}
       />
 
-
       {helpText && (
-
         <span className="text-[10px] text-outline">
           {helpText}
         </span>
-
       )}
 
     </div>
@@ -2888,48 +2239,31 @@ function SelectField({
     <div className="flex flex-col gap-1">
 
       {label && (
-
         <label className="font-label-caps text-outline text-xs uppercase">
           {label}
         </label>
-
       )}
 
-
       <select
-        value={
-          value ??
-          ""
-        }
+        value={value ?? ""}
         {...props}
         className="w-full p-2.5 rounded-xl border border-outline-variant bg-surface-container-low text-sm font-semibold text-on-surface focus:outline-none focus:border-primary"
       >
 
         {placeholder && (
-
           <option value="">
             {placeholder}
           </option>
-
         )}
 
-
         {options.map(
-          (
-            option
-          ) => (
-
+          (option) => (
             <option
-              key={
-                option
-              }
-              value={
-                option
-              }
+              key={option}
+              value={option}
             >
               {option}
             </option>
-
           )
         )}
 
@@ -2955,7 +2289,6 @@ function MiniStat({
         {label}
       </p>
 
-
       <p className="font-bold text-primary mt-1">
         {value}
       </p>
@@ -2975,11 +2308,9 @@ function MessageBanner({
   text,
 }) {
   const style =
-    type ===
-    "error"
+    type === "error"
       ? "bg-error-container text-on-error-container"
       : "bg-secondary-container text-on-secondary-container";
-
 
   return (
     <div
@@ -2989,7 +2320,6 @@ function MessageBanner({
       <span className="material-symbols-outlined">
         {icon}
       </span>
-
 
       <span>
         {text}
@@ -3013,8 +2343,6 @@ function StudentDirectory({
   return (
     <section className="w-full bg-surface-container-lowest border border-outline-variant/70 rounded-2xl shadow-sm overflow-hidden">
 
-      {/* HEADER */}
-
       <div className="p-5 flex items-center justify-between gap-4 border-b border-outline-variant/70">
 
         <div>
@@ -3022,7 +2350,6 @@ function StudentDirectory({
           <h2 className="font-title-md font-bold text-on-surface">
             Student Directory
           </h2>
-
 
           <p className="font-body-sm text-xs text-on-surface-variant mt-1">
             All registered students
@@ -3032,17 +2359,17 @@ function StudentDirectory({
 
 
         <span className="px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full text-xs font-bold whitespace-nowrap">
+
           {students.length}{" "}
-          {students.length ===
-          1
+
+          {students.length === 1
             ? "Student"
             : "Students"}
+
         </span>
 
       </div>
 
-
-      {/* LOADING */}
 
       {loading ? (
 
@@ -3052,7 +2379,6 @@ function StudentDirectory({
             progress_activity
           </span>
 
-
           <p className="font-body-sm text-sm mt-2">
             Loading students...
           </p>
@@ -3061,19 +2387,15 @@ function StudentDirectory({
 
       ) : error ? (
 
-        /* ERROR */
-
         <div className="p-10 text-center">
 
           <span className="material-symbols-outlined text-4xl text-error">
             error
           </span>
 
-
           <p className="font-title-md font-bold text-on-surface mt-2">
             Unable to load students.
           </p>
-
 
           <p className="font-body-sm text-xs text-on-surface-variant mt-1">
             {error}
@@ -3082,9 +2404,7 @@ function StudentDirectory({
 
           <button
             type="button"
-            onClick={
-              onRetry
-            }
+            onClick={onRetry}
             className="mt-4 px-4 py-2 border border-primary text-primary rounded-xl font-semibold text-sm hover:bg-primary-container transition-colors"
           >
             Retry
@@ -3092,10 +2412,7 @@ function StudentDirectory({
 
         </div>
 
-      ) : students.length ===
-        0 ? (
-
-        /* EMPTY */
+      ) : students.length === 0 ? (
 
         <div className="p-10 text-center">
 
@@ -3103,11 +2420,9 @@ function StudentDirectory({
             group_off
           </span>
 
-
           <p className="font-title-md font-bold text-on-surface mt-2">
             No students found.
           </p>
-
 
           <p className="font-body-sm text-xs text-on-surface-variant mt-1">
             Students added to CampusCopilot will appear here.
@@ -3116,8 +2431,6 @@ function StudentDirectory({
         </div>
 
       ) : (
-
-        /* TABLE */
 
         <div className="overflow-x-auto">
 
@@ -3174,43 +2487,51 @@ function StudentDirectory({
                   >
 
                     <td className="py-3 px-3 font-semibold text-on-surface">
+
                       {student.NAME ||
                         "Unknown Student"}
+
                     </td>
 
 
                     <td className="py-3 px-3 font-mono-sm text-xs text-outline">
+
                       {student.STUDENT_ROLL ||
                         "-"}
+
                     </td>
 
 
                     <td className="py-3 px-3 text-on-surface-variant">
+
                       {student.DEPARTMENT ||
                         "Not assigned"}
+
                     </td>
 
 
                     <td className="py-3 px-3 text-on-surface-variant">
+
                       {student.SEMESTER ||
                         "-"}
+
                     </td>
 
 
                     <td className="py-3 px-3 text-on-surface-variant">
+
                       {student.SECTION ||
                         "-"}
+
                     </td>
 
 
                     <td className="py-3 px-3 text-right">
 
                       <Link
-                        to={
-                          getStudentManagementPath(
-                            student.STUDENT_ROLL
-                          )
-                        }
+                        to={getStudentManagementPath(
+                          student.STUDENT_ROLL
+                        )}
                         className="text-primary hover:underline font-semibold text-xs"
                       >
                         Edit

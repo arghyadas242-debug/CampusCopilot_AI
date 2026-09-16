@@ -2,12 +2,20 @@ const express = require("express");
 const oracledb = require("oracledb");
 const getConnection = require("../db");
 
+const {
+  authenticateToken,
+  requireAdmin,
+} = require("../middleware/authMiddleware");
+
+
 const router = express.Router();
 
 
 // =====================================================
 // GET ALL SUBJECTS
 // GET /api/subjects
+//
+// READABLE BY STUDENT / ADMIN
 // =====================================================
 
 router.get("/", async (req, res) => {
@@ -27,11 +35,15 @@ router.get("/", async (req, res) => {
       `,
       [],
       {
-        outFormat: oracledb.OUT_FORMAT_OBJECT,
+        outFormat:
+          oracledb.OUT_FORMAT_OBJECT,
       }
     );
 
-    return res.json(result.rows);
+
+    return res.json(
+      result.rows
+    );
 
   } catch (error) {
 
@@ -40,9 +52,13 @@ router.get("/", async (req, res) => {
       error
     );
 
+
     return res.status(500).json({
-      error: "Unable to load subjects",
-      details: error.message,
+      error:
+        "Unable to load subjects",
+
+      details:
+        error.message,
     });
 
   } finally {
@@ -50,7 +66,9 @@ router.get("/", async (req, res) => {
     if (connection) {
       try {
         await connection.close();
+
       } catch (closeError) {
+
         console.error(
           "Connection close error:",
           closeError
@@ -64,693 +82,889 @@ router.get("/", async (req, res) => {
 // =====================================================
 // GET SINGLE SUBJECT
 // GET /api/subjects/:subjectCode
+//
+// READABLE BY STUDENT / ADMIN
 // =====================================================
 
-router.get("/:subjectCode", async (req, res) => {
-  let connection;
+router.get(
+  "/:subjectCode",
 
-  try {
-    const subjectCode =
-      req.params.subjectCode.trim();
+  async (req, res) => {
+    let connection;
 
-    connection = await getConnection();
+    try {
+      const subjectCode =
+        req.params.subjectCode
+          .trim();
 
-    const result = await connection.execute(
-      `
-      SELECT
-        subject_code,
-        subject_name,
-        faculty_name
-      FROM subjects
-      WHERE UPPER(subject_code) =
-            UPPER(:subjectCode)
-      `,
-      {
-        subjectCode,
-      },
-      {
-        outFormat:
-          oracledb.OUT_FORMAT_OBJECT,
-      }
-    );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        error: "Subject not found",
-      });
-    }
+      connection =
+        await getConnection();
 
-    return res.json(result.rows[0]);
 
-  } catch (error) {
+      const result =
+        await connection.execute(
+          `
+          SELECT
+            subject_code,
+            subject_name,
+            faculty_name
 
-    console.error(
-      "Get subject error:",
-      error
-    );
+          FROM subjects
 
-    return res.status(500).json({
-      error: "Unable to load subject",
-      details: error.message,
-    });
-
-  } finally {
-
-    if (connection) {
-      try {
-        await connection.close();
-      } catch (closeError) {
-        console.error(
-          "Connection close error:",
-          closeError
+          WHERE UPPER(subject_code) =
+                UPPER(:subjectCode)
+          `,
+          {
+            subjectCode,
+          },
+          {
+            outFormat:
+              oracledb.OUT_FORMAT_OBJECT,
+          }
         );
+
+
+      if (
+        result.rows.length ===
+        0
+      ) {
+        return res
+          .status(404)
+          .json({
+            error:
+              "Subject not found",
+          });
+      }
+
+
+      return res.json(
+        result.rows[0]
+      );
+
+    } catch (error) {
+
+      console.error(
+        "Get subject error:",
+        error
+      );
+
+
+      return res
+        .status(500)
+        .json({
+          error:
+            "Unable to load subject",
+
+          details:
+            error.message,
+        });
+
+    } finally {
+
+      if (connection) {
+        try {
+          await connection.close();
+
+        } catch (
+          closeError
+        ) {
+          console.error(
+            "Connection close error:",
+            closeError
+          );
+        }
       }
     }
   }
-});
+);
 
 
 // =====================================================
 // ADD SUBJECT
 // POST /api/subjects
+//
+// ADMIN ONLY
 // =====================================================
 
-router.post("/", async (req, res) => {
-  let connection;
+router.post(
+  "/",
 
-  try {
-    const {
-      subjectCode,
-      subjectName,
-      facultyName,
-    } = req.body;
+  authenticateToken,
+  requireAdmin,
 
-    // -------------------------------------------------
-    // VALIDATION
-    // -------------------------------------------------
+  async (req, res) => {
+    let connection;
 
-    if (
-      !subjectCode?.trim() ||
-      !subjectName?.trim()
-    ) {
-      return res.status(400).json({
-        error:
-          "Subject code and subject name are required",
-      });
-    }
-
-    const cleanCode =
-      subjectCode.trim().toUpperCase();
-
-    const cleanName =
-      subjectName.trim();
-
-    const cleanFaculty =
-      facultyName?.trim() || null;
-
-    connection = await getConnection();
+    try {
+      const {
+        subjectCode,
+        subjectName,
+        facultyName,
+      } =
+        req.body || {};
 
 
-    // -------------------------------------------------
-    // CHECK DUPLICATE SUBJECT CODE
-    // -------------------------------------------------
+      // -------------------------------------------------
+      // VALIDATION
+      // -------------------------------------------------
 
-    const existing =
+      if (
+        !subjectCode?.trim() ||
+        !subjectName?.trim()
+      ) {
+        return res
+          .status(400)
+          .json({
+            error:
+              "Subject code and subject name are required",
+          });
+      }
+
+
+      const cleanCode =
+        subjectCode
+          .trim()
+          .toUpperCase();
+
+
+      const cleanName =
+        subjectName.trim();
+
+
+      const cleanFaculty =
+        facultyName?.trim() ||
+        null;
+
+
+      connection =
+        await getConnection();
+
+
+      // -------------------------------------------------
+      // CHECK DUPLICATE SUBJECT CODE
+      // -------------------------------------------------
+
+      const existing =
+        await connection.execute(
+          `
+          SELECT
+            subject_code
+
+          FROM subjects
+
+          WHERE UPPER(subject_code) =
+                UPPER(:subjectCode)
+          `,
+          {
+            subjectCode:
+              cleanCode,
+          },
+          {
+            outFormat:
+              oracledb.OUT_FORMAT_OBJECT,
+          }
+        );
+
+
+      if (
+        existing.rows.length >
+        0
+      ) {
+        return res
+          .status(409)
+          .json({
+            error:
+              "Subject code already exists",
+          });
+      }
+
+
+      // -------------------------------------------------
+      // INSERT SUBJECT
+      // -------------------------------------------------
+
       await connection.execute(
         `
-        SELECT subject_code
-        FROM subjects
-        WHERE UPPER(subject_code) =
-              UPPER(:subjectCode)
+        INSERT INTO subjects
+        (
+          subject_code,
+          subject_name,
+          faculty_name
+        )
+
+        VALUES
+        (
+          :subjectCode,
+          :subjectName,
+          :facultyName
+        )
         `,
         {
-          subjectCode: cleanCode,
-        },
-        {
-          outFormat:
-            oracledb.OUT_FORMAT_OBJECT,
+          subjectCode:
+            cleanCode,
+
+          subjectName:
+            cleanName,
+
+          facultyName:
+            cleanFaculty,
         }
       );
 
-    if (existing.rows.length > 0) {
-      return res.status(409).json({
-        error:
-          "Subject code already exists",
-      });
-    }
+
+      await connection.commit();
 
 
-    // -------------------------------------------------
-    // INSERT SUBJECT
-    // -------------------------------------------------
+      return res
+        .status(201)
+        .json({
+          message:
+            "Subject created successfully",
 
-    await connection.execute(
-      `
-      INSERT INTO subjects (
-        subject_code,
-        subject_name,
-        faculty_name
-      )
-      VALUES (
-        :subjectCode,
-        :subjectName,
-        :facultyName
-      )
-      `,
-      {
-        subjectCode: cleanCode,
-        subjectName: cleanName,
-        facultyName: cleanFaculty,
-      }
-    );
+          subject: {
+            subjectCode:
+              cleanCode,
 
-    await connection.commit();
+            subjectName:
+              cleanName,
 
+            facultyName:
+              cleanFaculty,
+          },
+        });
 
-    return res.status(201).json({
-      message:
-        "Subject created successfully",
+    } catch (error) {
 
-      subject: {
-        subjectCode: cleanCode,
-        subjectName: cleanName,
-        facultyName: cleanFaculty,
-      },
-    });
+      if (connection) {
+        try {
+          await connection.rollback();
 
-  } catch (error) {
-
-    if (connection) {
-      try {
-        await connection.rollback();
-      } catch (rollbackError) {
-        console.error(
-          "Rollback error:",
+        } catch (
           rollbackError
-        );
+        ) {
+          console.error(
+            "Rollback error:",
+            rollbackError
+          );
+        }
       }
-    }
-
-    console.error(
-      "Create subject error:",
-      error
-    );
 
 
-    // ORA-00001
-    if (error.errorNum === 1) {
-      return res.status(409).json({
-        error:
-          "Subject code already exists",
-      });
-    }
+      console.error(
+        "Create subject error:",
+        error
+      );
 
 
-    return res.status(500).json({
-      error:
-        "Unable to create subject",
+      // ORA-00001
+      if (
+        error.errorNum ===
+        1
+      ) {
+        return res
+          .status(409)
+          .json({
+            error:
+              "Subject code already exists",
+          });
+      }
 
-      details:
-        error.message,
-    });
 
-  } finally {
+      return res
+        .status(500)
+        .json({
+          error:
+            "Unable to create subject",
 
-    if (connection) {
-      try {
-        await connection.close();
-      } catch (closeError) {
-        console.error(
-          "Connection close error:",
+          details:
+            error.message,
+        });
+
+    } finally {
+
+      if (connection) {
+        try {
+          await connection.close();
+
+        } catch (
           closeError
-        );
+        ) {
+          console.error(
+            "Connection close error:",
+            closeError
+          );
+        }
       }
     }
   }
-});
+);
 
 
 // =====================================================
 // UPDATE SUBJECT
 // PUT /api/subjects/:subjectCode
+//
+// ADMIN ONLY
 // =====================================================
 
-router.put("/:subjectCode", async (req, res) => {
-  let connection;
+router.put(
+  "/:subjectCode",
 
-  try {
-    const subjectCode =
-      req.params.subjectCode.trim();
+  authenticateToken,
+  requireAdmin,
 
-    const {
-      subjectName,
-      facultyName,
-    } = req.body;
+  async (req, res) => {
+    let connection;
 
-
-    // -------------------------------------------------
-    // VALIDATION
-    // -------------------------------------------------
-
-    if (!subjectName?.trim()) {
-      return res.status(400).json({
-        error:
-          "Subject name is required",
-      });
-    }
+    try {
+      const subjectCode =
+        req.params.subjectCode
+          .trim();
 
 
-    const cleanName =
-      subjectName.trim();
-
-    const cleanFaculty =
-      facultyName?.trim() || null;
-
-
-    connection = await getConnection();
+      const {
+        subjectName,
+        facultyName,
+      } =
+        req.body || {};
 
 
-    // -------------------------------------------------
-    // CHECK SUBJECT EXISTS
-    // -------------------------------------------------
+      // -------------------------------------------------
+      // VALIDATION
+      // -------------------------------------------------
 
-    const existing =
+      if (
+        !subjectName?.trim()
+      ) {
+        return res
+          .status(400)
+          .json({
+            error:
+              "Subject name is required",
+          });
+      }
+
+
+      const cleanName =
+        subjectName.trim();
+
+
+      const cleanFaculty =
+        facultyName?.trim() ||
+        null;
+
+
+      connection =
+        await getConnection();
+
+
+      // -------------------------------------------------
+      // CHECK SUBJECT EXISTS
+      // -------------------------------------------------
+
+      const existing =
+        await connection.execute(
+          `
+          SELECT
+            subject_code
+
+          FROM subjects
+
+          WHERE UPPER(subject_code) =
+                UPPER(:subjectCode)
+          `,
+          {
+            subjectCode,
+          },
+          {
+            outFormat:
+              oracledb.OUT_FORMAT_OBJECT,
+          }
+        );
+
+
+      if (
+        existing.rows.length ===
+        0
+      ) {
+        return res
+          .status(404)
+          .json({
+            error:
+              "Subject not found",
+          });
+      }
+
+
+      // -------------------------------------------------
+      // UPDATE SUBJECT
+      // -------------------------------------------------
+
       await connection.execute(
         `
-        SELECT subject_code
-        FROM subjects
+        UPDATE subjects
+
+        SET
+          subject_name =
+            :subjectName,
+
+          faculty_name =
+            :facultyName
+
         WHERE UPPER(subject_code) =
               UPPER(:subjectCode)
         `,
         {
+          subjectName:
+            cleanName,
+
+          facultyName:
+            cleanFaculty,
+
           subjectCode,
-        },
-        {
-          outFormat:
-            oracledb.OUT_FORMAT_OBJECT,
         }
       );
 
 
-    if (existing.rows.length === 0) {
-      return res.status(404).json({
-        error:
-          "Subject not found",
+      await connection.commit();
+
+
+      return res.json({
+        message:
+          "Subject updated successfully",
+
+        subject: {
+          subjectCode:
+            subjectCode
+              .toUpperCase(),
+
+          subjectName:
+            cleanName,
+
+          facultyName:
+            cleanFaculty,
+        },
       });
-    }
 
+    } catch (error) {
 
-    // -------------------------------------------------
-    // UPDATE SUBJECT
-    // -------------------------------------------------
+      if (connection) {
+        try {
+          await connection.rollback();
 
-    await connection.execute(
-      `
-      UPDATE subjects
-      SET
-        subject_name = :subjectName,
-        faculty_name = :facultyName
-      WHERE UPPER(subject_code) =
-            UPPER(:subjectCode)
-      `,
-      {
-        subjectName:
-          cleanName,
-
-        facultyName:
-          cleanFaculty,
-
-        subjectCode,
-      }
-    );
-
-
-    await connection.commit();
-
-
-    return res.json({
-      message:
-        "Subject updated successfully",
-
-      subject: {
-        subjectCode:
-          subjectCode.toUpperCase(),
-
-        subjectName:
-          cleanName,
-
-        facultyName:
-          cleanFaculty,
-      },
-    });
-
-  } catch (error) {
-
-    if (connection) {
-      try {
-        await connection.rollback();
-      } catch (rollbackError) {
-        console.error(
-          "Rollback error:",
+        } catch (
           rollbackError
-        );
+        ) {
+          console.error(
+            "Rollback error:",
+            rollbackError
+          );
+        }
       }
-    }
 
 
-    console.error(
-      "Update subject error:",
-      error
-    );
+      console.error(
+        "Update subject error:",
+        error
+      );
 
 
-    return res.status(500).json({
-      error:
-        "Unable to update subject",
+      return res
+        .status(500)
+        .json({
+          error:
+            "Unable to update subject",
 
-      details:
-        error.message,
-    });
+          details:
+            error.message,
+        });
 
-  } finally {
+    } finally {
 
-    if (connection) {
-      try {
-        await connection.close();
-      } catch (closeError) {
-        console.error(
-          "Connection close error:",
+      if (connection) {
+        try {
+          await connection.close();
+
+        } catch (
           closeError
-        );
+        ) {
+          console.error(
+            "Connection close error:",
+            closeError
+          );
+        }
       }
     }
   }
-});
+);
 
 
 // =====================================================
 // DELETE SUBJECT
 // DELETE /api/subjects/:subjectCode
+//
+// ADMIN ONLY
 // =====================================================
 
-router.delete("/:subjectCode", async (req, res) => {
-  let connection;
+router.delete(
+  "/:subjectCode",
 
-  try {
-    const subjectCode =
-      req.params.subjectCode.trim();
+  authenticateToken,
+  requireAdmin,
 
-    connection = await getConnection();
+  async (req, res) => {
+    let connection;
 
-
-    // -------------------------------------------------
-    // CHECK SUBJECT EXISTS
-    // -------------------------------------------------
-
-    const subjectResult =
-      await connection.execute(
-        `
-        SELECT
-          subject_code,
-          subject_name,
-          faculty_name
-        FROM subjects
-        WHERE UPPER(subject_code) =
-              UPPER(:subjectCode)
-        `,
-        {
-          subjectCode,
-        },
-        {
-          outFormat:
-            oracledb.OUT_FORMAT_OBJECT,
-        }
-      );
+    try {
+      const subjectCode =
+        req.params.subjectCode
+          .trim();
 
 
-    if (
-      subjectResult.rows.length === 0
-    ) {
-      return res.status(404).json({
-        error:
-          "Subject not found",
-      });
-    }
+      connection =
+        await getConnection();
 
 
-    const subject =
-      subjectResult.rows[0];
+      // -------------------------------------------------
+      // CHECK SUBJECT EXISTS
+      // -------------------------------------------------
+
+      const subjectResult =
+        await connection.execute(
+          `
+          SELECT
+            subject_code,
+            subject_name,
+            faculty_name
+
+          FROM subjects
+
+          WHERE UPPER(subject_code) =
+                UPPER(:subjectCode)
+          `,
+          {
+            subjectCode,
+          },
+          {
+            outFormat:
+              oracledb.OUT_FORMAT_OBJECT,
+          }
+        );
 
 
-    // =================================================
-    // CHECK ATTENDANCE
-    // =================================================
-
-    const attendanceResult =
-      await connection.execute(
-        `
-        SELECT COUNT(*) AS total_count
-        FROM attendance
-        WHERE UPPER(subject_code) =
-              UPPER(:subjectCode)
-        `,
-        {
-          subjectCode,
-        },
-        {
-          outFormat:
-            oracledb.OUT_FORMAT_OBJECT,
-        }
-      );
-
-
-    const attendance =
-      attendanceResult.rows[0]
-        .TOTAL_COUNT;
-
-
-    // =================================================
-    // CHECK ASSIGNMENTS
-    // =================================================
-
-    const assignmentsResult =
-      await connection.execute(
-        `
-        SELECT COUNT(*) AS total_count
-        FROM assignments
-        WHERE UPPER(subject_code) =
-              UPPER(:subjectCode)
-        `,
-        {
-          subjectCode,
-        },
-        {
-          outFormat:
-            oracledb.OUT_FORMAT_OBJECT,
-        }
-      );
-
-
-    const assignments =
-      assignmentsResult.rows[0]
-        .TOTAL_COUNT;
-
-
-    // =================================================
-    // CHECK TIMETABLE
-    // =================================================
-
-    const timetableResult =
-      await connection.execute(
-        `
-        SELECT COUNT(*) AS total_count
-        FROM timetable
-        WHERE UPPER(subject_code) =
-              UPPER(:subjectCode)
-        `,
-        {
-          subjectCode,
-        },
-        {
-          outFormat:
-            oracledb.OUT_FORMAT_OBJECT,
-        }
-      );
-
-
-    const timetable =
-      timetableResult.rows[0]
-        .TOTAL_COUNT;
-
-
-    // =================================================
-    // CHECK EXAMS
-    // =================================================
-
-    const examsResult =
-      await connection.execute(
-        `
-        SELECT COUNT(*) AS total_count
-        FROM exams
-        WHERE UPPER(subject_code) =
-              UPPER(:subjectCode)
-        `,
-        {
-          subjectCode,
-        },
-        {
-          outFormat:
-            oracledb.OUT_FORMAT_OBJECT,
-        }
-      );
-
-
-    const exams =
-      examsResult.rows[0]
-        .TOTAL_COUNT;
-
-
-    // =================================================
-    // CHECK ATTENDANCE SESSIONS
-    // =================================================
-
-    const sessionsResult =
-      await connection.execute(
-        `
-        SELECT COUNT(*) AS total_count
-        FROM attendance_sessions
-        WHERE UPPER(subject_code) =
-              UPPER(:subjectCode)
-        `,
-        {
-          subjectCode,
-        },
-        {
-          outFormat:
-            oracledb.OUT_FORMAT_OBJECT,
-        }
-      );
-
-
-    const sessions =
-      sessionsResult.rows[0]
-        .TOTAL_COUNT;
-
-
-    // =================================================
-    // DON'T DELETE SUBJECT WITH ACADEMIC DATA
-    // =================================================
-
-    if (
-      attendance > 0 ||
-      assignments > 0 ||
-      timetable > 0 ||
-      exams > 0 ||
-      sessions > 0
-    ) {
-
-      return res.status(409).json({
-        error:
-          "Cannot delete this subject because academic records are linked to it.",
-
-        dependencies: {
-          attendance,
-          assignments,
-          timetable,
-          exams,
-          sessions,
-        },
-      });
-
-    }
-
-
-    // -------------------------------------------------
-    // DELETE SUBJECT
-    // -------------------------------------------------
-
-    await connection.execute(
-      `
-      DELETE FROM subjects
-      WHERE UPPER(subject_code) =
-            UPPER(:subjectCode)
-      `,
-      {
-        subjectCode,
+      if (
+        subjectResult.rows.length ===
+        0
+      ) {
+        return res
+          .status(404)
+          .json({
+            error:
+              "Subject not found",
+          });
       }
-    );
 
 
-    await connection.commit();
+      const subject =
+        subjectResult.rows[0];
 
 
-    return res.json({
-      message:
-        "Subject deleted successfully",
+      // =================================================
+      // CHECK ATTENDANCE
+      // =================================================
 
-      subject: {
-        subjectCode:
-          subject.SUBJECT_CODE,
+      const attendanceResult =
+        await connection.execute(
+          `
+          SELECT
+            COUNT(*) AS total_count
 
-        subjectName:
-          subject.SUBJECT_NAME,
+          FROM attendance
 
-        facultyName:
-          subject.FACULTY_NAME,
-      },
-    });
+          WHERE UPPER(subject_code) =
+                UPPER(:subjectCode)
+          `,
+          {
+            subjectCode,
+          },
+          {
+            outFormat:
+              oracledb.OUT_FORMAT_OBJECT,
+          }
+        );
 
-  } catch (error) {
 
-    if (connection) {
-      try {
-        await connection.rollback();
-      } catch (rollbackError) {
-        console.error(
-          "Rollback error:",
+      const attendance =
+        Number(
+          attendanceResult.rows[0]
+            .TOTAL_COUNT ||
+          0
+        );
+
+
+      // =================================================
+      // CHECK ASSIGNMENTS
+      // =================================================
+
+      const assignmentsResult =
+        await connection.execute(
+          `
+          SELECT
+            COUNT(*) AS total_count
+
+          FROM assignments
+
+          WHERE UPPER(subject_code) =
+                UPPER(:subjectCode)
+          `,
+          {
+            subjectCode,
+          },
+          {
+            outFormat:
+              oracledb.OUT_FORMAT_OBJECT,
+          }
+        );
+
+
+      const assignments =
+        Number(
+          assignmentsResult.rows[0]
+            .TOTAL_COUNT ||
+          0
+        );
+
+
+      // =================================================
+      // CHECK TIMETABLE
+      // =================================================
+
+      const timetableResult =
+        await connection.execute(
+          `
+          SELECT
+            COUNT(*) AS total_count
+
+          FROM timetable
+
+          WHERE UPPER(subject_code) =
+                UPPER(:subjectCode)
+          `,
+          {
+            subjectCode,
+          },
+          {
+            outFormat:
+              oracledb.OUT_FORMAT_OBJECT,
+          }
+        );
+
+
+      const timetable =
+        Number(
+          timetableResult.rows[0]
+            .TOTAL_COUNT ||
+          0
+        );
+
+
+      // =================================================
+      // CHECK EXAMS
+      // =================================================
+
+      const examsResult =
+        await connection.execute(
+          `
+          SELECT
+            COUNT(*) AS total_count
+
+          FROM exams
+
+          WHERE UPPER(subject_code) =
+                UPPER(:subjectCode)
+          `,
+          {
+            subjectCode,
+          },
+          {
+            outFormat:
+              oracledb.OUT_FORMAT_OBJECT,
+          }
+        );
+
+
+      const exams =
+        Number(
+          examsResult.rows[0]
+            .TOTAL_COUNT ||
+          0
+        );
+
+
+      // =================================================
+      // CHECK ATTENDANCE SESSIONS
+      // =================================================
+
+      const sessionsResult =
+        await connection.execute(
+          `
+          SELECT
+            COUNT(*) AS total_count
+
+          FROM attendance_sessions
+
+          WHERE UPPER(subject_code) =
+                UPPER(:subjectCode)
+          `,
+          {
+            subjectCode,
+          },
+          {
+            outFormat:
+              oracledb.OUT_FORMAT_OBJECT,
+          }
+        );
+
+
+      const sessions =
+        Number(
+          sessionsResult.rows[0]
+            .TOTAL_COUNT ||
+          0
+        );
+
+
+      // =================================================
+      // DON'T DELETE SUBJECT WITH ACADEMIC DATA
+      // =================================================
+
+      if (
+        attendance > 0 ||
+        assignments > 0 ||
+        timetable > 0 ||
+        exams > 0 ||
+        sessions > 0
+      ) {
+        return res
+          .status(409)
+          .json({
+            error:
+              "Cannot delete this subject because academic records are linked to it.",
+
+            dependencies: {
+              attendance,
+              assignments,
+              timetable,
+              exams,
+              sessions,
+            },
+          });
+      }
+
+
+      // -------------------------------------------------
+      // DELETE SUBJECT
+      // -------------------------------------------------
+
+      await connection.execute(
+        `
+        DELETE FROM subjects
+
+        WHERE UPPER(subject_code) =
+              UPPER(:subjectCode)
+        `,
+        {
+          subjectCode,
+        }
+      );
+
+
+      await connection.commit();
+
+
+      return res.json({
+        message:
+          "Subject deleted successfully",
+
+        subject: {
+          subjectCode:
+            subject.SUBJECT_CODE,
+
+          subjectName:
+            subject.SUBJECT_NAME,
+
+          facultyName:
+            subject.FACULTY_NAME,
+        },
+      });
+
+    } catch (error) {
+
+      if (connection) {
+        try {
+          await connection.rollback();
+
+        } catch (
           rollbackError
-        );
+        ) {
+          console.error(
+            "Rollback error:",
+            rollbackError
+          );
+        }
       }
-    }
 
 
-    console.error(
-      "Delete subject error:",
-      error
-    );
+      console.error(
+        "Delete subject error:",
+        error
+      );
 
 
-    // Foreign key safety fallback
-    if (error.errorNum === 2292) {
-      return res.status(409).json({
-        error:
-          "Cannot delete this subject because other academic records still reference it.",
-      });
-    }
+      // Foreign key safety fallback
+      if (
+        error.errorNum ===
+        2292
+      ) {
+        return res
+          .status(409)
+          .json({
+            error:
+              "Cannot delete this subject because other academic records still reference it.",
+          });
+      }
 
 
-    return res.status(500).json({
-      error:
-        "Unable to delete subject",
+      return res
+        .status(500)
+        .json({
+          error:
+            "Unable to delete subject",
 
-      details:
-        error.message,
-    });
+          details:
+            error.message,
+        });
 
-  } finally {
+    } finally {
 
-    if (connection) {
-      try {
-        await connection.close();
-      } catch (closeError) {
-        console.error(
-          "Connection close error:",
+      if (connection) {
+        try {
+          await connection.close();
+
+        } catch (
           closeError
-        );
+        ) {
+          console.error(
+            "Connection close error:",
+            closeError
+          );
+        }
       }
     }
   }
-});
+);
 
 
-module.exports = router;
+module.exports =
+  router;
