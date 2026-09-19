@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import AdminSidebar from "../../components/admin/AdminSidebar";
+import { getAuthHeader } from "../../services/api";
 
 const API_URL = "http://localhost:5000";
 
@@ -70,7 +71,13 @@ async function readJson(response) {
 }
 
 async function fetchAllStudents() {
-  const response = await fetch(`${API_URL}/api/students`);
+  const response = await fetch(
+    `${API_URL}/api/students`,
+    {
+      headers: getAuthHeader(),
+    }
+  );
+
   const data = await readJson(response);
 
   return Array.isArray(data)
@@ -80,7 +87,12 @@ async function fetchAllStudents() {
 
 async function fetchStudentSearchResults(query) {
   const response = await fetch(
-    `${API_URL}/api/students/search?q=${encodeURIComponent(query)}`
+    `${API_URL}/api/students/search?q=${encodeURIComponent(
+      query
+    )}`,
+    {
+      headers: getAuthHeader(),
+    }
   );
 
   const data = await readJson(response);
@@ -91,18 +103,12 @@ async function fetchStudentSearchResults(query) {
 }
 
 async function fetchAcademicSummary(studentRoll) {
-  const token = getToken();
-
   const response = await fetch(
     `${API_URL}/api/students/${encodeURIComponent(
       studentRoll
     )}/academic-summary`,
     {
-      headers: token
-        ? {
-            Authorization: `Bearer ${token}`,
-          }
-        : {},
+      headers: getAuthHeader(),
     }
   );
 
@@ -157,15 +163,21 @@ export default function UpdateStudent() {
   // SEARCH STATE
   // ---------------------------------------------------
 
-  const [searchInput, setSearchInput] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
-  const [searching, setSearching] = useState(false);
+  const [searchInput, setSearchInput] =
+    useState("");
+
+  const [searchResults, setSearchResults] =
+    useState([]);
+
+  const [searching, setSearching] =
+    useState(false);
 
   // ---------------------------------------------------
   // UI & FORM STATES
   // ---------------------------------------------------
 
-  const [mode, setMode] = useState("search");
+  const [mode, setMode] =
+    useState("search");
 
   const [studentData, setStudentData] =
     useState(createEmptyStudent);
@@ -251,7 +263,6 @@ export default function UpdateStudent() {
     );
 
     setAcademicSummaryExists(false);
-
     setAcademicSummaryError("");
   }
 
@@ -263,7 +274,6 @@ export default function UpdateStudent() {
     useCallback(async () => {
       try {
         setStudentsLoading(true);
-
         setStudentsError("");
 
         const data =
@@ -320,16 +330,16 @@ export default function UpdateStudent() {
         student?.SEMESTER === null ||
         student?.SEMESTER === undefined
           ? ""
-          : String(student.SEMESTER),
+          : String(
+              student.SEMESTER
+            ),
 
       section:
         student?.SECTION || "",
     });
 
     setStudentLoaded(true);
-
     setSearchResults([]);
-
     setMode("edit");
   }
 
@@ -345,23 +355,31 @@ export default function UpdateStudent() {
         data?.creditsEarned === null ||
         data?.creditsEarned === undefined
           ? ""
-          : String(data.creditsEarned),
+          : String(
+              data.creditsEarned
+            ),
 
       totalProgramCredits:
         data?.totalProgramCredits === null ||
         data?.totalProgramCredits === undefined
           ? ""
-          : String(data.totalProgramCredits),
+          : String(
+              data.totalProgramCredits
+            ),
 
       completedSemesters:
         data?.completedSemesters === null ||
         data?.completedSemesters === undefined
           ? ""
-          : String(data.completedSemesters),
+          : String(
+              data.completedSemesters
+            ),
     });
 
     setAcademicSummaryExists(
-      Boolean(data?.hasAcademicSummary)
+      Boolean(
+        data?.hasAcademicSummary
+      )
     );
   }
 
@@ -375,7 +393,6 @@ export default function UpdateStudent() {
 
     try {
       setAcademicSummaryLoading(true);
-
       setAcademicSummaryError("");
 
       const data =
@@ -413,7 +430,9 @@ export default function UpdateStudent() {
     resetAcademicSummary();
 
     if (roll) {
-      await loadAcademicSummary(roll);
+      await loadAcademicSummary(
+        roll
+      );
     }
   }
 
@@ -431,7 +450,6 @@ export default function UpdateStudent() {
     async function loadUrlStudent() {
       try {
         setSearching(true);
-
         setError("");
 
         const results =
@@ -443,8 +461,13 @@ export default function UpdateStudent() {
           return;
         }
 
-        if (results.length === 0) {
-          setError("No student found.");
+        if (
+          results.length === 0
+        ) {
+          setError(
+            "No student found."
+          );
+
           return;
         }
 
@@ -455,21 +478,28 @@ export default function UpdateStudent() {
           );
 
         if (!student) {
-          setSearchResults(results);
+          setSearchResults(
+            results
+          );
+
           return;
         }
 
         applyStudent(student);
 
-        const roll = String(
-          student.STUDENT_ROLL || ""
-        ).trim();
+        const roll =
+          String(
+            student.STUDENT_ROLL ||
+              ""
+          ).trim();
 
         if (!roll) {
           return;
         }
 
-        setAcademicSummaryLoading(true);
+        setAcademicSummaryLoading(
+          true
+        );
 
         try {
           const summary =
@@ -482,7 +512,9 @@ export default function UpdateStudent() {
               summary
             );
           }
-        } catch (summaryError) {
+        } catch (
+          summaryError
+        ) {
           if (!cancelled) {
             console.error(
               "Academic summary load error:",
@@ -533,7 +565,9 @@ export default function UpdateStudent() {
   // SEARCH HANDLER
   // ---------------------------------------------------
 
-  async function handleSearch(event) {
+  async function handleSearch(
+    event
+  ) {
     if (
       event &&
       event.preventDefault
@@ -564,7 +598,9 @@ export default function UpdateStudent() {
           query
         );
 
-      if (results.length === 0) {
+      if (
+        results.length === 0
+      ) {
         setStudentLoaded(false);
 
         setError(
@@ -589,7 +625,9 @@ export default function UpdateStudent() {
 
         resetAcademicSummary();
 
-        setSearchResults(results);
+        setSearchResults(
+          results
+        );
       }
     } catch (err) {
       console.error(
@@ -693,6 +731,8 @@ export default function UpdateStudent() {
             headers: {
               "Content-Type":
                 "application/json",
+
+              ...getAuthHeader(),
             },
 
             body: JSON.stringify({
@@ -777,13 +817,19 @@ export default function UpdateStudent() {
       Number(cgpa);
 
     const parsedCreditsEarned =
-      Number(creditsEarned);
+      Number(
+        creditsEarned
+      );
 
     const parsedTotalProgramCredits =
-      Number(totalProgramCredits);
+      Number(
+        totalProgramCredits
+      );
 
     const parsedCompletedSemesters =
-      Number(completedSemesters);
+      Number(
+        completedSemesters
+      );
 
     if (
       !Number.isFinite(
@@ -873,7 +919,8 @@ export default function UpdateStudent() {
       return;
     }
 
-    const token = getToken();
+    const token =
+      getToken();
 
     if (!token) {
       setError(
@@ -904,23 +951,23 @@ export default function UpdateStudent() {
               "Content-Type":
                 "application/json",
 
-              Authorization:
-                `Bearer ${token}`,
+              ...getAuthHeader(),
             },
 
-            body: JSON.stringify({
-              cgpa:
-                parsedCgpa,
+            body:
+              JSON.stringify({
+                cgpa:
+                  parsedCgpa,
 
-              creditsEarned:
-                parsedCreditsEarned,
+                creditsEarned:
+                  parsedCreditsEarned,
 
-              totalProgramCredits:
-                parsedTotalProgramCredits,
+                totalProgramCredits:
+                  parsedTotalProgramCredits,
 
-              completedSemesters:
-                parsedCompletedSemesters,
-            }),
+                completedSemesters:
+                  parsedCompletedSemesters,
+              }),
           }
         );
 
@@ -983,11 +1030,17 @@ export default function UpdateStudent() {
             studentData.rollNumber
           )}`,
           {
-            method: "DELETE",
+            method:
+              "DELETE",
+
+            headers:
+              getAuthHeader(),
           }
         );
 
-      await readJson(response);
+      await readJson(
+        response
+      );
 
       setStudentData(
         createEmptyStudent()
@@ -1057,30 +1110,33 @@ export default function UpdateStudent() {
             headers: {
               "Content-Type":
                 "application/json",
+
+              ...getAuthHeader(),
             },
 
-            body: JSON.stringify({
-              name:
-                newStudent.fullName,
+            body:
+              JSON.stringify({
+                name:
+                  newStudent.fullName,
 
-              email:
-                newStudent.email,
+                email:
+                  newStudent.email,
 
-              password:
-                newStudent.password,
+                password:
+                  newStudent.password,
 
-              studentRoll:
-                newStudent.rollNumber,
+                studentRoll:
+                  newStudent.rollNumber,
 
-              department:
-                newStudent.department,
+                department:
+                  newStudent.department,
 
-              semester:
-                newStudent.semester,
+                semester:
+                  newStudent.semester,
 
-              section:
-                newStudent.section,
-            }),
+                section:
+                  newStudent.section,
+              }),
           }
         );
 
@@ -1165,9 +1221,11 @@ export default function UpdateStudent() {
   }
 
   function getInitials() {
-    const name = String(
-      studentData.fullName || ""
-    ).trim();
+    const name =
+      String(
+        studentData.fullName ||
+          ""
+      ).trim();
 
     if (!name) {
       return "?";
@@ -1212,7 +1270,6 @@ export default function UpdateStudent() {
                 </span>
               </Link>
 
-
               <div className="min-w-0">
 
                 <h1 className="font-headline-lg-mobile md:font-headline-lg font-bold text-primary">
@@ -1227,10 +1284,11 @@ export default function UpdateStudent() {
 
             </div>
 
-
             <button
               type="button"
-              onClick={openAddMode}
+              onClick={
+                openAddMode
+              }
               className="px-4 py-2 bg-primary text-on-primary rounded-xl font-semibold text-sm flex items-center gap-2 hover:opacity-90 transition-opacity shrink-0 cursor-pointer"
             >
 
@@ -1248,11 +1306,9 @@ export default function UpdateStudent() {
 
         </header>
 
-
         {/* PAGE CONTENT */}
 
         <div className="w-full max-w-[1440px] mx-auto px-4 md:px-6 lg:px-8 py-6 space-y-5">
-
 
           {/* MODE BUTTONS */}
 
@@ -1260,7 +1316,9 @@ export default function UpdateStudent() {
 
             <button
               type="button"
-              onClick={openSearchMode}
+              onClick={
+                openSearchMode
+              }
               className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer ${
                 mode !== "add"
                   ? "bg-secondary-container text-on-secondary-container"
@@ -1270,10 +1328,11 @@ export default function UpdateStudent() {
               Search / Update
             </button>
 
-
             <button
               type="button"
-              onClick={openAddMode}
+              onClick={
+                openAddMode
+              }
               className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer ${
                 mode === "add"
                   ? "bg-primary text-on-primary"
@@ -1284,7 +1343,6 @@ export default function UpdateStudent() {
             </button>
 
           </div>
-
 
           {/* FEEDBACK */}
 
@@ -1303,7 +1361,6 @@ export default function UpdateStudent() {
               text={success}
             />
           )}
-
 
           {/* ADD STUDENT */}
 
@@ -1324,7 +1381,6 @@ export default function UpdateStudent() {
 
                 </div>
 
-
                 <div className="w-11 h-11 rounded-xl bg-primary-container text-on-primary-container flex items-center justify-center shrink-0">
 
                   <span className="material-symbols-outlined">
@@ -1335,9 +1391,10 @@ export default function UpdateStudent() {
 
               </div>
 
-
               <form
-                onSubmit={handleAddStudent}
+                onSubmit={
+                  handleAddStudent
+                }
                 className="space-y-4"
               >
 
@@ -1346,22 +1403,28 @@ export default function UpdateStudent() {
                   <InputField
                     label="Full Name"
                     name="fullName"
-                    value={newStudent.fullName}
-                    onChange={handleNewStudentChange}
+                    value={
+                      newStudent.fullName
+                    }
+                    onChange={
+                      handleNewStudentChange
+                    }
                     required
                   />
-
 
                   <InputField
                     label="Roll Number"
                     name="rollNumber"
-                    value={newStudent.rollNumber}
-                    onChange={handleNewStudentChange}
+                    value={
+                      newStudent.rollNumber
+                    }
+                    onChange={
+                      handleNewStudentChange
+                    }
                     required
                   />
 
                 </div>
-
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
@@ -1369,40 +1432,53 @@ export default function UpdateStudent() {
                     label="Email Address"
                     name="email"
                     type="email"
-                    value={newStudent.email}
-                    onChange={handleNewStudentChange}
+                    value={
+                      newStudent.email
+                    }
+                    onChange={
+                      handleNewStudentChange
+                    }
                     required
                   />
-
 
                   <InputField
                     label="Initial Password"
                     name="password"
                     type="password"
                     minLength={6}
-                    value={newStudent.password}
-                    onChange={handleNewStudentChange}
+                    value={
+                      newStudent.password
+                    }
+                    onChange={
+                      handleNewStudentChange
+                    }
                     required
                   />
 
                 </div>
 
-
                 <InputField
                   label="Department"
                   name="department"
-                  value={newStudent.department}
-                  onChange={handleNewStudentChange}
+                  value={
+                    newStudent.department
+                  }
+                  onChange={
+                    handleNewStudentChange
+                  }
                 />
-
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
                   <SelectField
                     label="Semester"
                     name="semester"
-                    value={newStudent.semester}
-                    onChange={handleNewStudentChange}
+                    value={
+                      newStudent.semester
+                    }
+                    onChange={
+                      handleNewStudentChange
+                    }
                     placeholder="Select Semester"
                     options={[
                       "1",
@@ -1416,12 +1492,15 @@ export default function UpdateStudent() {
                     ]}
                   />
 
-
                   <SelectField
                     label="Section"
                     name="section"
-                    value={newStudent.section}
-                    onChange={handleNewStudentChange}
+                    value={
+                      newStudent.section
+                    }
+                    onChange={
+                      handleNewStudentChange
+                    }
                     placeholder="Select Section"
                     options={[
                       "A",
@@ -1432,12 +1511,13 @@ export default function UpdateStudent() {
 
                 </div>
 
-
                 <div className="flex justify-end pt-2">
 
                   <button
                     type="submit"
-                    disabled={creating}
+                    disabled={
+                      creating
+                    }
                     className="px-6 py-2.5 bg-primary text-on-primary rounded-xl font-bold text-sm flex items-center gap-2 disabled:opacity-50 cursor-pointer"
                   >
 
@@ -1458,17 +1538,17 @@ export default function UpdateStudent() {
             </section>
           )}
 
-
           {/* SEARCH & MANAGE */}
 
           {mode !== "add" && (
             <>
 
-
               {/* SEARCH BAR */}
 
               <form
-                onSubmit={handleSearch}
+                onSubmit={
+                  handleSearch
+                }
                 className="flex gap-2 w-full"
               >
 
@@ -1478,14 +1558,15 @@ export default function UpdateStudent() {
                     search
                   </span>
 
-
                   <input
                     id="student-search-input"
                     name="studentSearch"
                     type="text"
                     autoComplete="off"
                     placeholder="Search student by name or roll number..."
-                    value={searchInput}
+                    value={
+                      searchInput
+                    }
                     onChange={(e) =>
                       setSearchInput(
                         e.target.value
@@ -1496,10 +1577,11 @@ export default function UpdateStudent() {
 
                 </div>
 
-
                 <button
                   type="submit"
-                  disabled={searching}
+                  disabled={
+                    searching
+                  }
                   className="px-5 md:px-6 rounded-xl bg-primary text-on-primary font-semibold text-sm disabled:opacity-50 shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
                 >
 
@@ -1511,10 +1593,10 @@ export default function UpdateStudent() {
 
               </form>
 
-
               {/* SEARCH RESULTS */}
 
-              {searchResults.length > 0 && (
+              {searchResults.length >
+                0 && (
                 <section className="bg-surface-container-lowest rounded-2xl border border-outline-variant/70 overflow-hidden shadow-sm">
 
                   {searchResults.map(
@@ -1539,7 +1621,9 @@ export default function UpdateStudent() {
 
                         <p className="text-xs text-on-surface-variant mt-1">
 
-                          {student.STUDENT_ROLL}
+                          {
+                            student.STUDENT_ROLL
+                          }
 
                           {" • "}
 
@@ -1555,11 +1639,11 @@ export default function UpdateStudent() {
                 </section>
               )}
 
-
               {/* EMPTY SEARCH */}
 
               {!studentLoaded &&
-                searchResults.length === 0 && (
+                searchResults.length ===
+                  0 && (
                   <section className="bg-surface-container-lowest border border-outline-variant/70 rounded-2xl p-10 text-center shadow-sm">
 
                     <span className="material-symbols-outlined text-5xl text-outline">
@@ -1577,24 +1661,18 @@ export default function UpdateStudent() {
                   </section>
                 )}
 
-
               {/* SELECTED STUDENT */}
 
               {studentLoaded && (
                 <>
 
-
                   {/* PROFILE + EDIT */}
 
                   <section className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
 
-
                     {/* LEFT PROFILE */}
 
                     <div className="lg:col-span-4 h-full bg-surface-container-lowest rounded-2xl border border-outline-variant/70 p-6 shadow-sm flex flex-col">
-
-
-                      {/* EXISTING IDENTITY */}
 
                       <div className="flex flex-col items-center text-center">
 
@@ -1602,25 +1680,23 @@ export default function UpdateStudent() {
                           {getInitials()}
                         </div>
 
-
                         <h2 className="font-title-md font-bold text-on-surface text-lg mt-4">
-                          {studentData.fullName}
+                          {
+                            studentData.fullName
+                          }
                         </h2>
 
-
                         <p className="text-xs text-outline mt-1 break-all">
-                          {studentData.rollNumber}
+                          {
+                            studentData.rollNumber
+                          }
                         </p>
-
 
                         <span className="mt-3 px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full text-xs font-bold uppercase">
                           Student
                         </span>
 
                       </div>
-
-
-                      {/* STUDENT INFO - ADDED TO USE EMPTY SPACE */}
 
                       <div className="w-full mt-5 pt-4 border-t border-outline-variant/60">
 
@@ -1636,11 +1712,7 @@ export default function UpdateStudent() {
 
                         </div>
 
-
                         <div className="space-y-3">
-
-
-                          {/* DEPARTMENT */}
 
                           <div>
 
@@ -1654,9 +1726,6 @@ export default function UpdateStudent() {
                             </p>
 
                           </div>
-
-
-                          {/* SEMESTER + SECTION */}
 
                           <div className="grid grid-cols-2 gap-3">
 
@@ -1673,7 +1742,6 @@ export default function UpdateStudent() {
 
                             </div>
 
-
                             <div>
 
                               <p className="text-[10px] uppercase tracking-wide text-outline font-semibold">
@@ -1689,9 +1757,6 @@ export default function UpdateStudent() {
 
                           </div>
 
-
-                          {/* EMAIL */}
-
                           <div>
 
                             <p className="text-[10px] uppercase tracking-wide text-outline font-semibold">
@@ -1704,9 +1769,6 @@ export default function UpdateStudent() {
                             </p>
 
                           </div>
-
-
-                          {/* STUDENT ID */}
 
                           <div>
 
@@ -1725,27 +1787,25 @@ export default function UpdateStudent() {
 
                       </div>
 
-
-                      {/* EXISTING CGPA / CREDITS */}
-
                       <div className="grid grid-cols-2 gap-3 mt-auto pt-5">
 
                         <MiniStat
                           label="CGPA"
                           value={
                             academicSummaryExists &&
-                            academicSummary.cgpa !== ""
+                            academicSummary.cgpa !==
+                              ""
                               ? academicSummary.cgpa
                               : "--"
                           }
                         />
 
-
                         <MiniStat
                           label="Credits"
                           value={
                             academicSummaryExists &&
-                            academicSummary.creditsEarned !== ""
+                            academicSummary.creditsEarned !==
+                              ""
                               ? academicSummary.creditsEarned
                               : "--"
                           }
@@ -1754,7 +1814,6 @@ export default function UpdateStudent() {
                       </div>
 
                     </div>
-
 
                     {/* RIGHT EDIT STUDENT DETAILS */}
 
@@ -1772,9 +1831,10 @@ export default function UpdateStudent() {
 
                       </div>
 
-
                       <form
-                        onSubmit={handleSaveStudent}
+                        onSubmit={
+                          handleSaveStudent
+                        }
                         className="space-y-4"
                       >
 
@@ -1783,15 +1843,20 @@ export default function UpdateStudent() {
                           <InputField
                             label="Full Name"
                             name="fullName"
-                            value={studentData.fullName}
-                            onChange={handleStudentChange}
+                            value={
+                              studentData.fullName
+                            }
+                            onChange={
+                              handleStudentChange
+                            }
                             required
                           />
 
-
                           <InputField
                             label="Roll / ID Number"
-                            value={studentData.rollNumber}
+                            value={
+                              studentData.rollNumber
+                            }
                             readOnly
                             className="bg-surface-container-high text-outline cursor-not-allowed"
                             helpText="Roll number cannot be edited here."
@@ -1799,32 +1864,41 @@ export default function UpdateStudent() {
 
                         </div>
 
-
                         <InputField
                           label="Email Address"
                           name="email"
                           type="email"
-                          value={studentData.email}
-                          onChange={handleStudentChange}
+                          value={
+                            studentData.email
+                          }
+                          onChange={
+                            handleStudentChange
+                          }
                           required
                         />
-
 
                         <InputField
                           label="Department"
                           name="department"
-                          value={studentData.department}
-                          onChange={handleStudentChange}
+                          value={
+                            studentData.department
+                          }
+                          onChange={
+                            handleStudentChange
+                          }
                         />
-
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
                           <SelectField
                             label="Semester"
                             name="semester"
-                            value={studentData.semester}
-                            onChange={handleStudentChange}
+                            value={
+                              studentData.semester
+                            }
+                            onChange={
+                              handleStudentChange
+                            }
                             placeholder="Select Semester"
                             options={[
                               "1",
@@ -1838,12 +1912,15 @@ export default function UpdateStudent() {
                             ]}
                           />
 
-
                           <SelectField
                             label="Section"
                             name="section"
-                            value={studentData.section}
-                            onChange={handleStudentChange}
+                            value={
+                              studentData.section
+                            }
+                            onChange={
+                              handleStudentChange
+                            }
                             placeholder="Select Section"
                             options={[
                               "A",
@@ -1854,12 +1931,13 @@ export default function UpdateStudent() {
 
                         </div>
 
-
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-3">
 
                           <button
                             type="button"
-                            onClick={handleDeleteStudent}
+                            onClick={
+                              handleDeleteStudent
+                            }
                             disabled={
                               deleting ||
                               saving
@@ -1876,7 +1954,6 @@ export default function UpdateStudent() {
                               : "Delete Student"}
 
                           </button>
-
 
                           <button
                             type="submit"
@@ -1905,7 +1982,6 @@ export default function UpdateStudent() {
 
                   </section>
 
-
                   {/* OFFICIAL ACADEMIC SUMMARY */}
 
                   <section className="w-full bg-surface-container-lowest rounded-2xl border border-outline-variant/70 p-5 md:p-6 shadow-sm">
@@ -1924,13 +2000,11 @@ export default function UpdateStudent() {
 
                         </h2>
 
-
                         <p className="text-xs text-on-surface-variant mt-1">
                           These official values appear on the student's Profile page.
                         </p>
 
                       </div>
-
 
                       <span
                         className={`self-start px-3 py-1 rounded-full text-[10px] font-bold ${
@@ -1948,7 +2022,6 @@ export default function UpdateStudent() {
 
                     </div>
 
-
                     {academicSummaryError && (
                       <div className="mb-4 p-3 rounded-xl bg-error-container text-on-error-container text-sm flex items-center gap-2">
 
@@ -1956,11 +2029,12 @@ export default function UpdateStudent() {
                           error
                         </span>
 
-                        {academicSummaryError}
+                        {
+                          academicSummaryError
+                        }
 
                       </div>
                     )}
-
 
                     {academicSummaryLoading ? (
 
@@ -1979,10 +2053,11 @@ export default function UpdateStudent() {
                     ) : (
 
                       <form
-                        onSubmit={handleSaveAcademicSummary}
+                        onSubmit={
+                          handleSaveAcademicSummary
+                        }
                         className="space-y-4"
                       >
-
 
                         {!academicSummaryExists && (
 
@@ -2000,11 +2075,7 @@ export default function UpdateStudent() {
 
                         )}
 
-
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-
-                          {/* CGPA */}
 
                           <div className="flex flex-col gap-1">
 
@@ -2030,9 +2101,6 @@ export default function UpdateStudent() {
 
                           </div>
 
-
-                          {/* COMPLETED SEMESTERS */}
-
                           <div className="flex flex-col gap-1">
 
                             <label className="font-label-caps text-outline text-xs uppercase">
@@ -2055,7 +2123,6 @@ export default function UpdateStudent() {
                               required
                             />
 
-
                             <span className="text-[10px] text-outline">
 
                               Must be strictly less than the current semester
@@ -2070,11 +2137,7 @@ export default function UpdateStudent() {
 
                         </div>
 
-
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-
-                          {/* CREDITS EARNED */}
 
                           <div className="flex flex-col gap-1">
 
@@ -2099,9 +2162,6 @@ export default function UpdateStudent() {
                             />
 
                           </div>
-
-
-                          {/* TOTAL PROGRAM CREDITS */}
 
                           <div className="flex flex-col gap-1">
 
@@ -2129,7 +2189,6 @@ export default function UpdateStudent() {
 
                         </div>
 
-
                         <div className="flex justify-end pt-1">
 
                           <button
@@ -2144,7 +2203,6 @@ export default function UpdateStudent() {
                             <span className="material-symbols-outlined text-[18px]">
                               verified
                             </span>
-
 
                             {academicSummarySaving
                               ? "Saving Academic Summary..."
@@ -2168,14 +2226,21 @@ export default function UpdateStudent() {
             </>
           )}
 
-
           {/* STUDENT DIRECTORY */}
 
           <StudentDirectory
-            students={students}
-            loading={studentsLoading}
-            error={studentsError}
-            onRetry={loadStudents}
+            students={
+              students
+            }
+            loading={
+              studentsLoading
+            }
+            error={
+              studentsError
+            }
+            onRetry={
+              loadStudents
+            }
           />
 
         </div>
@@ -2185,7 +2250,6 @@ export default function UpdateStudent() {
     </div>
   );
 }
-
 
 // =====================================================
 // INPUT FIELD
@@ -2208,7 +2272,9 @@ function InputField({
       )}
 
       <input
-        value={value ?? ""}
+        value={
+          value ?? ""
+        }
         {...props}
         className={`w-full p-2.5 rounded-xl border border-outline-variant bg-surface-container-low text-sm font-semibold text-on-surface focus:outline-none focus:border-primary ${className}`}
       />
@@ -2222,7 +2288,6 @@ function InputField({
     </div>
   );
 }
-
 
 // =====================================================
 // SELECT FIELD
@@ -2245,7 +2310,9 @@ function SelectField({
       )}
 
       <select
-        value={value ?? ""}
+        value={
+          value ?? ""
+        }
         {...props}
         className="w-full p-2.5 rounded-xl border border-outline-variant bg-surface-container-low text-sm font-semibold text-on-surface focus:outline-none focus:border-primary"
       >
@@ -2273,7 +2340,6 @@ function SelectField({
   );
 }
 
-
 // =====================================================
 // MINI STAT
 // =====================================================
@@ -2296,7 +2362,6 @@ function MiniStat({
     </div>
   );
 }
-
 
 // =====================================================
 // MESSAGE BANNER
@@ -2329,7 +2394,6 @@ function MessageBanner({
   );
 }
 
-
 // =====================================================
 // STUDENT DIRECTORY
 // =====================================================
@@ -2357,19 +2421,18 @@ function StudentDirectory({
 
         </div>
 
-
         <span className="px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full text-xs font-bold whitespace-nowrap">
 
           {students.length}{" "}
 
-          {students.length === 1
+          {students.length ===
+          1
             ? "Student"
             : "Students"}
 
         </span>
 
       </div>
-
 
       {loading ? (
 
@@ -2401,10 +2464,11 @@ function StudentDirectory({
             {error}
           </p>
 
-
           <button
             type="button"
-            onClick={onRetry}
+            onClick={
+              onRetry
+            }
             className="mt-4 px-4 py-2 border border-primary text-primary rounded-xl font-semibold text-sm hover:bg-primary-container transition-colors"
           >
             Retry
@@ -2412,7 +2476,8 @@ function StudentDirectory({
 
         </div>
 
-      ) : students.length === 0 ? (
+      ) : students.length ===
+        0 ? (
 
         <div className="p-10 text-center">
 
@@ -2468,7 +2533,6 @@ function StudentDirectory({
 
             </thead>
 
-
             <tbody className="divide-y divide-outline-variant/70">
 
               {students.map(
@@ -2493,14 +2557,12 @@ function StudentDirectory({
 
                     </td>
 
-
                     <td className="py-3 px-3 font-mono-sm text-xs text-outline">
 
                       {student.STUDENT_ROLL ||
                         "-"}
 
                     </td>
-
 
                     <td className="py-3 px-3 text-on-surface-variant">
 
@@ -2509,7 +2571,6 @@ function StudentDirectory({
 
                     </td>
 
-
                     <td className="py-3 px-3 text-on-surface-variant">
 
                       {student.SEMESTER ||
@@ -2517,14 +2578,12 @@ function StudentDirectory({
 
                     </td>
 
-
                     <td className="py-3 px-3 text-on-surface-variant">
 
                       {student.SECTION ||
                         "-"}
 
                     </td>
-
 
                     <td className="py-3 px-3 text-right">
 

@@ -3,78 +3,101 @@ const oracledb = require("oracledb");
 const bcrypt = require("bcryptjs");
 const getConnection = require("../db");
 
+const {
+  authenticateToken,
+  requireAdmin,
+} = require("../middleware/authMiddleware");
+
 const router = express.Router();
 
 
 // =====================================================
 // GET ALL STUDENTS
 // GET /api/students
+//
+// ADMIN ONLY
 // =====================================================
 
-router.get("/", async (req, res) => {
-  let connection;
+router.get(
+  "/",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    let connection;
 
-  try {
-    connection = await getConnection();
+    try {
+      connection =
+        await getConnection();
 
-    const result = await connection.execute(
-      `
-      SELECT
-        student_id,
-        name,
-        email,
-        student_roll,
-        department,
-        semester,
-        section
-      FROM students
-      ORDER BY student_id DESC
-      `,
-      [],
-      {
-        outFormat: oracledb.OUT_FORMAT_OBJECT,
-      }
-    );
-
-    return res.json(result.rows);
-
-  } catch (error) {
-    console.error(
-      "Get students error:",
-      error
-    );
-
-    return res.status(500).json({
-      error:
-        "Unable to load students",
-
-      details:
-        error.message,
-    });
-
-  } finally {
-    if (connection) {
-      try {
-        await connection.close();
-
-      } catch (closeError) {
-        console.error(
-          "Connection close error:",
-          closeError
+      const result =
+        await connection.execute(
+          `
+          SELECT
+            student_id,
+            name,
+            email,
+            student_roll,
+            department,
+            semester,
+            section
+          FROM students
+          ORDER BY student_id DESC
+          `,
+          [],
+          {
+            outFormat:
+              oracledb.OUT_FORMAT_OBJECT,
+          }
         );
+
+      return res.json(
+        result.rows
+      );
+
+    } catch (error) {
+      console.error(
+        "Get students error:",
+        error
+      );
+
+      return res
+        .status(500)
+        .json({
+          error:
+            "Unable to load students",
+
+          details:
+            error.message,
+        });
+
+    } finally {
+      if (connection) {
+        try {
+          await connection.close();
+
+        } catch (closeError) {
+          console.error(
+            "Connection close error:",
+            closeError
+          );
+        }
       }
     }
   }
-});
+);
 
 
 // =====================================================
 // SEARCH STUDENT
 // GET /api/students/search?q=...
+//
+// ADMIN ONLY
 // =====================================================
 
 router.get(
   "/search",
+  authenticateToken,
+  requireAdmin,
   async (req, res) => {
     let connection;
 
@@ -105,7 +128,9 @@ router.get(
             department,
             semester,
             section
+
           FROM students
+
           WHERE
             LOWER(student_roll) =
               LOWER(:exactValue)
@@ -180,10 +205,17 @@ router.get(
 // =====================================================
 // GET STUDENT ACADEMIC SUMMARY
 // GET /api/students/:studentRoll/academic-summary
+//
+// AUTHENTICATED USER
+//
+// NOTE:
+// Student ownership / IDOR validation will be added
+// later in the deeper security pass.
 // =====================================================
 
 router.get(
   "/:studentRoll/academic-summary",
+  authenticateToken,
   async (req, res) => {
     let connection;
 
@@ -194,7 +226,6 @@ router.get(
             ""
         ).trim();
 
-
       if (!studentRoll) {
         return res
           .status(400)
@@ -204,10 +235,8 @@ router.get(
           });
       }
 
-
       connection =
         await getConnection();
-
 
       /*
         LEFT JOIN is intentional.
@@ -258,7 +287,6 @@ router.get(
           }
         );
 
-
       if (
         result.rows.length ===
         0
@@ -271,15 +299,12 @@ router.get(
           });
       }
 
-
       const row =
         result.rows[0];
-
 
       return res.json({
         studentRoll:
           row.STUDENT_ROLL,
-
 
         cgpa:
           row.CGPA === null ||
@@ -288,7 +313,6 @@ router.get(
             : Number(
                 row.CGPA
               ),
-
 
         creditsEarned:
           row.CREDITS_EARNED ===
@@ -300,7 +324,6 @@ router.get(
                 row.CREDITS_EARNED
               ),
 
-
         totalProgramCredits:
           row.TOTAL_PROGRAM_CREDITS ===
             null ||
@@ -310,7 +333,6 @@ router.get(
             : Number(
                 row.TOTAL_PROGRAM_CREDITS
               ),
-
 
         completedSemesters:
           row.COMPLETED_SEMESTERS ===
@@ -322,11 +344,9 @@ router.get(
                 row.COMPLETED_SEMESTERS
               ),
 
-
         updatedAt:
           row.UPDATED_AT ||
           null,
-
 
         hasAcademicSummary:
           row.CGPA !== null ||
@@ -343,7 +363,6 @@ router.get(
         "Get academic summary error:",
         error
       );
-
 
       return res
         .status(500)
@@ -375,10 +394,17 @@ router.get(
 // =====================================================
 // GET SINGLE STUDENT
 // GET /api/students/:studentRoll
+//
+// AUTHENTICATED USER
+//
+// NOTE:
+// Student ownership / IDOR validation will be added
+// later in the deeper security pass.
 // =====================================================
 
 router.get(
   "/:studentRoll",
+  authenticateToken,
   async (req, res) => {
     let connection;
 
@@ -386,10 +412,8 @@ router.get(
       const studentRoll =
         req.params.studentRoll.trim();
 
-
       connection =
         await getConnection();
-
 
       const result =
         await connection.execute(
@@ -402,7 +426,9 @@ router.get(
             department,
             semester,
             section
+
           FROM students
+
           WHERE LOWER(student_roll) =
                 LOWER(:studentRoll)
           `,
@@ -414,7 +440,6 @@ router.get(
               oracledb.OUT_FORMAT_OBJECT,
           }
         );
-
 
       if (
         result.rows.length ===
@@ -428,7 +453,6 @@ router.get(
           });
       }
 
-
       return res.json(
         result.rows[0]
       );
@@ -438,7 +462,6 @@ router.get(
         "Get student error:",
         error
       );
-
 
       return res
         .status(500)
@@ -470,10 +493,14 @@ router.get(
 // =====================================================
 // ADD NEW STUDENT
 // POST /api/students
+//
+// ADMIN ONLY
 // =====================================================
 
 router.post(
   "/",
+  authenticateToken,
+  requireAdmin,
   async (req, res) => {
     let connection;
 
@@ -488,7 +515,6 @@ router.post(
         section,
       } =
         req.body;
-
 
       // ---------------------------------------------
       // VALIDATION
@@ -508,34 +534,27 @@ router.post(
           });
       }
 
-
       const cleanName =
         name.trim();
-
 
       const cleanEmail =
         email
           .trim()
           .toLowerCase();
 
-
       const cleanRoll =
         studentRoll.trim();
-
 
       const cleanDepartment =
         department?.trim() ||
         null;
 
-
       const cleanSection =
         section?.trim() ||
         null;
 
-
       let cleanSemester =
         null;
-
 
       if (
         semester !==
@@ -549,7 +568,6 @@ router.post(
           Number(
             semester
           );
-
 
         if (
           !Number.isInteger(
@@ -567,7 +585,6 @@ router.post(
         }
       }
 
-
       if (
         password.length <
         6
@@ -580,10 +597,8 @@ router.post(
           });
       }
 
-
       connection =
         await getConnection();
-
 
       // ---------------------------------------------
       // CHECK EMAIL IN USERS
@@ -607,7 +622,6 @@ router.post(
           }
         );
 
-
       if (
         emailCheck.rows.length >
         0
@@ -619,7 +633,6 @@ router.post(
               "Email is already registered",
           });
       }
-
 
       // ---------------------------------------------
       // CHECK EMAIL IN STUDENTS
@@ -643,7 +656,6 @@ router.post(
           }
         );
 
-
       if (
         studentEmailCheck
           .rows.length >
@@ -656,7 +668,6 @@ router.post(
               "Student email already exists",
           });
       }
-
 
       // ---------------------------------------------
       // CHECK DUPLICATE ROLL
@@ -680,7 +691,6 @@ router.post(
           }
         );
 
-
       if (
         rollCheck.rows.length >
         0
@@ -693,7 +703,6 @@ router.post(
           });
       }
 
-
       // ---------------------------------------------
       // HASH PASSWORD
       // ---------------------------------------------
@@ -703,7 +712,6 @@ router.post(
           password,
           10
         );
-
 
       // ---------------------------------------------
       // INSERT INTO USERS
@@ -718,6 +726,7 @@ router.post(
           role,
           created_at
         )
+
         VALUES (
           :name,
           :email,
@@ -737,7 +746,6 @@ router.post(
         }
       );
 
-
       // ---------------------------------------------
       // INSERT INTO STUDENTS
       // ---------------------------------------------
@@ -752,6 +760,7 @@ router.post(
           section,
           student_roll
         )
+
         VALUES (
           :name,
           :email,
@@ -782,13 +791,11 @@ router.post(
         }
       );
 
-
       // ---------------------------------------------
       // COMMIT BOTH TOGETHER
       // ---------------------------------------------
 
       await connection.commit();
-
 
       return res
         .status(201)
@@ -840,12 +847,10 @@ router.post(
         }
       }
 
-
       console.error(
         "Create student error:",
         error
       );
-
 
       if (
         error.errorNum ===
@@ -858,7 +863,6 @@ router.post(
               "Student email or roll number already exists",
           });
       }
-
 
       return res
         .status(500)
@@ -890,17 +894,20 @@ router.post(
 // =====================================================
 // UPDATE STUDENT
 // PUT /api/students/:studentRoll
+//
+// ADMIN ONLY
 // =====================================================
 
 router.put(
   "/:studentRoll",
+  authenticateToken,
+  requireAdmin,
   async (req, res) => {
     let connection;
 
     try {
       const studentRoll =
         req.params.studentRoll.trim();
-
 
       const {
         name,
@@ -910,7 +917,6 @@ router.put(
         section,
       } =
         req.body;
-
 
       // ---------------------------------------------
       // VALIDATION
@@ -928,20 +934,16 @@ router.put(
           });
       }
 
-
       const cleanName =
         name.trim();
-
 
       const cleanEmail =
         email
           .trim()
           .toLowerCase();
 
-
       let cleanSemester =
         null;
-
 
       if (
         semester !==
@@ -955,7 +957,6 @@ router.put(
           Number(
             semester
           );
-
 
         if (
           !Number.isInteger(
@@ -975,10 +976,8 @@ router.put(
         }
       }
 
-
       connection =
         await getConnection();
-
 
       // ---------------------------------------------
       // FIND EXISTING STUDENT
@@ -992,7 +991,9 @@ router.put(
             name,
             email,
             student_roll
+
           FROM students
+
           WHERE LOWER(student_roll) =
                 LOWER(:studentRoll)
           `,
@@ -1004,7 +1005,6 @@ router.put(
               oracledb.OUT_FORMAT_OBJECT,
           }
         );
-
 
       if (
         existingResult
@@ -1019,10 +1019,8 @@ router.put(
           });
       }
 
-
       const oldStudent =
         existingResult.rows[0];
-
 
       // ---------------------------------------------
       // CHECK EMAIL NOT USED BY ANOTHER ACCOUNT
@@ -1032,7 +1030,9 @@ router.put(
         await connection.execute(
           `
           SELECT id
+
           FROM users
+
           WHERE LOWER(email) =
                 LOWER(:newEmail)
 
@@ -1052,7 +1052,6 @@ router.put(
           }
         );
 
-
       if (
         duplicateEmail
           .rows.length >
@@ -1066,7 +1065,6 @@ router.put(
           });
       }
 
-
       // ---------------------------------------------
       // UPDATE STUDENT PROFILE
       // ---------------------------------------------
@@ -1074,12 +1072,14 @@ router.put(
       await connection.execute(
         `
         UPDATE students
+
         SET
           name = :name,
           email = :email,
           department = :department,
           semester = :semester,
           section = :section
+
         WHERE LOWER(student_roll) =
               LOWER(:studentRoll)
         `,
@@ -1105,7 +1105,6 @@ router.put(
         }
       );
 
-
       // ---------------------------------------------
       // KEEP LOGIN ACCOUNT SYNCHRONIZED
       // ---------------------------------------------
@@ -1113,9 +1112,11 @@ router.put(
       await connection.execute(
         `
         UPDATE users
+
         SET
           name = :name,
           email = :newEmail
+
         WHERE LOWER(email) =
               LOWER(:oldEmail)
         `,
@@ -1131,9 +1132,7 @@ router.put(
         }
       );
 
-
       await connection.commit();
-
 
       return res.json({
         message:
@@ -1180,12 +1179,10 @@ router.put(
         }
       }
 
-
       console.error(
         "Student update error:",
         error
       );
-
 
       if (
         error.errorNum ===
@@ -1198,7 +1195,6 @@ router.put(
               "The updated email already exists",
           });
       }
-
 
       return res
         .status(500)
@@ -1230,10 +1226,14 @@ router.put(
 // =====================================================
 // DELETE STUDENT
 // DELETE /api/students/:studentRoll
+//
+// ADMIN ONLY
 // =====================================================
 
 router.delete(
   "/:studentRoll",
+  authenticateToken,
+  requireAdmin,
   async (req, res) => {
     let connection;
 
@@ -1241,10 +1241,8 @@ router.delete(
       const studentRoll =
         req.params.studentRoll.trim();
 
-
       connection =
         await getConnection();
-
 
       // ---------------------------------------------
       // FIND STUDENT
@@ -1258,7 +1256,9 @@ router.delete(
             name,
             email,
             student_roll
+
           FROM students
+
           WHERE LOWER(student_roll) =
                 LOWER(:studentRoll)
           `,
@@ -1270,7 +1270,6 @@ router.delete(
               oracledb.OUT_FORMAT_OBJECT,
           }
         );
-
 
       if (
         studentResult
@@ -1285,10 +1284,8 @@ router.delete(
           });
       }
 
-
       const student =
         studentResult.rows[0];
-
 
       // ---------------------------------------------
       // DELETE ACADEMIC SUMMARY
@@ -1300,6 +1297,7 @@ router.delete(
       await connection.execute(
         `
         DELETE FROM student_academic_summary
+
         WHERE LOWER(student_roll) =
               LOWER(:studentRoll)
         `,
@@ -1307,7 +1305,6 @@ router.delete(
           studentRoll,
         }
       );
-
 
       // ---------------------------------------------
       // DELETE ATTENDANCE
@@ -1316,6 +1313,7 @@ router.delete(
       await connection.execute(
         `
         DELETE FROM attendance
+
         WHERE LOWER(student_roll) =
               LOWER(:studentRoll)
         `,
@@ -1323,7 +1321,6 @@ router.delete(
           studentRoll,
         }
       );
-
 
       // ---------------------------------------------
       // DELETE ASSIGNMENTS
@@ -1332,6 +1329,7 @@ router.delete(
       await connection.execute(
         `
         DELETE FROM assignments
+
         WHERE LOWER(student_roll) =
               LOWER(:studentRoll)
         `,
@@ -1339,7 +1337,6 @@ router.delete(
           studentRoll,
         }
       );
-
 
       // ---------------------------------------------
       // DELETE TIMETABLE
@@ -1348,6 +1345,7 @@ router.delete(
       await connection.execute(
         `
         DELETE FROM timetable
+
         WHERE LOWER(student_roll) =
               LOWER(:studentRoll)
         `,
@@ -1355,7 +1353,6 @@ router.delete(
           studentRoll,
         }
       );
-
 
       // ---------------------------------------------
       // DELETE EXAMS
@@ -1364,6 +1361,7 @@ router.delete(
       await connection.execute(
         `
         DELETE FROM exams
+
         WHERE LOWER(student_roll) =
               LOWER(:studentRoll)
         `,
@@ -1371,7 +1369,6 @@ router.delete(
           studentRoll,
         }
       );
-
 
       // ---------------------------------------------
       // DELETE STUDENT
@@ -1380,6 +1377,7 @@ router.delete(
       await connection.execute(
         `
         DELETE FROM students
+
         WHERE LOWER(student_roll) =
               LOWER(:studentRoll)
         `,
@@ -1388,7 +1386,6 @@ router.delete(
         }
       );
 
-
       // ---------------------------------------------
       // DELETE LOGIN ACCOUNT
       // ---------------------------------------------
@@ -1396,6 +1393,7 @@ router.delete(
       await connection.execute(
         `
         DELETE FROM users
+
         WHERE LOWER(email) =
               LOWER(:email)
 
@@ -1408,9 +1406,7 @@ router.delete(
         }
       );
 
-
       await connection.commit();
-
 
       return res.json({
         message:
@@ -1446,12 +1442,10 @@ router.delete(
         }
       }
 
-
       console.error(
         "Delete student error:",
         error
       );
-
 
       return res
         .status(500)
@@ -1479,6 +1473,10 @@ router.delete(
   }
 );
 
+
+// =====================================================
+// EXPORT
+// =====================================================
 
 module.exports =
   router;
