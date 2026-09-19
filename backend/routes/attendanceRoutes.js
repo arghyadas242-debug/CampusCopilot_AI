@@ -23,6 +23,235 @@ function cleanText(value) {
 }
 
 
+// =====================================================
+// STUDENT ATTENDANCE OWNERSHIP / IDOR HELPERS
+// =====================================================
+
+function normalizeRole(user) {
+  return String(
+    user?.role ||
+      user?.ROLE ||
+      ""
+  )
+    .trim()
+    .toLowerCase();
+}
+
+
+function normalizeRoll(value) {
+  return String(
+    value || ""
+  )
+    .trim()
+    .toUpperCase();
+}
+
+
+async function getAuthenticatedStudentRoll(
+  connection,
+  user
+) {
+  const email =
+    String(
+      user?.email ||
+        user?.EMAIL ||
+        ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  // ---------------------------------------------------
+  // PRIMARY LOOKUP: AUTHENTICATED EMAIL
+  // ---------------------------------------------------
+
+  if (email) {
+    const result =
+      await connection.execute(
+        `
+        SELECT
+          student_roll
+
+        FROM students
+
+        WHERE LOWER(email) =
+              :email
+        `,
+        {
+          email,
+        },
+        OUT_FORMAT
+      );
+
+
+    if (
+      result.rows.length >
+      0
+    ) {
+      return cleanText(
+        result.rows[0]
+          .STUDENT_ROLL
+      );
+    }
+  }
+
+
+  // ---------------------------------------------------
+  // FALLBACK: ROLL STORED IN SIGNED JWT
+  // ---------------------------------------------------
+
+  const directRoll =
+    user?.rollNumber ||
+    user?.studentRoll ||
+    user?.student_roll ||
+    user?.STUDENT_ROLL ||
+    null;
+
+
+  if (directRoll) {
+    const result =
+      await connection.execute(
+        `
+        SELECT
+          student_roll
+
+        FROM students
+
+        WHERE UPPER(student_roll) =
+              UPPER(:studentRoll)
+        `,
+        {
+          studentRoll:
+            cleanText(
+              directRoll
+            ),
+        },
+        OUT_FORMAT
+      );
+
+
+    if (
+      result.rows.length >
+      0
+    ) {
+      return cleanText(
+        result.rows[0]
+          .STUDENT_ROLL
+      );
+    }
+  }
+
+
+  // ---------------------------------------------------
+  // FINAL FALLBACK: AUTHENTICATED USER ID
+  // ---------------------------------------------------
+
+  const userId =
+    user?.id ??
+    user?.userId ??
+    user?.user_id ??
+    user?.ID ??
+    null;
+
+
+  if (userId !== null) {
+    const result =
+      await connection.execute(
+        `
+        SELECT
+          s.student_roll
+
+        FROM users u
+
+        JOIN students s
+          ON LOWER(s.email) =
+             LOWER(u.email)
+
+        WHERE u.id =
+              :userId
+        `,
+        {
+          userId,
+        },
+        OUT_FORMAT
+      );
+
+
+    if (
+      result.rows.length >
+      0
+    ) {
+      return cleanText(
+        result.rows[0]
+          .STUDENT_ROLL
+      );
+    }
+  }
+
+
+  return "";
+}
+
+
+async function canReadStudentAttendance(
+  connection,
+  req,
+  requestedStudentRoll
+) {
+  const role =
+    normalizeRole(
+      req.user
+    );
+
+
+  // Admin can read any student's attendance.
+  if (role === "admin") {
+    return true;
+  }
+
+
+  // Only student accounts may continue.
+  if (role !== "student") {
+    return false;
+  }
+
+
+  const authenticatedStudentRoll =
+    await getAuthenticatedStudentRoll(
+      connection,
+      req.user
+    );
+
+
+  if (!authenticatedStudentRoll) {
+    return false;
+  }
+
+
+  return (
+    normalizeRoll(
+      authenticatedStudentRoll
+    ) ===
+    normalizeRoll(
+      requestedStudentRoll
+    )
+  );
+}
+
+
+function sendAttendanceForbidden(res) {
+  return res
+    .status(403)
+    .json({
+      error:
+        "You are not authorized to access this student's attendance data.",
+
+      code:
+        "ATTENDANCE_RECORD_FORBIDDEN",
+    });
+}
+
+
 async function closeConnection(
   connection,
   label = "Connection"
@@ -699,6 +928,8 @@ router.get(
 router.get(
   "/sessions/:studentRoll",
 
+  authenticateToken,
+
   async (req, res) => {
     let connection;
 
@@ -722,6 +953,25 @@ router.get(
 
       connection =
         await getConnection();
+
+
+      // -----------------------------------------------
+      // OWNERSHIP / IDOR CHECK
+      // -----------------------------------------------
+
+      const canAccess =
+        await canReadStudentAttendance(
+          connection,
+          req,
+          studentRoll
+        );
+
+
+      if (!canAccess) {
+        return sendAttendanceForbidden(
+          res
+        );
+      }
 
 
       // -----------------------------------------------
@@ -759,10 +1009,6 @@ router.get(
           });
       }
 
-
-      // -----------------------------------------------
-      // LOAD SESSION HISTORY
-      // -----------------------------------------------
 
       const rows =
         await getSessionHistoryRows(
@@ -846,24 +1092,6 @@ router.get(
 // /api/attendance/mark
 //
 // ADMIN ONLY
-//
-// NEW SESSION:
-//
-// 1. Create ATTENDANCE_SESSIONS
-// 2. Create ATTENDANCE_RECORDS
-// 3. Update ATTENDANCE aggregate
-// 4. Update ATTENDANCE_TREND_HISTORY
-// 5. Create low-attendance notifications
-//
-// EXISTING OLD SESSION WITHOUT RECORD HISTORY:
-//
-// 1. Reuse SESSION_ID
-// 2. Create ATTENDANCE_RECORDS
-// 3. DO NOT increment ATTENDANCE again
-//
-// EXISTING SESSION WITH RECORD HISTORY:
-//
-// Return 409 duplicate.
 // =====================================================
 
 router.post(
@@ -885,10 +1113,6 @@ router.post(
       } =
         req.body || {};
 
-
-      // =================================================
-      // VALIDATION
-      // =================================================
 
       if (
         !cleanText(
@@ -965,10 +1189,6 @@ router.post(
         );
 
 
-      // =================================================
-      // VALIDATE EACH STUDENT RECORD
-      // =================================================
-
       const seenRolls =
         new Set();
 
@@ -1037,10 +1257,6 @@ router.post(
         await getConnection();
 
 
-      // =================================================
-      // CHECK SUBJECT
-      // =================================================
-
       const subjectResult =
         await connection.execute(
           `
@@ -1081,10 +1297,6 @@ router.post(
         cleanSubjectCode;
 
 
-      // =================================================
-      // CREATE OR REUSE SESSION
-      // =================================================
-
       let sessionId =
         null;
 
@@ -1094,10 +1306,6 @@ router.post(
 
 
       try {
-        // -----------------------------------------------
-        // CREATE NEW SESSION
-        // -----------------------------------------------
-
         const sessionResult =
           await connection.execute(
             `
@@ -1152,17 +1360,6 @@ router.post(
       } catch (
         sessionError
       ) {
-        // ===============================================
-        // DUPLICATE SESSION
-        //
-        // Expected unique combination:
-        //
-        // subject
-        // section
-        // session type
-        // date
-        // ===============================================
-
         if (
           sessionError
             .errorNum !== 1
@@ -1173,10 +1370,6 @@ router.post(
 
         await connection.rollback();
 
-
-        // -----------------------------------------------
-        // FIND EXISTING SESSION
-        // -----------------------------------------------
 
         const existingSessionResult =
           await connection.execute(
@@ -1232,10 +1425,6 @@ router.post(
             .SESSION_ID;
 
 
-        // -----------------------------------------------
-        // CHECK SESSION HISTORY
-        // -----------------------------------------------
-
         const historyResult =
           await connection.execute(
             `
@@ -1264,10 +1453,6 @@ router.post(
           );
 
 
-        // -----------------------------------------------
-        // TRUE DUPLICATE
-        // -----------------------------------------------
-
         if (
           historyCount > 0
         ) {
@@ -1279,14 +1464,6 @@ router.post(
             });
         }
 
-
-        // -----------------------------------------------
-        // OLD SESSION CREATED BEFORE ATTENDANCE_RECORDS
-        //
-        // Aggregate was already counted in old system.
-        //
-        // Only backfill history.
-        // -----------------------------------------------
 
         isHistoryBackfill =
           true;
@@ -1300,10 +1477,6 @@ router.post(
       }
 
 
-      // =================================================
-      // COUNTERS
-      // =================================================
-
       let notificationsCreated =
         0;
 
@@ -1315,10 +1488,6 @@ router.post(
       let aggregateRecordsUpdated =
         0;
 
-
-      // =================================================
-      // PROCESS STUDENTS
-      // =================================================
 
       for (
         const record
@@ -1343,10 +1512,6 @@ router.post(
             ? 1
             : 0;
 
-
-        // ===============================================
-        // SAVE SESSION HISTORY
-        // ===============================================
 
         await connection.execute(
           `
@@ -1377,22 +1542,12 @@ router.post(
         historyRecordsCreated++;
 
 
-        // ===============================================
-        // HISTORY BACKFILL
-        //
-        // DO NOT increment aggregate again.
-        // ===============================================
-
         if (
           isHistoryBackfill
         ) {
           continue;
         }
 
-
-        // ===============================================
-        // UPDATE SUBJECT AGGREGATE
-        // ===============================================
 
         await connection.execute(
           `
@@ -1471,19 +1626,11 @@ router.post(
         aggregateRecordsUpdated++;
 
 
-        // ===============================================
-        // UPDATE OVERALL TREND HISTORY
-        // ===============================================
-
         await updateOverallTrendSnapshot(
           connection,
           studentRoll
         );
 
-
-        // ===============================================
-        // READ UPDATED SUBJECT ATTENDANCE
-        // ===============================================
 
         const updatedAttendanceResult =
           await connection.execute(
@@ -1546,10 +1693,6 @@ router.post(
           );
 
 
-        // ===============================================
-        // LOW ATTENDANCE NOTIFICATION
-        // ===============================================
-
         const notificationCreated =
           await createLowAttendanceNotificationIfNeeded(
             {
@@ -1576,16 +1719,8 @@ router.post(
       }
 
 
-      // =================================================
-      // COMMIT
-      // =================================================
-
       await connection.commit();
 
-
-      // =================================================
-      // RESPONSE
-      // =================================================
 
       return res.json({
         message:
@@ -1668,15 +1803,14 @@ router.post(
 // GET:
 // /api/attendance/:studentRoll/trend?weeks=8
 //
-// Uses only:
-// ATTENDANCE_SESSIONS
-// ATTENDANCE_RECORDS
-//
-// Older aggregate attendance is NOT invented.
+// STUDENT: OWN RECORD ONLY
+// ADMIN: ANY STUDENT
 // =====================================================
 
 router.get(
   "/:studentRoll/trend",
+
+  authenticateToken,
 
   async (req, res) => {
     let connection;
@@ -1725,9 +1859,20 @@ router.get(
         await getConnection();
 
 
-      // -----------------------------------------------
-      // VERIFY STUDENT
-      // -----------------------------------------------
+      const canAccess =
+        await canReadStudentAttendance(
+          connection,
+          req,
+          studentRoll
+        );
+
+
+      if (!canAccess) {
+        return sendAttendanceForbidden(
+          res
+        );
+      }
+
 
       const studentResult =
         await connection.execute(
@@ -1760,10 +1905,6 @@ router.get(
           });
       }
 
-
-      // -----------------------------------------------
-      // WEEKLY SESSION HISTORY
-      // -----------------------------------------------
 
       const result =
         await connection.execute(
@@ -1863,10 +2004,6 @@ router.get(
           OUT_FORMAT
         );
 
-
-      // -----------------------------------------------
-      // FORMAT RESPONSE
-      // -----------------------------------------------
 
       const trendData =
         result.rows.map(
@@ -1990,13 +2127,12 @@ router.get(
 //
 // GET:
 // /api/attendance/:studentRoll/history
-//
-// This endpoint is kept for compatibility.
-// It returns the raw session history array.
 // =====================================================
 
 router.get(
   "/:studentRoll/history",
+
+  authenticateToken,
 
   async (req, res) => {
     let connection;
@@ -2022,6 +2158,21 @@ router.get(
 
       connection =
         await getConnection();
+
+
+      const canAccess =
+        await canReadStudentAttendance(
+          connection,
+          req,
+          studentRoll
+        );
+
+
+      if (!canAccess) {
+        return sendAttendanceForbidden(
+          res
+        );
+      }
 
 
       const rows =
@@ -2067,16 +2218,12 @@ router.get(
 //
 // GET:
 // /api/attendance/:studentRoll/trend-history
-//
-// Uses:
-// ATTENDANCE_TREND_HISTORY
-//
-// This represents the real aggregate snapshots and
-// does not fabricate missing days/weeks.
 // =====================================================
 
 router.get(
   "/:studentRoll/trend-history",
+
+  authenticateToken,
 
   async (req, res) => {
     let connection;
@@ -2103,10 +2250,6 @@ router.get(
       let weeks =
         null;
 
-
-      // -----------------------------------------------
-      // OPTIONAL WEEK FILTER
-      // -----------------------------------------------
 
       if (
         req.query.weeks !==
@@ -2150,6 +2293,21 @@ router.get(
         await getConnection();
 
 
+      const canAccess =
+        await canReadStudentAttendance(
+          connection,
+          req,
+          studentRoll
+        );
+
+
+      if (!canAccess) {
+        return sendAttendanceForbidden(
+          res
+        );
+      }
+
+
       const weeksFilter =
         weeks === null
           ? ""
@@ -2181,10 +2339,6 @@ router.get(
           weeks;
       }
 
-
-      // -----------------------------------------------
-      // LOAD REAL SNAPSHOTS
-      // -----------------------------------------------
 
       const result =
         await connection.execute(
@@ -2309,25 +2463,14 @@ router.get(
 //
 // KEEP THIS ROUTE LAST.
 //
-// This reads ATTENDANCE, which is the complete
+// This reads ATTENDANCE, which remains the complete
 // historical subject aggregate.
-//
-// Example:
-//
-// CN302
-// 34 attended
-// 44 total
-//
-// This should remain the source for:
-// - subject overall attendance
-// - total historical attendance
-// - 75% calculations
-//
-// Session history must NOT replace this.
 // =====================================================
 
 router.get(
   "/:studentRoll",
+
+  authenticateToken,
 
   async (req, res) => {
     let connection;
@@ -2353,6 +2496,21 @@ router.get(
 
       connection =
         await getConnection();
+
+
+      const canAccess =
+        await canReadStudentAttendance(
+          connection,
+          req,
+          studentRoll
+        );
+
+
+      if (!canAccess) {
+        return sendAttendanceForbidden(
+          res
+        );
+      }
 
 
       const result =

@@ -12,6 +12,234 @@ const router = express.Router();
 
 
 // =====================================================
+// STUDENT OWNERSHIP / IDOR HELPERS
+// =====================================================
+
+function normalizeRole(user) {
+  return String(
+    user?.role ||
+      user?.ROLE ||
+      ""
+  )
+    .trim()
+    .toLowerCase();
+}
+
+
+function normalizeRoll(value) {
+  return String(
+    value || ""
+  )
+    .trim()
+    .toLowerCase();
+}
+
+
+async function getAuthenticatedStudentRoll(
+  connection,
+  user
+) {
+  const email =
+    String(
+      user?.email ||
+        user?.EMAIL ||
+        ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  // ---------------------------------------------------
+  // PRIMARY LOOKUP: AUTHENTICATED EMAIL
+  // ---------------------------------------------------
+
+  if (email) {
+    const result =
+      await connection.execute(
+        `
+        SELECT
+          student_roll
+
+        FROM students
+
+        WHERE LOWER(email) =
+              :email
+        `,
+        {
+          email,
+        },
+        {
+          outFormat:
+            oracledb.OUT_FORMAT_OBJECT,
+        }
+      );
+
+
+    if (
+      result.rows.length >
+      0
+    ) {
+      return String(
+        result.rows[0]
+          .STUDENT_ROLL ||
+          ""
+      ).trim();
+    }
+  }
+
+
+  // ---------------------------------------------------
+  // FALLBACK: ROLL STORED IN THE SIGNED JWT
+  // ---------------------------------------------------
+
+  const directRoll =
+    user?.rollNumber ||
+    user?.studentRoll ||
+    user?.student_roll ||
+    user?.STUDENT_ROLL ||
+    null;
+
+
+  if (directRoll) {
+    const result =
+      await connection.execute(
+        `
+        SELECT
+          student_roll
+
+        FROM students
+
+        WHERE LOWER(student_roll) =
+              LOWER(:studentRoll)
+        `,
+        {
+          studentRoll:
+            String(
+              directRoll
+            ).trim(),
+        },
+        {
+          outFormat:
+            oracledb.OUT_FORMAT_OBJECT,
+        }
+      );
+
+
+    if (
+      result.rows.length >
+      0
+    ) {
+      return String(
+        result.rows[0]
+          .STUDENT_ROLL ||
+          ""
+      ).trim();
+    }
+  }
+
+
+  // ---------------------------------------------------
+  // FINAL FALLBACK: AUTHENTICATED USER ID
+  // ---------------------------------------------------
+
+  const userId =
+    user?.id ??
+    user?.userId ??
+    user?.user_id ??
+    user?.ID ??
+    null;
+
+
+  if (userId !== null) {
+    const result =
+      await connection.execute(
+        `
+        SELECT
+          s.student_roll
+
+        FROM users u
+
+        JOIN students s
+          ON LOWER(s.email) =
+             LOWER(u.email)
+
+        WHERE u.id =
+              :userId
+        `,
+        {
+          userId,
+        },
+        {
+          outFormat:
+            oracledb.OUT_FORMAT_OBJECT,
+        }
+      );
+
+
+    if (
+      result.rows.length >
+      0
+    ) {
+      return String(
+        result.rows[0]
+          .STUDENT_ROLL ||
+          ""
+      ).trim();
+    }
+  }
+
+
+  return "";
+}
+
+
+async function canReadStudentRecord(
+  connection,
+  req,
+  requestedStudentRoll
+) {
+  const role =
+    normalizeRole(
+      req.user
+    );
+
+
+  // Admins may read any student's record.
+  if (role === "admin") {
+    return true;
+  }
+
+
+  // No other role except student is allowed here.
+  if (role !== "student") {
+    return false;
+  }
+
+
+  const authenticatedStudentRoll =
+    await getAuthenticatedStudentRoll(
+      connection,
+      req.user
+    );
+
+
+  if (!authenticatedStudentRoll) {
+    return false;
+  }
+
+
+  return (
+    normalizeRoll(
+      authenticatedStudentRoll
+    ) ===
+    normalizeRoll(
+      requestedStudentRoll
+    )
+  );
+}
+
+
+// =====================================================
 // GET ALL STUDENTS
 // GET /api/students
 //
@@ -208,9 +436,11 @@ router.get(
 //
 // AUTHENTICATED USER
 //
-// NOTE:
-// Student ownership / IDOR validation will be added
-// later in the deeper security pass.
+// ADMIN:
+// May read any student's academic summary.
+//
+// STUDENT:
+// May read only their own academic summary.
 // =====================================================
 
 router.get(
@@ -237,6 +467,32 @@ router.get(
 
       connection =
         await getConnection();
+
+
+      // -----------------------------------------------
+      // OWNERSHIP / IDOR CHECK
+      // -----------------------------------------------
+
+      const canAccess =
+        await canReadStudentRecord(
+          connection,
+          req,
+          studentRoll
+        );
+
+
+      if (!canAccess) {
+        return res
+          .status(403)
+          .json({
+            error:
+              "You are not authorized to access this student's academic summary.",
+
+            code:
+              "STUDENT_RECORD_FORBIDDEN",
+          });
+      }
+
 
       /*
         LEFT JOIN is intentional.
@@ -397,9 +653,11 @@ router.get(
 //
 // AUTHENTICATED USER
 //
-// NOTE:
-// Student ownership / IDOR validation will be added
-// later in the deeper security pass.
+// ADMIN:
+// May read any student's profile.
+//
+// STUDENT:
+// May read only their own profile.
 // =====================================================
 
 router.get(
@@ -414,6 +672,32 @@ router.get(
 
       connection =
         await getConnection();
+
+
+      // -----------------------------------------------
+      // OWNERSHIP / IDOR CHECK
+      // -----------------------------------------------
+
+      const canAccess =
+        await canReadStudentRecord(
+          connection,
+          req,
+          studentRoll
+        );
+
+
+      if (!canAccess) {
+        return res
+          .status(403)
+          .json({
+            error:
+              "You are not authorized to access this student's profile.",
+
+            code:
+              "STUDENT_RECORD_FORBIDDEN",
+          });
+      }
+
 
       const result =
         await connection.execute(

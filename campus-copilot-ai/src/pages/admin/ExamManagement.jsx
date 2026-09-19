@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import AdminSidebar from "../../components/admin/AdminSidebar";
+import { getAuthHeader } from "../../services/api";
 
 const API_URL = "http://localhost:5000";
 
@@ -125,11 +126,17 @@ export default function ExamManagement() {
         subjectsResponse,
       ] = await Promise.all([
         fetch(
-          `${API_URL}/api/admin/exams`
+          `${API_URL}/api/admin/exams`,
+          {
+            headers: getAuthHeader(),
+          }
         ),
 
         fetch(
-          `${API_URL}/api/students`
+          `${API_URL}/api/students`,
+          {
+            headers: getAuthHeader(),
+          }
         ),
 
         fetch(
@@ -287,6 +294,7 @@ export default function ExamManagement() {
         headers: {
           "Content-Type":
             "application/json",
+          ...getAuthHeader(),
         },
 
         body: JSON.stringify({
@@ -416,6 +424,7 @@ export default function ExamManagement() {
         `${API_URL}/api/admin/exams/${exam.ID}`,
         {
           method: "DELETE",
+          headers: getAuthHeader(),
         }
       );
 
@@ -464,577 +473,579 @@ export default function ExamManagement() {
 
       <main className="md:ml-[280px] min-h-screen flex flex-col">
 
-      {/* HEADER */}
+        {/* HEADER */}
 
-      <header className="sticky top-0 w-full z-40 bg-surface border-b border-outline-variant shadow-xs">
+        <header className="sticky top-0 w-full z-40 bg-surface border-b border-outline-variant shadow-xs">
 
-        <div className="flex justify-between items-center px-4 md:px-8 py-3 max-w-[1440px] mx-auto w-full">
+          <div className="flex justify-between items-center px-4 md:px-8 py-3 max-w-[1440px] mx-auto w-full">
 
-          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4">
 
-            <Link
-              to="/admin"
-              className="text-on-surface-variant hover:text-primary transition-colors flex items-center"
-            >
-              <span className="material-symbols-outlined">
-                arrow_back
+              <Link
+                to="/admin"
+                className="text-on-surface-variant hover:text-primary transition-colors flex items-center"
+              >
+                <span className="material-symbols-outlined">
+                  arrow_back
+                </span>
+              </Link>
+
+              <h1 className="font-headline-lg-mobile md:font-headline-lg font-bold text-primary">
+                Exam Management
+              </h1>
+
+            </div>
+
+            <div className="flex items-center gap-2 bg-surface-container-low px-3 py-1.5 rounded-full border border-outline-variant text-xs">
+
+              <span className="material-symbols-outlined text-primary text-base">
+                event_note
               </span>
-            </Link>
 
-            <h1 className="font-headline-lg-mobile md:font-headline-lg font-bold text-primary">
-              Exam Management
-            </h1>
+              <span className="font-semibold text-on-surface">
+                {exams.length} Exams
+              </span>
+
+            </div>
 
           </div>
 
-          <div className="flex items-center gap-2 bg-surface-container-low px-3 py-1.5 rounded-full border border-outline-variant text-xs">
+        </header>
 
-            <span className="material-symbols-outlined text-primary text-base">
-              event_note
-            </span>
+        {/* MAIN */}
 
-            <span className="font-semibold text-on-surface">
-              {exams.length} Exams
-            </span>
+        <div className="flex-1 max-w-[1440px] mx-auto w-full p-4 md:p-8 flex flex-col gap-6 pt-6">
 
-          </div>
-
-        </div>
-
-      </header>
-
-      {/* MAIN */}
-
-      <div className="flex-1 max-w-[1440px] mx-auto w-full p-4 md:p-8 flex flex-col gap-6 pt-6">
-
-        {/* SIDEBAR */}
+          {/* SIDEBAR */}
 
 
-        {/* CONTENT */}
+          {/* CONTENT */}
 
-        <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-6">
 
-          {/* ERROR */}
+            {/* ERROR */}
 
-          {error && (
-            <div className="p-3 rounded-xl bg-error-container text-on-error-container text-sm flex items-center gap-2">
+            {error && (
+              <div className="p-3 rounded-xl bg-error-container text-on-error-container text-sm flex items-center gap-2">
 
-              <span className="material-symbols-outlined text-base">
-                error
-              </span>
+                <span className="material-symbols-outlined text-base">
+                  error
+                </span>
 
-              {error}
+                {error}
 
-            </div>
-          )}
+              </div>
+            )}
 
-          {/* SUCCESS */}
+            {/* SUCCESS */}
 
-          {success && (
-            <div className="p-3 bg-secondary-container text-on-secondary-container rounded-xl text-sm font-bold flex items-center gap-2">
+            {success && (
+              <div className="p-3 bg-secondary-container text-on-secondary-container rounded-xl text-sm font-bold flex items-center gap-2">
 
-              <span className="material-symbols-outlined text-base">
-                check_circle
-              </span>
+                <span className="material-symbols-outlined text-base">
+                  check_circle
+                </span>
 
-              {success}
+                {success}
 
-            </div>
-          )}
+              </div>
+            )}
 
-          {/* ADD / EDIT EXAM */}
+            {/* ADD / EDIT EXAM */}
 
-          <section className="bg-surface-container-lowest rounded-2xl border border-outline-variant/70 p-5 md:p-6 shadow-sm">
+            <section className="bg-surface-container-lowest rounded-2xl border border-outline-variant/70 p-5 md:p-6 shadow-sm">
 
-            <div className="flex items-start justify-between mb-5">
+              <div className="flex items-start justify-between mb-5">
 
-              <div>
+                <div>
 
-                <h2 className="font-title-md font-bold text-on-surface text-lg">
-                  {editingId
-                    ? "Edit Exam"
-                    : "Add New Exam"}
-                </h2>
+                  <h2 className="font-title-md font-bold text-on-surface text-lg">
+                    {editingId
+                      ? "Edit Exam"
+                      : "Add New Exam"}
+                  </h2>
 
-                <p className="text-xs text-on-surface-variant mt-1">
-                  {editingId
-                    ? "Update the selected examination schedule."
-                    : "Create a new examination schedule for a student."}
-                </p>
+                  <p className="text-xs text-on-surface-variant mt-1">
+                    {editingId
+                      ? "Update the selected examination schedule."
+                      : "Create a new examination schedule for a student."}
+                  </p>
+
+                </div>
+
+                <div className="w-11 h-11 rounded-xl bg-primary-container text-on-primary-container flex items-center justify-center">
+
+                  <span className="material-symbols-outlined">
+                    {editingId
+                      ? "edit"
+                      : "event_note"}
+                  </span>
+
+                </div>
 
               </div>
 
-              <div className="w-11 h-11 rounded-xl bg-primary-container text-on-primary-container flex items-center justify-center">
+              <form
+                onSubmit={handleSubmit}
+                className="flex flex-col gap-4"
+              >
 
-                <span className="material-symbols-outlined">
-                  {editingId
-                    ? "edit"
-                    : "event_note"}
+                {/* Student + Subject */}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+                  <div className="flex flex-col gap-1">
+
+                    <label className="font-label-caps text-outline text-xs uppercase">
+                      Student
+                    </label>
+
+                    <select
+                      className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
+                      name="studentRoll"
+                      value={
+                        formData.studentRoll
+                      }
+                      onChange={
+                        handleChange
+                      }
+                      required
+                    >
+
+                      <option value="">
+                        Select Student
+                      </option>
+
+                      {students.map(
+                        (student) => (
+                          <option
+                            key={
+                              student.STUDENT_ROLL
+                            }
+                            value={
+                              student.STUDENT_ROLL
+                            }
+                          >
+                            {student.NAME}
+                            {" - "}
+                            {
+                              student.STUDENT_ROLL
+                            }
+                          </option>
+                        )
+                      )}
+
+                    </select>
+
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+
+                    <label className="font-label-caps text-outline text-xs uppercase">
+                      Subject
+                    </label>
+
+                    <select
+                      className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
+                      name="subjectCode"
+                      value={
+                        formData.subjectCode
+                      }
+                      onChange={
+                        handleChange
+                      }
+                      required
+                    >
+
+                      <option value="">
+                        Select Subject
+                      </option>
+
+                      {subjects.map(
+                        (subject) => (
+                          <option
+                            key={
+                              subject.SUBJECT_CODE
+                            }
+                            value={
+                              subject.SUBJECT_CODE
+                            }
+                          >
+                            {
+                              subject.SUBJECT_CODE
+                            }
+                            {" - "}
+                            {
+                              subject.SUBJECT_NAME
+                            }
+                          </option>
+                        )
+                      )}
+
+                    </select>
+
+                  </div>
+
+                </div>
+
+                {/* Exam Date + Exam Type */}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+                  <div className="flex flex-col gap-1">
+
+                    <label className="font-label-caps text-outline text-xs uppercase">
+                      Exam Date
+                    </label>
+
+                    <input
+                      type="date"
+                      className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
+                      name="examDate"
+                      value={
+                        formData.examDate
+                      }
+                      onChange={
+                        handleChange
+                      }
+                      required
+                    />
+
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+
+                    <label className="font-label-caps text-outline text-xs uppercase">
+                      Exam Type
+                    </label>
+
+                    <select
+                      className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
+                      name="examType"
+                      value={
+                        formData.examType
+                      }
+                      onChange={
+                        handleChange
+                      }
+                      required
+                    >
+
+                      <option value="">
+                        Select Exam Type
+                      </option>
+
+                      <option value="Class Test">
+                        Class Test
+                      </option>
+
+                      <option value="Mid Semester">
+                        Mid Semester
+                      </option>
+
+                      <option value="End Semester">
+                        End Semester
+                      </option>
+
+                      <option value="Practical">
+                        Practical
+                      </option>
+
+                      <option value="Viva">
+                        Viva
+                      </option>
+
+                    </select>
+
+                  </div>
+
+                </div>
+
+                {/* Start + End + Room */}
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+
+                  <div className="flex flex-col gap-1">
+
+                    <label className="font-label-caps text-outline text-xs uppercase">
+                      Start Time
+                    </label>
+
+                    <input
+                      type="time"
+                      className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
+                      name="startTime"
+                      value={
+                        formData.startTime
+                      }
+                      onChange={
+                        handleChange
+                      }
+                      required
+                    />
+
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+
+                    <label className="font-label-caps text-outline text-xs uppercase">
+                      End Time
+                    </label>
+
+                    <input
+                      type="time"
+                      className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
+                      name="endTime"
+                      value={
+                        formData.endTime
+                      }
+                      onChange={
+                        handleChange
+                      }
+                      required
+                    />
+
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+
+                    <label className="font-label-caps text-outline text-xs uppercase">
+                      Room
+                    </label>
+
+                    <input
+                      className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
+                      name="room"
+                      value={
+                        formData.room
+                      }
+                      onChange={
+                        handleChange
+                      }
+                      placeholder="Room 302"
+                    />
+
+                  </div>
+
+                </div>
+
+                {/* BUTTONS */}
+
+                <div className="mt-3 flex justify-end gap-3">
+
+                  {editingId && (
+                    <button
+                      type="button"
+                      onClick={resetForm}
+                      className="px-5 py-2.5 border border-outline-variant text-on-surface-variant font-bold text-sm rounded-xl hover:bg-surface-container-low transition-all"
+                    >
+                      Cancel
+                    </button>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="px-6 py-2.5 bg-primary text-on-primary font-bold text-sm rounded-xl hover:bg-primary-container transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
+                  >
+
+                    <span className="material-symbols-outlined text-[18px]">
+                      save
+                    </span>
+
+                    {saving
+                      ? "Saving..."
+                      : editingId
+                      ? "Save Changes"
+                      : "Add Exam"}
+
+                  </button>
+
+                </div>
+
+              </form>
+
+            </section>
+
+            {/* EXAM LIST */}
+
+            <section className="bg-surface-container-lowest rounded-2xl border border-outline-variant/70 p-5 md:p-6 shadow-sm">
+
+              <div className="flex items-center justify-between gap-4 mb-4 pb-3 border-b border-surface-variant">
+
+                <div>
+
+                  <h2 className="font-title-md font-bold text-on-surface text-lg">
+                    Examination Schedule
+                  </h2>
+
+                  <p className="text-xs text-on-surface-variant mt-1">
+                    Exams currently stored in the academic database.
+                  </p>
+
+                </div>
+
+                <span className="px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full text-xs font-bold">
+                  {exams.length} Total
                 </span>
 
               </div>
 
-            </div>
-
-            <form
-              onSubmit={handleSubmit}
-              className="flex flex-col gap-4"
-            >
-
-              {/* Student + Subject */}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-                <div className="flex flex-col gap-1">
-
-                  <label className="font-label-caps text-outline text-xs uppercase">
-                    Student
-                  </label>
-
-                  <select
-                    className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
-                    name="studentRoll"
-                    value={
-                      formData.studentRoll
-                    }
-                    onChange={
-                      handleChange
-                    }
-                    required
-                  >
-
-                    <option value="">
-                      Select Student
-                    </option>
-
-                    {students.map(
-                      (student) => (
-                        <option
-                          key={
-                            student.STUDENT_ROLL
-                          }
-                          value={
-                            student.STUDENT_ROLL
-                          }
-                        >
-                          {student.NAME}
-                          {" - "}
-                          {
-                            student.STUDENT_ROLL
-                          }
-                        </option>
-                      )
-                    )}
-
-                  </select>
-
+              {loading && (
+                <div className="py-10 text-center text-sm text-on-surface-variant">
+                  Loading exams...
                 </div>
+              )}
 
-                <div className="flex flex-col gap-1">
+              {!loading &&
+                exams.length === 0 && (
+                  <div className="py-10 text-center">
 
-                  <label className="font-label-caps text-outline text-xs uppercase">
-                    Subject
-                  </label>
+                    <span className="material-symbols-outlined text-5xl text-outline">
+                      event_note
+                    </span>
 
-                  <select
-                    className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
-                    name="subjectCode"
-                    value={
-                      formData.subjectCode
-                    }
-                    onChange={
-                      handleChange
-                    }
-                    required
-                  >
+                    <p className="text-sm text-on-surface-variant mt-2">
+                      No exams found.
+                    </p>
 
-                    <option value="">
-                      Select Subject
-                    </option>
-
-                    {subjects.map(
-                      (subject) => (
-                        <option
-                          key={
-                            subject.SUBJECT_CODE
-                          }
-                          value={
-                            subject.SUBJECT_CODE
-                          }
-                        >
-                          {
-                            subject.SUBJECT_CODE
-                          }
-                          {" - "}
-                          {
-                            subject.SUBJECT_NAME
-                          }
-                        </option>
-                      )
-                    )}
-
-                  </select>
-
-                </div>
-
-              </div>
-
-              {/* Exam Date + Exam Type */}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-                <div className="flex flex-col gap-1">
-
-                  <label className="font-label-caps text-outline text-xs uppercase">
-                    Exam Date
-                  </label>
-
-                  <input
-                    type="date"
-                    className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
-                    name="examDate"
-                    value={
-                      formData.examDate
-                    }
-                    onChange={
-                      handleChange
-                    }
-                    required
-                  />
-
-                </div>
-
-                <div className="flex flex-col gap-1">
-
-                  <label className="font-label-caps text-outline text-xs uppercase">
-                    Exam Type
-                  </label>
-
-                  <select
-                    className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
-                    name="examType"
-                    value={
-                      formData.examType
-                    }
-                    onChange={
-                      handleChange
-                    }
-                    required
-                  >
-                    <option value="">
-                      Select Exam Type
-                    </option>
-
-                    <option value="Class Test">
-                      Class Test
-                    </option>
-
-                    <option value="Mid Semester">
-                      Mid Semester
-                    </option>
-
-                    <option value="End Semester">
-                      End Semester
-                    </option>
-
-                    <option value="Practical">
-                      Practical
-                    </option>
-
-                    <option value="Viva">
-                      Viva
-                    </option>
-                  </select>
-
-                </div>
-
-              </div>
-
-              {/* Start + End + Room */}
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-
-                <div className="flex flex-col gap-1">
-
-                  <label className="font-label-caps text-outline text-xs uppercase">
-                    Start Time
-                  </label>
-
-                  <input
-                    type="time"
-                    className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
-                    name="startTime"
-                    value={
-                      formData.startTime
-                    }
-                    onChange={
-                      handleChange
-                    }
-                    required
-                  />
-
-                </div>
-
-                <div className="flex flex-col gap-1">
-
-                  <label className="font-label-caps text-outline text-xs uppercase">
-                    End Time
-                  </label>
-
-                  <input
-                    type="time"
-                    className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
-                    name="endTime"
-                    value={
-                      formData.endTime
-                    }
-                    onChange={
-                      handleChange
-                    }
-                    required
-                  />
-
-                </div>
-
-                <div className="flex flex-col gap-1">
-
-                  <label className="font-label-caps text-outline text-xs uppercase">
-                    Room
-                  </label>
-
-                  <input
-                    className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
-                    name="room"
-                    value={
-                      formData.room
-                    }
-                    onChange={
-                      handleChange
-                    }
-                    placeholder="Room 302"
-                  />
-
-                </div>
-
-              </div>
-
-              {/* BUTTONS */}
-
-              <div className="mt-3 flex justify-end gap-3">
-
-                {editingId && (
-                  <button
-                    type="button"
-                    onClick={resetForm}
-                    className="px-5 py-2.5 border border-outline-variant text-on-surface-variant font-bold text-sm rounded-xl hover:bg-surface-container-low transition-all"
-                  >
-                    Cancel
-                  </button>
+                  </div>
                 )}
 
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-6 py-2.5 bg-primary text-on-primary font-bold text-sm rounded-xl hover:bg-primary-container transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
-                >
+              {!loading &&
+                exams.length > 0 && (
+                  <div className="flex flex-col divide-y divide-surface-variant">
 
-                  <span className="material-symbols-outlined text-[18px]">
-                    save
-                  </span>
+                    {exams.map((exam) => (
 
-                  {saving
-                    ? "Saving..."
-                    : editingId
-                    ? "Save Changes"
-                    : "Add Exam"}
+                      <div
+                        key={exam.ID}
+                        className="py-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+                      >
 
-                </button>
+                        <div className="flex-1">
 
-              </div>
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
 
-            </form>
+                            <h3 className="font-bold text-on-surface">
+                              {exam.SUBJECT_NAME}
+                            </h3>
 
-          </section>
+                            <span className="px-2 py-0.5 bg-primary-container text-on-primary-container rounded-lg text-xs font-bold">
+                              {exam.SUBJECT_CODE}
+                            </span>
 
-          {/* EXAM LIST */}
+                            <span className="px-2 py-0.5 bg-secondary-container text-on-secondary-container rounded-lg text-xs font-bold">
+                              {exam.EXAM_TYPE}
+                            </span>
 
-          <section className="bg-surface-container-lowest rounded-2xl border border-outline-variant/70 p-5 md:p-6 shadow-sm">
+                          </div>
 
-            <div className="flex items-center justify-between gap-4 mb-4 pb-3 border-b border-surface-variant">
+                          <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-on-surface-variant">
 
-              <div>
+                            <span className="flex items-center gap-1">
 
-                <h2 className="font-title-md font-bold text-on-surface text-lg">
-                  Examination Schedule
-                </h2>
+                              <span className="material-symbols-outlined text-[16px]">
+                                person
+                              </span>
 
-                <p className="text-xs text-on-surface-variant mt-1">
-                  Exams currently stored in the academic database.
-                </p>
+                              {exam.STUDENT_NAME}
+                              {" ("}
+                              {exam.STUDENT_ROLL}
+                              {")"}
 
-              </div>
+                            </span>
 
-              <span className="px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full text-xs font-bold">
-                {exams.length} Total
-              </span>
+                            <span className="flex items-center gap-1">
 
-            </div>
+                              <span className="material-symbols-outlined text-[16px]">
+                                calendar_month
+                              </span>
 
-            {loading && (
-              <div className="py-10 text-center text-sm text-on-surface-variant">
-                Loading exams...
-              </div>
-            )}
+                              {formatDateForDisplay(
+                                exam.EXAM_DATE
+                              )}
 
-            {!loading &&
-              exams.length === 0 && (
-                <div className="py-10 text-center">
+                            </span>
 
-                  <span className="material-symbols-outlined text-5xl text-outline">
-                    event_note
-                  </span>
+                            <span className="flex items-center gap-1">
 
-                  <p className="text-sm text-on-surface-variant mt-2">
-                    No exams found.
-                  </p>
+                              <span className="material-symbols-outlined text-[16px]">
+                                schedule
+                              </span>
 
-                </div>
-              )}
+                              {exam.START_TIME}
+                              {" - "}
+                              {exam.END_TIME}
 
-            {!loading &&
-              exams.length > 0 && (
-                <div className="flex flex-col divide-y divide-surface-variant">
+                            </span>
 
-                  {exams.map((exam) => (
+                            <span className="flex items-center gap-1">
 
-                    <div
-                      key={exam.ID}
-                      className="py-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4"
-                    >
+                              <span className="material-symbols-outlined text-[16px]">
+                                meeting_room
+                              </span>
 
-                      <div className="flex-1">
+                              {exam.ROOM ||
+                                "Room not assigned"}
 
-                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                            </span>
 
-                          <h3 className="font-bold text-on-surface">
-                            {exam.SUBJECT_NAME}
-                          </h3>
-
-                          <span className="px-2 py-0.5 bg-primary-container text-on-primary-container rounded-lg text-xs font-bold">
-                            {exam.SUBJECT_CODE}
-                          </span>
-
-                          <span className="px-2 py-0.5 bg-secondary-container text-on-secondary-container rounded-lg text-xs font-bold">
-                            {exam.EXAM_TYPE}
-                          </span>
+                          </div>
 
                         </div>
 
-                        <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-on-surface-variant">
+                        <div className="flex items-center gap-2">
 
-                          <span className="flex items-center gap-1">
-
-                            <span className="material-symbols-outlined text-[16px]">
-                              person
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleEdit(exam)
+                            }
+                            className="px-4 py-2 border border-outline-variant rounded-xl text-sm font-semibold text-on-surface-variant hover:bg-surface-container-low flex items-center gap-2 transition-all"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">
+                              edit
                             </span>
 
-                            {exam.STUDENT_NAME}
-                            {" ("}
-                            {exam.STUDENT_ROLL}
-                            {")"}
+                            Edit
+                          </button>
 
-                          </span>
-
-                          <span className="flex items-center gap-1">
-
-                            <span className="material-symbols-outlined text-[16px]">
-                              calendar_month
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleDelete(exam)
+                            }
+                            disabled={
+                              deletingId ===
+                              exam.ID
+                            }
+                            className="px-4 py-2 border border-error text-error rounded-xl text-sm font-semibold hover:bg-error-container flex items-center gap-2 transition-all disabled:opacity-50"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">
+                              delete
                             </span>
 
-                            {formatDateForDisplay(
-                              exam.EXAM_DATE
-                            )}
-
-                          </span>
-
-                          <span className="flex items-center gap-1">
-
-                            <span className="material-symbols-outlined text-[16px]">
-                              schedule
-                            </span>
-
-                            {exam.START_TIME}
-                            {" - "}
-                            {exam.END_TIME}
-
-                          </span>
-
-                          <span className="flex items-center gap-1">
-
-                            <span className="material-symbols-outlined text-[16px]">
-                              meeting_room
-                            </span>
-
-                            {exam.ROOM ||
-                              "Room not assigned"}
-
-                          </span>
-
-                        </div>
-
-                      </div>
-
-                      <div className="flex items-center gap-2">
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleEdit(exam)
-                          }
-                          className="px-4 py-2 border border-outline-variant rounded-xl text-sm font-semibold text-on-surface-variant hover:bg-surface-container-low flex items-center gap-2 transition-all"
-                        >
-                          <span className="material-symbols-outlined text-[18px]">
-                            edit
-                          </span>
-
-                          Edit
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleDelete(exam)
-                          }
-                          disabled={
-                            deletingId ===
+                            {deletingId ===
                             exam.ID
-                          }
-                          className="px-4 py-2 border border-error text-error rounded-xl text-sm font-semibold hover:bg-error-container flex items-center gap-2 transition-all disabled:opacity-50"
-                        >
-                          <span className="material-symbols-outlined text-[18px]">
-                            delete
-                          </span>
+                              ? "Deleting..."
+                              : "Delete"}
+                          </button>
 
-                          {deletingId ===
-                          exam.ID
-                            ? "Deleting..."
-                            : "Delete"}
-                        </button>
+                        </div>
 
                       </div>
 
-                    </div>
+                    ))}
 
-                  ))}
+                  </div>
+                )}
 
-                </div>
-              )}
+            </section>
 
-          </section>
+          </div>
 
         </div>
-
-      </div>
 
       </main>
 

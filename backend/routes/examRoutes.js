@@ -2,94 +2,500 @@ const express = require("express");
 const oracledb = require("oracledb");
 const getConnection = require("../db");
 
+const {
+  authenticateToken,
+} = require("../middleware/authMiddleware");
+
 const router = express.Router();
 
-const DEFAULT_EXAMS = [
-  {
-    ID: 1,
-    STUDENT_ROLL: "12024002037008",
-    SUBJECT_CODE: "CS301",
-    SUBJECT_NAME: "Database Management Systems",
-    FACULTY_NAME: "Prof. Alan Turing",
-    EXAM_DATE: "12-09-2026",
-    START_TIME: "10:00 AM",
-    END_TIME: "01:00 PM",
-    ROOM: "Hall A (Room 302)",
-    EXAM_TYPE: "End-Semester Theory",
-  },
-  {
-    ID: 2,
-    STUDENT_ROLL: "12024002037008",
-    SUBJECT_CODE: "CS302",
-    SUBJECT_NAME: "Computer Networks",
-    FACULTY_NAME: "Dr. Grace Hopper",
-    EXAM_DATE: "15-09-2026",
-    START_TIME: "02:00 PM",
-    END_TIME: "05:00 PM",
-    ROOM: "Hall B (Room 105)",
-    EXAM_TYPE: "End-Semester Theory",
-  },
-  {
-    ID: 3,
-    STUDENT_ROLL: "12024002037008",
-    SUBJECT_CODE: "CS303",
-    SUBJECT_NAME: "Operating Systems",
-    FACULTY_NAME: "Dr. Linus Torvalds",
-    EXAM_DATE: "18-09-2026",
-    START_TIME: "10:00 AM",
-    END_TIME: "01:00 PM",
-    ROOM: "Lab 3",
-    EXAM_TYPE: "Practical Assessment",
-  },
-];
 
-// GET exams for one student
-router.get("/:studentRoll", async (req, res) => {
-  let connection;
+// =====================================================
+// HELPERS
+// =====================================================
+
+function cleanText(value) {
+  return String(
+    value || ""
+  ).trim();
+}
+
+
+function normalizeRole(user) {
+  return String(
+    user?.role ||
+      user?.ROLE ||
+      ""
+  )
+    .trim()
+    .toLowerCase();
+}
+
+
+function normalizeRoll(value) {
+  return String(
+    value || ""
+  )
+    .trim()
+    .toUpperCase();
+}
+
+
+// =====================================================
+// SAFE CONNECTION CLOSE
+// =====================================================
+
+async function closeConnection(
+  connection
+) {
+  if (!connection) {
+    return;
+  }
+
 
   try {
-    const studentRoll = req.params.studentRoll;
-    connection = await getConnection();
+    await connection.close();
 
-    const result = await connection.execute(
-      `
-      SELECT
-        e.id,
-        e.student_roll,
-        e.subject_code,
-        s.subject_name,
-        s.faculty_name,
-        TO_CHAR(e.exam_date, 'DD-MM-YYYY') AS exam_date,
-        e.start_time,
-        e.end_time,
-        e.room,
-        e.exam_type
-      FROM exams e
-      JOIN subjects s
-        ON e.subject_code = s.subject_code
-      WHERE e.student_roll = :studentRoll
-      ORDER BY e.exam_date
-      `,
-      { studentRoll },
-      {
-        outFormat: oracledb.OUT_FORMAT_OBJECT,
-      }
-    );
-
-    if (result.rows && result.rows.length > 0) {
-      return res.json(result.rows);
-    }
-    return res.json(DEFAULT_EXAMS);
   } catch (error) {
-    console.warn("Exam route using fallback exams:", error.message);
-    res.json(DEFAULT_EXAMS);
-  } finally {
-    if (connection) {
-      try {
-        await connection.close();
-      } catch (e) {}
+    console.error(
+      "Exam connection close error:",
+      error
+    );
+  }
+}
+
+
+// =====================================================
+// RESOLVE AUTHENTICATED STUDENT ROLL
+// =====================================================
+
+async function getAuthenticatedStudentRoll(
+  connection,
+  user
+) {
+  // ---------------------------------------------------
+  // PRIMARY LOOKUP: JWT EMAIL
+  // ---------------------------------------------------
+
+  const email =
+    String(
+      user?.email ||
+        user?.EMAIL ||
+        ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  if (email) {
+    const result =
+      await connection.execute(
+        `
+        SELECT
+          student_roll
+
+        FROM students
+
+        WHERE LOWER(email) =
+              :email
+        `,
+        {
+          email,
+        },
+        {
+          outFormat:
+            oracledb.OUT_FORMAT_OBJECT,
+        }
+      );
+
+
+    if (
+      result.rows.length >
+      0
+    ) {
+      return cleanText(
+        result.rows[0]
+          .STUDENT_ROLL
+      );
     }
   }
-});
 
-module.exports = router;
+
+  // ---------------------------------------------------
+  // FALLBACK: ROLL STORED IN SIGNED JWT
+  // ---------------------------------------------------
+
+  const directRoll =
+    user?.rollNumber ||
+    user?.studentRoll ||
+    user?.student_roll ||
+    user?.STUDENT_ROLL ||
+    null;
+
+
+  if (directRoll) {
+    const result =
+      await connection.execute(
+        `
+        SELECT
+          student_roll
+
+        FROM students
+
+        WHERE UPPER(student_roll) =
+              UPPER(:studentRoll)
+        `,
+        {
+          studentRoll:
+            cleanText(
+              directRoll
+            ),
+        },
+        {
+          outFormat:
+            oracledb.OUT_FORMAT_OBJECT,
+        }
+      );
+
+
+    if (
+      result.rows.length >
+      0
+    ) {
+      return cleanText(
+        result.rows[0]
+          .STUDENT_ROLL
+      );
+    }
+  }
+
+
+  // ---------------------------------------------------
+  // FINAL FALLBACK: USER ID -> STUDENT EMAIL
+  // ---------------------------------------------------
+
+  const userId =
+    user?.id ??
+    user?.userId ??
+    user?.user_id ??
+    user?.ID ??
+    null;
+
+
+  if (userId !== null) {
+    const result =
+      await connection.execute(
+        `
+        SELECT
+          s.student_roll
+
+        FROM users u
+
+        JOIN students s
+          ON LOWER(s.email) =
+             LOWER(u.email)
+
+        WHERE u.id =
+              :userId
+        `,
+        {
+          userId,
+        },
+        {
+          outFormat:
+            oracledb.OUT_FORMAT_OBJECT,
+        }
+      );
+
+
+    if (
+      result.rows.length >
+      0
+    ) {
+      return cleanText(
+        result.rows[0]
+          .STUDENT_ROLL
+      );
+    }
+  }
+
+
+  return "";
+}
+
+
+// =====================================================
+// EXAM OWNERSHIP / IDOR CHECK
+// =====================================================
+
+async function canReadStudentExams(
+  connection,
+  req,
+  requestedStudentRoll
+) {
+  const role =
+    normalizeRole(
+      req.user
+    );
+
+
+  // ---------------------------------------------------
+  // ADMIN MAY VIEW ANY STUDENT
+  // ---------------------------------------------------
+
+  if (role === "admin") {
+    return true;
+  }
+
+
+  // ---------------------------------------------------
+  // ONLY STUDENT ACCOUNTS CONTINUE
+  // ---------------------------------------------------
+
+  if (role !== "student") {
+    return false;
+  }
+
+
+  const authenticatedStudentRoll =
+    await getAuthenticatedStudentRoll(
+      connection,
+      req.user
+    );
+
+
+  if (!authenticatedStudentRoll) {
+    return false;
+  }
+
+
+  return (
+    normalizeRoll(
+      authenticatedStudentRoll
+    ) ===
+    normalizeRoll(
+      requestedStudentRoll
+    )
+  );
+}
+
+
+// =====================================================
+// GET REAL EXAMS FOR ONE STUDENT
+//
+// GET /api/exams/:studentRoll
+//
+// ADMIN:
+// May read any student's exams.
+//
+// STUDENT:
+// May read only their own exams.
+//
+// IMPORTANT:
+// No mock / fallback exam data is ever returned.
+// =====================================================
+
+router.get(
+  "/:studentRoll",
+
+  authenticateToken,
+
+  async (req, res) => {
+    let connection;
+
+
+    try {
+      const studentRoll =
+        cleanText(
+          req.params.studentRoll
+        );
+
+
+      if (!studentRoll) {
+        return res
+          .status(400)
+          .json({
+            error:
+              "Student roll number is required",
+
+            code:
+              "STUDENT_ROLL_REQUIRED",
+          });
+      }
+
+
+      connection =
+        await getConnection();
+
+
+      // =================================================
+      // OWNERSHIP / IDOR CHECK
+      // =================================================
+
+      const canAccess =
+        await canReadStudentExams(
+          connection,
+          req,
+          studentRoll
+        );
+
+
+      if (!canAccess) {
+        return res
+          .status(403)
+          .json({
+            error:
+              "You are not authorized to access this student's exams.",
+
+            code:
+              "EXAM_RECORD_FORBIDDEN",
+          });
+      }
+
+
+      // =================================================
+      // VERIFY STUDENT EXISTS
+      // =================================================
+
+      const studentResult =
+        await connection.execute(
+          `
+          SELECT
+            student_roll
+
+          FROM students
+
+          WHERE UPPER(student_roll) =
+                UPPER(:studentRoll)
+          `,
+          {
+            studentRoll,
+          },
+          {
+            outFormat:
+              oracledb.OUT_FORMAT_OBJECT,
+          }
+        );
+
+
+      if (
+        studentResult.rows.length ===
+        0
+      ) {
+        return res
+          .status(404)
+          .json({
+            error:
+              "Student not found",
+
+            code:
+              "STUDENT_NOT_FOUND",
+          });
+      }
+
+
+      // =================================================
+      // LOAD REAL EXAM DATA
+      // =================================================
+
+      const result =
+        await connection.execute(
+          `
+          SELECT
+            e.id,
+            e.student_roll,
+            e.subject_code,
+
+            s.subject_name,
+            s.faculty_name,
+
+            TO_CHAR(
+              e.exam_date,
+              'DD-MM-YYYY'
+            ) AS exam_date,
+
+            e.start_time,
+            e.end_time,
+            e.room,
+            e.exam_type
+
+          FROM exams e
+
+          LEFT JOIN subjects s
+            ON UPPER(
+              e.subject_code
+            ) =
+            UPPER(
+              s.subject_code
+            )
+
+          WHERE UPPER(
+            e.student_roll
+          ) =
+          UPPER(
+            :studentRoll
+          )
+
+          ORDER BY
+            e.exam_date,
+            e.start_time,
+            e.id
+          `,
+          {
+            studentRoll,
+          },
+          {
+            outFormat:
+              oracledb.OUT_FORMAT_OBJECT,
+          }
+        );
+
+
+      // -------------------------------------------------
+      // IMPORTANT:
+      //
+      // No database rows means the student currently
+      // has no exam records.
+      //
+      // Return a REAL empty array.
+      // Never invent fallback exams.
+      // -------------------------------------------------
+
+      return res.json(
+        result.rows || []
+      );
+
+    } catch (error) {
+      console.error(
+        "Student exam route error:",
+        error
+      );
+
+
+      // -------------------------------------------------
+      // IMPORTANT:
+      //
+      // Do not hide database/server failures by returning
+      // fake exam schedules.
+      // -------------------------------------------------
+
+      return res
+        .status(500)
+        .json({
+          error:
+            "Unable to load exams",
+
+          code:
+            "EXAMS_LOAD_FAILED",
+        });
+
+    } finally {
+      await closeConnection(
+        connection
+      );
+    }
+  }
+);
+
+
+module.exports =
+  router;
