@@ -9,6 +9,8 @@ import {
 
 import AdminSidebar from "../../components/admin/AdminSidebar";
 
+import { getAuthHeader } from "../../services/api";
+
 
 const API_URL =
   "http://localhost:5000";
@@ -194,7 +196,11 @@ export default function ResourceManagement() {
         ] =
           await Promise.all([
             fetch(
-              `${API_URL}/api/admin/resources`
+              `${API_URL}/api/admin/resources`,
+              {
+                headers:
+                  getAuthHeader(),
+              }
             ),
 
             fetch(
@@ -743,6 +749,9 @@ export default function ResourceManagement() {
                   ? "PUT"
                   : "POST",
 
+              headers:
+                getAuthHeader(),
+
               body:
                 payload,
             }
@@ -934,6 +943,9 @@ export default function ResourceManagement() {
             {
               method:
                 "DELETE",
+
+              headers:
+                getAuthHeader(),
             }
           );
 

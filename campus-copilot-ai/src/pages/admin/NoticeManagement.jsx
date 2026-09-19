@@ -5,6 +5,7 @@ import AdminSidebar from "../../components/admin/AdminSidebar";
 
 import {
   aiService,
+  getAuthHeader,
 } from "../../services/api";
 
 
@@ -75,7 +76,11 @@ export default function NoticeManagement() {
 
         const response =
           await fetch(
-            `${API_URL}/api/admin/notices`
+            `${API_URL}/api/admin/notices`,
+            {
+              headers:
+                getAuthHeader(),
+            }
           );
 
 
@@ -400,6 +405,8 @@ export default function NoticeManagement() {
               headers: {
                 "Content-Type":
                   "application/json",
+
+                ...getAuthHeader(),
               },
 
               body:
@@ -557,6 +564,9 @@ export default function NoticeManagement() {
             {
               method:
                 "DELETE",
+
+              headers:
+                getAuthHeader(),
             }
           );
 

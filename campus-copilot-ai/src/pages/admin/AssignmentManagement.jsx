@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import AdminSidebar from "../../components/admin/AdminSidebar";
+import { getAuthHeader } from "../../services/api";
 
 const API_URL = "http://localhost:5000";
 
@@ -29,7 +30,7 @@ export default function AssignmentManagement() {
   const [success, setSuccess] = useState("");
 
   // =====================================================
-  // FORMAT ORACLE DATE FOR <input type="date">
+  // FORMAT ORACLE DATE FOR INPUT
   // =====================================================
 
   const formatDateForInput = (value) => {
@@ -93,11 +94,17 @@ export default function AssignmentManagement() {
         subjectsResponse,
       ] = await Promise.all([
         fetch(
-          `${API_URL}/api/admin/assignments`
+          `${API_URL}/api/admin/assignments`,
+          {
+            headers: getAuthHeader(),
+          }
         ),
 
         fetch(
-          `${API_URL}/api/students`
+          `${API_URL}/api/students`,
+          {
+            headers: getAuthHeader(),
+          }
         ),
 
         fetch(
@@ -176,7 +183,10 @@ export default function AssignmentManagement() {
   // =====================================================
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const {
+      name,
+      value,
+    } = e.target;
 
     setFormData((previous) => ({
       ...previous,
@@ -235,39 +245,44 @@ export default function AssignmentManagement() {
         ? `${API_URL}/api/admin/assignments/${editingId}`
         : `${API_URL}/api/admin/assignments`;
 
-      const response = await fetch(url, {
-        method: isEditing
-          ? "PUT"
-          : "POST",
+      const response = await fetch(
+        url,
+        {
+          method: isEditing
+            ? "PUT"
+            : "POST",
 
-        headers: {
-          "Content-Type":
-            "application/json",
-        },
+          headers: {
+            "Content-Type":
+              "application/json",
 
-        body: JSON.stringify({
-          studentRoll:
-            formData.studentRoll,
+            ...getAuthHeader(),
+          },
 
-          subjectCode:
-            formData.subjectCode,
+          body: JSON.stringify({
+            studentRoll:
+              formData.studentRoll,
 
-          title:
-            formData.title,
+            subjectCode:
+              formData.subjectCode,
 
-          description:
-            formData.description,
+            title:
+              formData.title,
 
-          dueDate:
-            formData.dueDate,
+            description:
+              formData.description,
 
-          priority:
-            formData.priority,
+            dueDate:
+              formData.dueDate,
 
-          status:
-            formData.status,
-        }),
-      });
+            priority:
+              formData.priority,
+
+            status:
+              formData.status,
+          }),
+        }
+      );
 
       const data =
         await response.json();
@@ -314,16 +329,20 @@ export default function AssignmentManagement() {
 
     setFormData({
       studentRoll:
-        assignment.STUDENT_ROLL || "",
+        assignment.STUDENT_ROLL ||
+        "",
 
       subjectCode:
-        assignment.SUBJECT_CODE || "",
+        assignment.SUBJECT_CODE ||
+        "",
 
       title:
-        assignment.TITLE || "",
+        assignment.TITLE ||
+        "",
 
       description:
-        assignment.DESCRIPTION || "",
+        assignment.DESCRIPTION ||
+        "",
 
       dueDate:
         formatDateForInput(
@@ -376,12 +395,16 @@ export default function AssignmentManagement() {
       setError("");
       setSuccess("");
 
-      const response = await fetch(
-        `${API_URL}/api/admin/assignments/${assignment.ID}`,
-        {
-          method: "DELETE",
-        }
-      );
+      const response =
+        await fetch(
+          `${API_URL}/api/admin/assignments/${assignment.ID}`,
+          {
+            method: "DELETE",
+
+            headers:
+              getAuthHeader(),
+          }
+        );
 
       const data =
         await response.json();
@@ -394,7 +417,8 @@ export default function AssignmentManagement() {
       }
 
       if (
-        editingId === assignment.ID
+        editingId ===
+        assignment.ID
       ) {
         resetForm();
       }
@@ -473,607 +497,609 @@ export default function AssignmentManagement() {
 
       <main className="md:ml-[280px] min-h-screen flex flex-col">
 
-      {/* =================================================
-          HEADER
-      ================================================= */}
-
-      <header className="sticky top-0 w-full z-40 bg-surface border-b border-outline-variant shadow-xs">
-
-        <div className="flex justify-between items-center px-4 md:px-8 py-3 max-w-[1440px] mx-auto w-full">
-
-          <div className="flex items-center gap-4">
-
-            <Link
-              to="/admin"
-              className="text-on-surface-variant hover:text-primary transition-colors flex items-center"
-            >
-              <span className="material-symbols-outlined">
-                arrow_back
-              </span>
-            </Link>
-
-            <h1 className="font-headline-lg-mobile md:font-headline-lg font-bold text-primary">
-              Assignment Management
-            </h1>
-
-          </div>
-
-          <div className="flex items-center gap-2 bg-surface-container-low px-3 py-1.5 rounded-full border border-outline-variant text-xs">
-
-            <span className="material-symbols-outlined text-primary text-base">
-              assignment
-            </span>
-
-            <span className="font-semibold text-on-surface">
-              {assignments.length} Assignments
-            </span>
-
-          </div>
-
-        </div>
-
-      </header>
-
-      {/* =================================================
-          MAIN
-      ================================================= */}
-
-      <div className="flex-1 max-w-[1440px] mx-auto w-full p-4 md:p-8 flex flex-col gap-6 pt-6">
-
         {/* =================================================
-            SIDEBAR
+            HEADER
         ================================================= */}
 
+        <header className="sticky top-0 w-full z-40 bg-surface border-b border-outline-variant shadow-xs">
 
-        {/* =================================================
-            CONTENT
-        ================================================= */}
+          <div className="flex justify-between items-center px-4 md:px-8 py-3 max-w-[1440px] mx-auto w-full">
 
-        <div className="flex flex-col gap-6">
+            <div className="flex items-center gap-4">
 
-          {/* ERROR */}
-
-          {error && (
-            <div className="p-3 rounded-xl bg-error-container text-on-error-container text-sm flex items-center gap-2">
-
-              <span className="material-symbols-outlined text-base">
-                error
-              </span>
-
-              {error}
-
-            </div>
-          )}
-
-          {/* SUCCESS */}
-
-          {success && (
-            <div className="p-3 bg-secondary-container text-on-secondary-container rounded-xl text-sm font-bold flex items-center gap-2">
-
-              <span className="material-symbols-outlined text-base">
-                check_circle
-              </span>
-
-              {success}
-
-            </div>
-          )}
-
-          {/* =================================================
-              ADD / EDIT FORM
-          ================================================= */}
-
-          <section className="bg-surface-container-lowest rounded-2xl border border-outline-variant/70 p-5 md:p-6 shadow-sm">
-
-            <div className="flex items-start justify-between mb-5">
-
-              <div>
-
-                <h2 className="font-title-md font-bold text-on-surface text-lg">
-                  {editingId
-                    ? "Edit Assignment"
-                    : "Add New Assignment"}
-                </h2>
-
-                <p className="text-xs text-on-surface-variant mt-1">
-                  {editingId
-                    ? "Update the selected assignment."
-                    : "Create an assignment for a student."}
-                </p>
-
-              </div>
-
-              <div className="w-11 h-11 rounded-xl bg-primary-container text-on-primary-container flex items-center justify-center">
-
+              <Link
+                to="/admin"
+                className="text-on-surface-variant hover:text-primary transition-colors flex items-center"
+              >
                 <span className="material-symbols-outlined">
-                  {editingId
-                    ? "edit"
-                    : "assignment_add"}
+                  arrow_back
+                </span>
+              </Link>
+
+              <h1 className="font-headline-lg-mobile md:font-headline-lg font-bold text-primary">
+                Assignment Management
+              </h1>
+
+            </div>
+
+            <div className="flex items-center gap-2 bg-surface-container-low px-3 py-1.5 rounded-full border border-outline-variant text-xs">
+
+              <span className="material-symbols-outlined text-primary text-base">
+                assignment
+              </span>
+
+              <span className="font-semibold text-on-surface">
+                {assignments.length} Assignments
+              </span>
+
+            </div>
+
+          </div>
+
+        </header>
+
+        {/* =================================================
+            MAIN
+        ================================================= */}
+
+        <div className="flex-1 max-w-[1440px] mx-auto w-full p-4 md:p-8 flex flex-col gap-6 pt-6">
+
+          <div className="flex flex-col gap-6">
+
+            {/* ERROR */}
+
+            {error && (
+              <div className="p-3 rounded-xl bg-error-container text-on-error-container text-sm flex items-center gap-2">
+
+                <span className="material-symbols-outlined text-base">
+                  error
                 </span>
 
+                {error}
+
               </div>
+            )}
 
-            </div>
+            {/* SUCCESS */}
 
-            <form
-              onSubmit={handleSubmit}
-              className="flex flex-col gap-4"
-            >
+            {success && (
+              <div className="p-3 bg-secondary-container text-on-secondary-container rounded-xl text-sm font-bold flex items-center gap-2">
 
-              {/* Student + Subject */}
+                <span className="material-symbols-outlined text-base">
+                  check_circle
+                </span>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {success}
 
-                <div className="flex flex-col gap-1">
+              </div>
+            )}
 
-                  <label className="font-label-caps text-outline text-xs uppercase">
-                    Student
-                  </label>
+            {/* =================================================
+                ADD / EDIT FORM
+            ================================================= */}
 
-                  <select
-                    className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
-                    name="studentRoll"
-                    value={
-                      formData.studentRoll
-                    }
-                    onChange={
-                      handleChange
-                    }
-                    required
-                  >
+            <section className="bg-surface-container-lowest rounded-2xl border border-outline-variant/70 p-5 md:p-6 shadow-sm">
 
-                    <option value="">
-                      Select Student
-                    </option>
+              <div className="flex items-start justify-between mb-5">
 
-                    {students.map(
-                      (student) => (
-                        <option
-                          key={
-                            student.STUDENT_ROLL
-                          }
-                          value={
-                            student.STUDENT_ROLL
-                          }
-                        >
-                          {student.NAME}
-                          {" - "}
-                          {
-                            student.STUDENT_ROLL
-                          }
-                        </option>
-                      )
-                    )}
+                <div>
 
-                  </select>
+                  <h2 className="font-title-md font-bold text-on-surface text-lg">
+                    {editingId
+                      ? "Edit Assignment"
+                      : "Add New Assignment"}
+                  </h2>
+
+                  <p className="text-xs text-on-surface-variant mt-1">
+                    {editingId
+                      ? "Update the selected assignment."
+                      : "Create an assignment for a student."}
+                  </p>
 
                 </div>
 
-                <div className="flex flex-col gap-1">
+                <div className="w-11 h-11 rounded-xl bg-primary-container text-on-primary-container flex items-center justify-center">
 
-                  <label className="font-label-caps text-outline text-xs uppercase">
-                    Subject
-                  </label>
-
-                  <select
-                    className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
-                    name="subjectCode"
-                    value={
-                      formData.subjectCode
-                    }
-                    onChange={
-                      handleChange
-                    }
-                    required
-                  >
-
-                    <option value="">
-                      Select Subject
-                    </option>
-
-                    {subjects.map(
-                      (subject) => (
-                        <option
-                          key={
-                            subject.SUBJECT_CODE
-                          }
-                          value={
-                            subject.SUBJECT_CODE
-                          }
-                        >
-                          {
-                            subject.SUBJECT_CODE
-                          }
-                          {" - "}
-                          {
-                            subject.SUBJECT_NAME
-                          }
-                        </option>
-                      )
-                    )}
-
-                  </select>
+                  <span className="material-symbols-outlined">
+                    {editingId
+                      ? "edit"
+                      : "assignment_add"}
+                  </span>
 
                 </div>
 
               </div>
 
-              {/* Title */}
+              <form
+                onSubmit={
+                  handleSubmit
+                }
+                className="flex flex-col gap-4"
+              >
 
-              <div className="flex flex-col gap-1">
+                {/* Student + Subject */}
 
-                <label className="font-label-caps text-outline text-xs uppercase">
-                  Assignment Title
-                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
-                <input
-                  className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
-                  name="title"
-                  value={
-                    formData.title
-                  }
-                  onChange={
-                    handleChange
-                  }
-                  placeholder="Example: DBMS Lab Report"
-                  required
-                />
+                  <div className="flex flex-col gap-1">
 
-              </div>
+                    <label className="font-label-caps text-outline text-xs uppercase">
+                      Student
+                    </label>
 
-              {/* Description */}
+                    <select
+                      className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
+                      name="studentRoll"
+                      value={
+                        formData.studentRoll
+                      }
+                      onChange={
+                        handleChange
+                      }
+                      required
+                    >
 
-              <div className="flex flex-col gap-1">
+                      <option value="">
+                        Select Student
+                      </option>
 
-                <label className="font-label-caps text-outline text-xs uppercase">
-                  Description
-                </label>
+                      {students.map(
+                        (student) => (
+                          <option
+                            key={
+                              student.STUDENT_ROLL
+                            }
+                            value={
+                              student.STUDENT_ROLL
+                            }
+                          >
+                            {student.NAME}
+                            {" - "}
+                            {
+                              student.STUDENT_ROLL
+                            }
+                          </option>
+                        )
+                      )}
 
-                <textarea
-                  className="w-full min-h-[100px] rounded-xl border border-outline-variant bg-surface-container-low p-3 text-sm text-on-surface focus:outline-none focus:border-primary resize-y"
-                  name="description"
-                  value={
-                    formData.description
-                  }
-                  onChange={
-                    handleChange
-                  }
-                  placeholder="Enter assignment instructions..."
-                />
+                    </select>
 
-              </div>
+                  </div>
 
-              {/* Date + Priority + Status */}
+                  <div className="flex flex-col gap-1">
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <label className="font-label-caps text-outline text-xs uppercase">
+                      Subject
+                    </label>
+
+                    <select
+                      className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
+                      name="subjectCode"
+                      value={
+                        formData.subjectCode
+                      }
+                      onChange={
+                        handleChange
+                      }
+                      required
+                    >
+
+                      <option value="">
+                        Select Subject
+                      </option>
+
+                      {subjects.map(
+                        (subject) => (
+                          <option
+                            key={
+                              subject.SUBJECT_CODE
+                            }
+                            value={
+                              subject.SUBJECT_CODE
+                            }
+                          >
+                            {
+                              subject.SUBJECT_CODE
+                            }
+                            {" - "}
+                            {
+                              subject.SUBJECT_NAME
+                            }
+                          </option>
+                        )
+                      )}
+
+                    </select>
+
+                  </div>
+
+                </div>
+
+                {/* TITLE */}
 
                 <div className="flex flex-col gap-1">
 
                   <label className="font-label-caps text-outline text-xs uppercase">
-                    Due Date
+                    Assignment Title
                   </label>
 
                   <input
-                    type="date"
                     className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
-                    name="dueDate"
+                    name="title"
                     value={
-                      formData.dueDate
+                      formData.title
                     }
                     onChange={
                       handleChange
                     }
+                    placeholder="Example: DBMS Lab Report"
                     required
                   />
 
                 </div>
 
-                <div className="flex flex-col gap-1">
-
-                  <label className="font-label-caps text-outline text-xs uppercase">
-                    Priority
-                  </label>
-
-                  <select
-                    className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
-                    name="priority"
-                    value={
-                      formData.priority
-                    }
-                    onChange={
-                      handleChange
-                    }
-                  >
-                    <option value="low">
-                      Low
-                    </option>
-
-                    <option value="medium">
-                      Medium
-                    </option>
-
-                    <option value="high">
-                      High
-                    </option>
-                  </select>
-
-                </div>
+                {/* DESCRIPTION */}
 
                 <div className="flex flex-col gap-1">
 
                   <label className="font-label-caps text-outline text-xs uppercase">
-                    Status
+                    Description
                   </label>
 
-                  <select
-                    className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
-                    name="status"
+                  <textarea
+                    className="w-full min-h-[100px] rounded-xl border border-outline-variant bg-surface-container-low p-3 text-sm text-on-surface focus:outline-none focus:border-primary resize-y"
+                    name="description"
                     value={
-                      formData.status
+                      formData.description
                     }
                     onChange={
                       handleChange
                     }
-                  >
-                    <option value="pending">
-                      Pending
-                    </option>
-
-                    <option value="submitted">
-                      Submitted
-                    </option>
-
-                    <option value="completed">
-                      Completed
-                    </option>
-                  </select>
+                    placeholder="Enter assignment instructions..."
+                  />
 
                 </div>
 
-              </div>
+                {/* DATE / PRIORITY / STATUS */}
 
-              {/* Buttons */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
 
-              <div className="mt-3 flex justify-end gap-3">
+                  <div className="flex flex-col gap-1">
 
-                {editingId && (
+                    <label className="font-label-caps text-outline text-xs uppercase">
+                      Due Date
+                    </label>
+
+                    <input
+                      type="date"
+                      className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
+                      name="dueDate"
+                      value={
+                        formData.dueDate
+                      }
+                      onChange={
+                        handleChange
+                      }
+                      required
+                    />
+
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+
+                    <label className="font-label-caps text-outline text-xs uppercase">
+                      Priority
+                    </label>
+
+                    <select
+                      className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
+                      name="priority"
+                      value={
+                        formData.priority
+                      }
+                      onChange={
+                        handleChange
+                      }
+                    >
+
+                      <option value="low">
+                        Low
+                      </option>
+
+                      <option value="medium">
+                        Medium
+                      </option>
+
+                      <option value="high">
+                        High
+                      </option>
+
+                    </select>
+
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+
+                    <label className="font-label-caps text-outline text-xs uppercase">
+                      Status
+                    </label>
+
+                    <select
+                      className="w-full rounded-xl border border-outline-variant bg-surface-container-low p-2.5 text-sm text-on-surface font-semibold focus:outline-none focus:border-primary"
+                      name="status"
+                      value={
+                        formData.status
+                      }
+                      onChange={
+                        handleChange
+                      }
+                    >
+
+                      <option value="pending">
+                        Pending
+                      </option>
+
+                      <option value="submitted">
+                        Submitted
+                      </option>
+
+                      <option value="completed">
+                        Completed
+                      </option>
+
+                    </select>
+
+                  </div>
+
+                </div>
+
+                {/* BUTTONS */}
+
+                <div className="mt-3 flex justify-end gap-3">
+
+                  {editingId && (
+                    <button
+                      type="button"
+                      onClick={
+                        resetForm
+                      }
+                      className="px-5 py-2.5 border border-outline-variant text-on-surface-variant font-bold text-sm rounded-xl hover:bg-surface-container-low transition-all"
+                    >
+                      Cancel
+                    </button>
+                  )}
+
                   <button
-                    type="button"
-                    onClick={
-                      resetForm
+                    type="submit"
+                    disabled={
+                      saving
                     }
-                    className="px-5 py-2.5 border border-outline-variant text-on-surface-variant font-bold text-sm rounded-xl hover:bg-surface-container-low transition-all"
+                    className="px-6 py-2.5 bg-primary text-on-primary font-bold text-sm rounded-xl hover:bg-primary-container transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
                   >
-                    Cancel
+
+                    <span className="material-symbols-outlined text-[18px]">
+                      save
+                    </span>
+
+                    {saving
+                      ? "Saving..."
+                      : editingId
+                      ? "Save Changes"
+                      : "Add Assignment"}
+
                   </button>
-                )}
 
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-6 py-2.5 bg-primary text-on-primary font-bold text-sm rounded-xl hover:bg-primary-container transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
-                >
+                </div>
 
-                  <span className="material-symbols-outlined text-[18px]">
-                    save
-                  </span>
+              </form>
 
-                  {saving
-                    ? "Saving..."
-                    : editingId
-                    ? "Save Changes"
-                    : "Add Assignment"}
+            </section>
 
-                </button>
+            {/* =================================================
+                ASSIGNMENT LIST
+            ================================================= */}
 
-              </div>
+            <section className="bg-surface-container-lowest rounded-2xl border border-outline-variant/70 p-5 md:p-6 shadow-sm">
 
-            </form>
+              <div className="flex items-center justify-between gap-4 mb-4 pb-3 border-b border-surface-variant">
 
-          </section>
+                <div>
 
-          {/* =================================================
-              ASSIGNMENT LIST
-          ================================================= */}
+                  <h2 className="font-title-md font-bold text-on-surface text-lg">
+                    Current Assignments
+                  </h2>
 
-          <section className="bg-surface-container-lowest rounded-2xl border border-outline-variant/70 p-5 md:p-6 shadow-sm">
-
-            <div className="flex items-center justify-between gap-4 mb-4 pb-3 border-b border-surface-variant">
-
-              <div>
-
-                <h2 className="font-title-md font-bold text-on-surface text-lg">
-                  Current Assignments
-                </h2>
-
-                <p className="text-xs text-on-surface-variant mt-1">
-                  Assignments currently stored in the academic database.
-                </p>
-
-              </div>
-
-              <span className="px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full text-xs font-bold">
-                {assignments.length} Total
-              </span>
-
-            </div>
-
-            {loading && (
-              <div className="py-10 text-center text-sm text-on-surface-variant">
-                Loading assignments...
-              </div>
-            )}
-
-            {!loading &&
-              assignments.length === 0 && (
-                <div className="py-10 text-center">
-
-                  <span className="material-symbols-outlined text-5xl text-outline">
-                    assignment
-                  </span>
-
-                  <p className="text-sm text-on-surface-variant mt-2">
-                    No assignments found.
+                  <p className="text-xs text-on-surface-variant mt-1">
+                    Assignments currently stored in the academic database.
                   </p>
 
                 </div>
-              )}
 
-            {!loading &&
-              assignments.length > 0 && (
-                <div className="flex flex-col divide-y divide-surface-variant">
+                <span className="px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full text-xs font-bold">
+                  {assignments.length} Total
+                </span>
 
-                  {assignments.map(
-                    (assignment) => (
+              </div>
 
-                      <div
-                        key={
-                          assignment.ID
-                        }
-                        className="py-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4"
-                      >
-
-                        <div className="flex-1">
-
-                          <div className="flex flex-wrap items-center gap-2 mb-2">
-
-                            <h3 className="font-bold text-on-surface">
-                              {
-                                assignment.TITLE
-                              }
-                            </h3>
-
-                            <span className="px-2 py-0.5 bg-primary-container text-on-primary-container rounded-lg text-xs font-bold">
-                              {
-                                assignment.SUBJECT_CODE
-                              }
-                            </span>
-
-                            <span
-                              className={`px-2 py-0.5 rounded-lg text-xs font-bold ${getPriorityClass(
-                                assignment.PRIORITY
-                              )}`}
-                            >
-                              {assignment.PRIORITY ||
-                                "Medium"}
-                            </span>
-
-                            <span
-                              className={`px-2 py-0.5 rounded-lg text-xs font-bold capitalize ${getStatusClass(
-                                assignment.STATUS
-                              )}`}
-                            >
-                              {assignment.STATUS ||
-                                "pending"}
-                            </span>
-
-                          </div>
-
-                          <p className="text-sm text-on-surface-variant">
-                            {
-                              assignment.DESCRIPTION
-                            }
-                          </p>
-
-                          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-outline">
-
-                            <span className="flex items-center gap-1">
-
-                              <span className="material-symbols-outlined text-[15px]">
-                                person
-                              </span>
-
-                              {
-                                assignment.STUDENT_NAME
-                              }
-
-                              {" ("}
-
-                              {
-                                assignment.STUDENT_ROLL
-                              }
-
-                              {")"}
-
-                            </span>
-
-                            <span className="flex items-center gap-1">
-
-                              <span className="material-symbols-outlined text-[15px]">
-                                calendar_month
-                              </span>
-
-                              Due:{" "}
-                              {formatDateForDisplay(
-                                assignment.DUE_DATE
-                              )}
-
-                            </span>
-
-                          </div>
-
-                        </div>
-
-                        <div className="flex items-center gap-2">
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleEdit(
-                                assignment
-                              )
-                            }
-                            className="px-4 py-2 border border-outline-variant rounded-xl text-sm font-semibold text-on-surface-variant hover:bg-surface-container-low flex items-center gap-2 transition-all"
-                          >
-
-                            <span className="material-symbols-outlined text-[18px]">
-                              edit
-                            </span>
-
-                            Edit
-
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleDelete(
-                                assignment
-                              )
-                            }
-                            disabled={
-                              deletingId ===
-                              assignment.ID
-                            }
-                            className="px-4 py-2 border border-error text-error rounded-xl text-sm font-semibold hover:bg-error-container flex items-center gap-2 transition-all disabled:opacity-50"
-                          >
-
-                            <span className="material-symbols-outlined text-[18px]">
-                              delete
-                            </span>
-
-                            {deletingId ===
-                            assignment.ID
-                              ? "Deleting..."
-                              : "Delete"}
-
-                          </button>
-
-                        </div>
-
-                      </div>
-
-                    )
-                  )}
-
+              {loading && (
+                <div className="py-10 text-center text-sm text-on-surface-variant">
+                  Loading assignments...
                 </div>
               )}
 
-          </section>
+              {!loading &&
+                assignments.length ===
+                  0 && (
+                  <div className="py-10 text-center">
+
+                    <span className="material-symbols-outlined text-5xl text-outline">
+                      assignment
+                    </span>
+
+                    <p className="text-sm text-on-surface-variant mt-2">
+                      No assignments found.
+                    </p>
+
+                  </div>
+                )}
+
+              {!loading &&
+                assignments.length >
+                  0 && (
+                  <div className="flex flex-col divide-y divide-surface-variant">
+
+                    {assignments.map(
+                      (assignment) => (
+
+                        <div
+                          key={
+                            assignment.ID
+                          }
+                          className="py-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+                        >
+
+                          <div className="flex-1">
+
+                            <div className="flex flex-wrap items-center gap-2 mb-2">
+
+                              <h3 className="font-bold text-on-surface">
+                                {
+                                  assignment.TITLE
+                                }
+                              </h3>
+
+                              <span className="px-2 py-0.5 bg-primary-container text-on-primary-container rounded-lg text-xs font-bold">
+                                {
+                                  assignment.SUBJECT_CODE
+                                }
+                              </span>
+
+                              <span
+                                className={`px-2 py-0.5 rounded-lg text-xs font-bold ${getPriorityClass(
+                                  assignment.PRIORITY
+                                )}`}
+                              >
+                                {assignment.PRIORITY ||
+                                  "Medium"}
+                              </span>
+
+                              <span
+                                className={`px-2 py-0.5 rounded-lg text-xs font-bold capitalize ${getStatusClass(
+                                  assignment.STATUS
+                                )}`}
+                              >
+                                {assignment.STATUS ||
+                                  "pending"}
+                              </span>
+
+                            </div>
+
+                            <p className="text-sm text-on-surface-variant">
+                              {
+                                assignment.DESCRIPTION
+                              }
+                            </p>
+
+                            <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-outline">
+
+                              <span className="flex items-center gap-1">
+
+                                <span className="material-symbols-outlined text-[15px]">
+                                  person
+                                </span>
+
+                                {
+                                  assignment.STUDENT_NAME
+                                }
+
+                                {" ("}
+
+                                {
+                                  assignment.STUDENT_ROLL
+                                }
+
+                                {")"}
+
+                              </span>
+
+                              <span className="flex items-center gap-1">
+
+                                <span className="material-symbols-outlined text-[15px]">
+                                  calendar_month
+                                </span>
+
+                                Due:{" "}
+
+                                {formatDateForDisplay(
+                                  assignment.DUE_DATE
+                                )}
+
+                              </span>
+
+                            </div>
+
+                          </div>
+
+                          <div className="flex items-center gap-2">
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleEdit(
+                                  assignment
+                                )
+                              }
+                              className="px-4 py-2 border border-outline-variant rounded-xl text-sm font-semibold text-on-surface-variant hover:bg-surface-container-low flex items-center gap-2 transition-all"
+                            >
+
+                              <span className="material-symbols-outlined text-[18px]">
+                                edit
+                              </span>
+
+                              Edit
+
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleDelete(
+                                  assignment
+                                )
+                              }
+                              disabled={
+                                deletingId ===
+                                assignment.ID
+                              }
+                              className="px-4 py-2 border border-error text-error rounded-xl text-sm font-semibold hover:bg-error-container flex items-center gap-2 transition-all disabled:opacity-50"
+                            >
+
+                              <span className="material-symbols-outlined text-[18px]">
+                                delete
+                              </span>
+
+                              {deletingId ===
+                              assignment.ID
+                                ? "Deleting..."
+                                : "Delete"}
+
+                            </button>
+
+                          </div>
+
+                        </div>
+
+                      )
+                    )}
+
+                  </div>
+                )}
+
+            </section>
+
+          </div>
 
         </div>
-
-      </div>
 
       </main>
 
