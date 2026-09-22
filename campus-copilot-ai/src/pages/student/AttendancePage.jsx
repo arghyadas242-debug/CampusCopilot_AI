@@ -1,8 +1,5 @@
 import { useState, useEffect } from "react";
-import {
-  Link,
-  useNavigate,
-} from "react-router";
+import { Link, useNavigate } from "react-router";
 
 import {
   ResponsiveContainer,
@@ -20,14 +17,14 @@ import {
   attendanceService,
   assignmentService,
   timetableService,
+  getAuthHeader,
 } from "../../services/api";
 
 import CampusCopilotBrand from "../../components/student/CampusCopilotBrand";
 import StudentPageHero from "../../components/student/StudentPageHero";
 import StudentNotificationBell from "./StudentNotificationBell";
 
-const API_URL =
-  "http://localhost:5000";
+const API_URL = "http://localhost:5000";
 
 // =====================================================
 // HELPERS
@@ -47,34 +44,18 @@ const getInitials = (name) => {
     .slice(0, 2);
 };
 
-const getPercentage = (
-  attended,
-  total
-) => {
-  if (
-    !total ||
-    total === 0
-  ) {
+const getPercentage = (attended, total) => {
+  if (!total || total === 0) {
     return 0;
   }
 
   return parseFloat(
-    (
-      (attended / total) *
-      100
-    ).toFixed(1)
+    ((attended / total) * 100).toFixed(1)
   );
 };
 
-const calculateBunksLeft = (
-  attended,
-  total
-) => {
-  const percentage =
-    getPercentage(
-      attended,
-      total
-    );
+const calculateBunksLeft = (attended, total) => {
+  const percentage = getPercentage(attended, total);
 
   if (percentage < 75) {
     return 0;
@@ -82,22 +63,12 @@ const calculateBunksLeft = (
 
   return Math.max(
     0,
-    Math.floor(
-      attended / 0.75 -
-        total
-    )
+    Math.floor(attended / 0.75 - total)
   );
 };
 
-const calculateClassesNeeded = (
-  attended,
-  total
-) => {
-  const percentage =
-    getPercentage(
-      attended,
-      total
-    );
+const calculateClassesNeeded = (attended, total) => {
+  const percentage = getPercentage(attended, total);
 
   if (percentage >= 75) {
     return 0;
@@ -105,243 +76,179 @@ const calculateClassesNeeded = (
 
   return Math.max(
     0,
-    Math.ceil(
-      (
-        0.75 * total -
-        attended
-      ) /
-        0.25
-    )
+    Math.ceil((0.75 * total - attended) / 0.25)
   );
+};
+
+// Accept supported response shapes, but never turn an
+// unexpected response into a successful empty collection.
+const getCollection = (value, keys, message) => {
+  let rows = null;
+
+  if (Array.isArray(value)) {
+    rows = value;
+  } else {
+    for (const key of keys) {
+      if (Array.isArray(value?.[key])) {
+        rows = value[key];
+        break;
+      }
+    }
+  }
+
+  if (
+    !rows ||
+    rows.some(
+      (row) =>
+        row === null ||
+        typeof row !== "object" ||
+        Array.isArray(row)
+    )
+  ) {
+    throw new Error(message);
+  }
+
+  return rows;
 };
 
 // =====================================================
 // DATE FORMAT
 // =====================================================
 
-const formatAttendanceDate = (
-  value
-) => {
+const formatAttendanceDate = (value) => {
   if (!value) {
     return "--";
   }
 
-  const date =
-    new Date(value);
+  const date = new Date(value);
 
-  if (
-    Number.isNaN(
-      date.getTime()
-    )
-  ) {
+  if (Number.isNaN(date.getTime())) {
     return String(value);
   }
 
-  return new Intl.DateTimeFormat(
-    "en-IN",
-    {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    }
-  ).format(date);
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
 };
 
 // =====================================================
 // SESSION BREAKDOWN
 // =====================================================
 
-const buildSessionBreakdown = (
-  sessions
-) => {
-  const subjectMap =
-    new Map();
+const buildSessionBreakdown = (sessions) => {
+  const subjectMap = new Map();
 
-  sessions.forEach(
-    (session) => {
-      const code =
-        session.SUBJECT_CODE ||
-        session.subjectCode ||
-        session.subject_code ||
-        "";
+  sessions.forEach((session) => {
+    const code =
+      session.SUBJECT_CODE ||
+      session.subjectCode ||
+      session.subject_code ||
+      "";
 
-      if (!code) {
-        return;
-      }
-
-      const name =
-        session.SUBJECT_NAME ||
-        session.subjectName ||
-        session.subject_name ||
-        code;
-
-      const sessionType =
-        session.SESSION_TYPE ||
-        session.sessionType ||
-        session.session_type ||
-        "Other Session";
-
-      const status =
-        String(
-          session.STATUS ||
-            session.status ||
-            ""
-        ).toUpperCase();
-
-      if (
-        !subjectMap.has(
-          code
-        )
-      ) {
-        subjectMap.set(
-          code,
-          {
-            code,
-            name,
-
-            attended: 0,
-            total: 0,
-
-            sessionTypes:
-              new Map(),
-          }
-        );
-      }
-
-      const subject =
-        subjectMap.get(
-          code
-        );
-
-      subject.total += 1;
-
-      if (
-        status ===
-        "PRESENT"
-      ) {
-        subject.attended += 1;
-      }
-
-      if (
-        !subject.sessionTypes.has(
-          sessionType
-        )
-      ) {
-        subject.sessionTypes.set(
-          sessionType,
-          {
-            name:
-              sessionType,
-
-            attended: 0,
-
-            total: 0,
-          }
-        );
-      }
-
-      const type =
-        subject.sessionTypes.get(
-          sessionType
-        );
-
-      type.total += 1;
-
-      if (
-        status ===
-        "PRESENT"
-      ) {
-        type.attended += 1;
-      }
+    if (!code) {
+      return;
     }
-  );
 
-  return Array.from(
-    subjectMap.values()
-  )
+    const name =
+      session.SUBJECT_NAME ||
+      session.subjectName ||
+      session.subject_name ||
+      code;
+
+    const sessionType =
+      session.SESSION_TYPE ||
+      session.sessionType ||
+      session.session_type ||
+      "Other Session";
+
+    const status = String(
+      session.STATUS || session.status || ""
+    ).toUpperCase();
+
+    if (!subjectMap.has(code)) {
+      subjectMap.set(code, {
+        code,
+        name,
+        attended: 0,
+        total: 0,
+        sessionTypes: new Map(),
+      });
+    }
+
+    const subject = subjectMap.get(code);
+
+    subject.total += 1;
+
+    if (status === "PRESENT") {
+      subject.attended += 1;
+    }
+
+    if (!subject.sessionTypes.has(sessionType)) {
+      subject.sessionTypes.set(sessionType, {
+        name: sessionType,
+        attended: 0,
+        total: 0,
+      });
+    }
+
+    const type = subject.sessionTypes.get(sessionType);
+
+    type.total += 1;
+
+    if (status === "PRESENT") {
+      type.attended += 1;
+    }
+  });
+
+  return Array.from(subjectMap.values())
     .map((subject) => {
-      const sessionTypes =
-        Array.from(
-          subject
-            .sessionTypes
-            .values()
-        )
-          .map((type) => ({
-            ...type,
+      const sessionTypes = Array.from(
+        subject.sessionTypes.values()
+      )
+        .map((type) => ({
+          ...type,
+          percentage: getPercentage(
+            type.attended,
+            type.total
+          ),
+        }))
+        .sort((a, b) => {
+          const getOrder = (name) => {
+            const value = String(name).toLowerCase();
 
-            percentage:
-              getPercentage(
-                type.attended,
-                type.total
-              ),
-          }))
-          .sort(
-            (a, b) => {
-              const getOrder =
-                (name) => {
-                  const value =
-                    String(
-                      name
-                    ).toLowerCase();
-
-                  if (
-                    value.includes(
-                      "theory"
-                    )
-                  ) {
-                    return 0;
-                  }
-
-                  if (
-                    value.includes(
-                      "lab"
-                    )
-                  ) {
-                    return 1;
-                  }
-
-                  return 2;
-                };
-
-              const difference =
-                getOrder(
-                  a.name
-                ) -
-                getOrder(
-                  b.name
-                );
-
-              if (
-                difference !==
-                0
-              ) {
-                return difference;
-              }
-
-              return a.name.localeCompare(
-                b.name
-              );
+            if (value.includes("theory")) {
+              return 0;
             }
-          );
+
+            if (value.includes("lab")) {
+              return 1;
+            }
+
+            return 2;
+          };
+
+          const difference =
+            getOrder(a.name) - getOrder(b.name);
+
+          if (difference !== 0) {
+            return difference;
+          }
+
+          return a.name.localeCompare(b.name);
+        });
 
       return {
         ...subject,
-
-        percentage:
-          getPercentage(
-            subject.attended,
-            subject.total
-          ),
-
+        percentage: getPercentage(
+          subject.attended,
+          subject.total
+        ),
         sessionTypes,
       };
     })
-    .sort(
-      (a, b) =>
-        a.code.localeCompare(
-          b.code
-        )
-    );
+    .sort((a, b) => a.code.localeCompare(b.code));
 };
 
 // =====================================================
@@ -351,52 +258,33 @@ const buildSessionBreakdown = (
 const SUBJECT_THEMES = [
   {
     bg: "bg-blue-50",
-    border:
-      "border-blue-200",
-    text:
-      "text-primary",
-    barFill:
-      "bg-primary",
+    border: "border-blue-200",
+    text: "text-primary",
+    barFill: "bg-primary",
   },
-
   {
     bg: "bg-emerald-50",
-    border:
-      "border-emerald-200",
-    text:
-      "text-secondary",
-    barFill:
-      "bg-secondary",
+    border: "border-emerald-200",
+    text: "text-secondary",
+    barFill: "bg-secondary",
   },
-
   {
     bg: "bg-violet-50",
-    border:
-      "border-violet-200",
-    text:
-      "text-tertiary",
-    barFill:
-      "bg-tertiary",
+    border: "border-violet-200",
+    text: "text-tertiary",
+    barFill: "bg-tertiary",
   },
-
   {
     bg: "bg-amber-50",
-    border:
-      "border-amber-200",
-    text:
-      "text-amber-800",
-    barFill:
-      "bg-amber-500",
+    border: "border-amber-200",
+    text: "text-amber-800",
+    barFill: "bg-amber-500",
   },
-
   {
     bg: "bg-rose-50",
-    border:
-      "border-rose-200",
-    text:
-      "text-rose-800",
-    barFill:
-      "bg-rose-500",
+    border: "border-rose-200",
+    text: "text-rose-800",
+    barFill: "bg-rose-500",
   },
 ];
 
@@ -414,20 +302,12 @@ const DAYS = [
 // CHART TOOLTIP
 // =====================================================
 
-const ChartTooltip = ({
-  active,
-  payload,
-  label,
-}) => {
-  if (
-    !active ||
-    !payload?.length
-  ) {
+const ChartTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) {
     return null;
   }
 
-  const data =
-    payload[0].payload;
+  const data = payload[0].payload;
 
   return (
     <div className="bg-surface rounded-xl border border-outline-variant shadow-lg px-4 py-3 font-body-sm">
@@ -440,14 +320,7 @@ const ChartTooltip = ({
       </div>
 
       <div className="text-on-surface-variant text-xs mt-0.5">
-        {
-          data.attendedClasses
-        }{" "}
-        /{" "}
-        {
-          data.totalClasses
-        }{" "}
-        classes
+        {data.attendedClasses} / {data.totalClasses} classes
       </div>
     </div>
   );
@@ -463,25 +336,12 @@ const CircularProgress = ({
   strokeWidth = 10,
   color = "#006a61",
 }) => {
-  const radius =
-    (size - strokeWidth) /
-    2;
-
-  const circumference =
-    2 *
-    Math.PI *
-    radius;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
 
   const offset =
     circumference -
-    (
-      Math.min(
-        percentage,
-        100
-      ) /
-      100
-    ) *
-      circumference;
+    (Math.min(percentage, 100) / 100) * circumference;
 
   return (
     <svg
@@ -495,9 +355,7 @@ const CircularProgress = ({
         r={radius}
         fill="none"
         stroke="currentColor"
-        strokeWidth={
-          strokeWidth
-        }
+        strokeWidth={strokeWidth}
         className="text-surface-container-low"
       />
 
@@ -507,19 +365,12 @@ const CircularProgress = ({
         r={radius}
         fill="none"
         stroke={color}
-        strokeWidth={
-          strokeWidth
-        }
-        strokeDasharray={
-          circumference
-        }
-        strokeDashoffset={
-          offset
-        }
+        strokeWidth={strokeWidth}
+        strokeDasharray={circumference}
+        strokeDashoffset={offset}
         strokeLinecap="round"
         style={{
-          transition:
-            "stroke-dashoffset 0.8s ease-out",
+          transition: "stroke-dashoffset 0.8s ease-out",
         }}
       />
     </svg>
@@ -531,370 +382,293 @@ const CircularProgress = ({
 // =====================================================
 
 export default function AttendancePage() {
-  const navigate =
-    useNavigate();
+  const navigate = useNavigate();
 
-  const user =
-    authService.getCurrentUser();
+  const user = authService.getCurrentUser();
 
-  const studentName =
-    user?.name ||
-    "Student";
-
-  const department =
-    user?.department ||
-    "";
+  const studentName = user?.name || "Student";
+  const department = user?.department || "";
 
   const studentRoll =
     user?.rollNumber ||
+    user?.studentRoll ||
+    user?.roll_number ||
     "";
 
-  // ===================================================
   // STATE
-  // ===================================================
 
-  const [
-    subjects,
-    setSubjects,
-  ] = useState([]);
+  const [subjects, setSubjects] = useState([]);
+  const [trendData, setTrendData] = useState([]);
+  const [sessionHistory, setSessionHistory] = useState([]);
+  const [sessionTrackedFrom, setSessionTrackedFrom] =
+    useState(null);
 
-  const [
-    trendData,
-    setTrendData,
-  ] = useState([]);
-
-  const [
-    sessionHistory,
-    setSessionHistory,
-  ] = useState([]);
-
-  const [
-    sessionTrackedFrom,
-    setSessionTrackedFrom,
-  ] = useState(null);
-
-  const [
-    todaySummary,
-    setTodaySummary,
-  ] = useState({
-    pendingTasks: 0,
-    classesToday: 0,
+  const [todaySummary, setTodaySummary] = useState({
+    pendingTasks: null,
+    classesToday: null,
   });
 
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [trendLoading, setTrendLoading] = useState(true);
+  const [sessionLoading, setSessionLoading] = useState(true);
 
-  const [
-    trendLoading,
-    setTrendLoading,
-  ] = useState(true);
+  const [error, setError] = useState(null);
+  const [trendError, setTrendError] = useState(null);
+  const [sessionError, setSessionError] = useState(null);
 
-  const [
-    sessionLoading,
-    setSessionLoading,
-  ] = useState(true);
+  // DERIVED DATA — HISTORICAL AGGREGATE ONLY
 
-  const [
-    error,
-    setError,
-  ] = useState(null);
+  const totalAttended = subjects.reduce(
+    (total, subject) => total + (subject.attended || 0),
+    0
+  );
 
-  const [
-    trendError,
-    setTrendError,
-  ] = useState(null);
+  const totalClasses = subjects.reduce(
+    (total, subject) => total + (subject.total || 0),
+    0
+  );
 
-  const [
-    sessionError,
-    setSessionError,
-  ] = useState(null);
+  const overallPercentage = getPercentage(
+    totalAttended,
+    totalClasses
+  );
 
-  // ===================================================
-  // DERIVED DATA
-  // ===================================================
+  const overallBuffer = calculateBunksLeft(
+    totalAttended,
+    totalClasses
+  );
 
-  const totalAttended =
-    subjects.reduce(
-      (
-        total,
-        subject
-      ) =>
-        total +
-        (
-          subject.attended ||
-          0
-        ),
-      0
-    );
+  const classesNeeded = calculateClassesNeeded(
+    totalAttended,
+    totalClasses
+  );
 
-  const totalClasses =
-    subjects.reduce(
-      (
-        total,
-        subject
-      ) =>
-        total +
-        (
-          subject.total ||
-          0
-        ),
-      0
-    );
+  const safeSubjects = subjects.filter(
+    (subject) =>
+      getPercentage(subject.attended, subject.total) >= 75
+  );
 
-  const overallPercentage =
-    getPercentage(
-      totalAttended,
-      totalClasses
-    );
-
-  const overallBuffer =
-    calculateBunksLeft(
-      totalAttended,
-      totalClasses
-    );
-
-  const classesNeeded =
-    calculateClassesNeeded(
-      totalAttended,
-      totalClasses
-    );
-
-  const safeSubjects =
-    subjects.filter(
-      (subject) =>
-        getPercentage(
-          subject.attended,
-          subject.total
-        ) >= 75
-    );
-
-  const isGoodStanding =
-    overallPercentage >=
-    75;
+  const isGoodStanding = overallPercentage >= 75;
 
   const sessionBreakdown =
-    buildSessionBreakdown(
-      sessionHistory
-    );
+    buildSessionBreakdown(sessionHistory);
 
-  const recentSessions =
-    sessionHistory.slice(
-      0,
-      8
-    );
+  const recentSessions = sessionHistory.slice(0, 8);
 
-  // ===================================================
+  // =====================================================
   // LOAD DATA
-  // ===================================================
+  // =====================================================
 
   useEffect(() => {
+    let active = true;
+    const sessionController = new AbortController();
+
+    setSubjects([]);
+    setTrendData([]);
+    setSessionHistory([]);
+    setSessionTrackedFrom(null);
+
+    setTodaySummary({
+      pendingTasks: null,
+      classesToday: null,
+    });
+
+    setError(null);
+    setTrendError(null);
+    setSessionError(null);
+
     if (!studentRoll) {
       setLoading(false);
       setTrendLoading(false);
-      setSessionLoading(
-        false
-      );
+      setSessionLoading(false);
 
       setError(
         "Student roll number is unavailable. Please log in again."
       );
 
-      return;
+      return () => {
+        active = false;
+        sessionController.abort();
+      };
     }
 
-    // -----------------------------------------------
+    setLoading(true);
+    setTrendLoading(true);
+    setSessionLoading(true);
+
     // COMPLETE HISTORICAL SUBJECT ATTENDANCE
-    // -----------------------------------------------
 
-    const loadAttendance =
-      async () => {
-        try {
-          setLoading(true);
-          setError(null);
+    const loadAttendance = async () => {
+      try {
+        const raw = await attendanceService.getAttendance(
+          studentRoll
+        );
 
-          const raw =
-            await attendanceService.getAttendance(
-              studentRoll
-            );
+        const rows = getCollection(
+          raw,
+          ["data", "rows"],
+          "The server returned an invalid attendance response."
+        );
 
-          const rows =
-            Array.isArray(
-              raw
-            )
-              ? raw
-              : raw?.data ||
-                raw?.rows ||
-                [];
+        const parsed = rows.map((row, index) => {
+          const attendedValue =
+            row.ATTENDED_CLASSES ?? row.attended_classes;
 
-          const parsed =
-            rows.map(
-              (
-                row,
-                index
-              ) => ({
-                code:
-                  row.SUBJECT_CODE ||
-                  row.subject_code ||
-                  "",
+          const totalValue =
+            row.TOTAL_CLASSES ?? row.total_classes;
 
-                name:
-                  row.SUBJECT_NAME ||
-                  row.subject_name ||
-                  "",
-
-                attended:
-                  Number(
-                    row.ATTENDED_CLASSES ??
-                      row.attended_classes ??
-                      0
-                  ),
-
-                total:
-                  Number(
-                    row.TOTAL_CLASSES ??
-                      row.total_classes ??
-                      0
-                  ),
-
-                theme:
-                  SUBJECT_THEMES[
-                    index %
-                      SUBJECT_THEMES.length
-                  ],
-              })
-            );
-
-          setSubjects(
-            parsed
-          );
-        } catch (err) {
-          console.error(
-            "Attendance load error:",
-            err
-          );
-
-          setError(
-            err.message ||
-              "Failed to load attendance"
-          );
-        } finally {
-          setLoading(false);
-        }
-      };
-
-    // -----------------------------------------------
-    // REAL OVERALL TREND HISTORY
-    // -----------------------------------------------
-
-    const loadTrend =
-      async () => {
-        try {
-          setTrendLoading(
-            true
-          );
-
-          setTrendError(
-            null
-          );
-
-          const result =
-            await attendanceService.getAttendanceTrendHistory(
-              studentRoll,
-              8
-            );
-
-          const points =
-            Array.isArray(
-              result
-            )
-              ? result
-              : result?.data ||
-                [];
-
-          setTrendData(
-            points
-          );
-        } catch (err) {
-          console.error(
-            "Attendance trend error:",
-            err
-          );
-
-          setTrendError(
-            err.message ||
-              "Failed to load trend"
-          );
-        } finally {
-          setTrendLoading(
-            false
-          );
-        }
-      };
-
-    // -----------------------------------------------
-    // THEORY / LAB SESSION HISTORY
-    // -----------------------------------------------
-
-    const loadSessionAttendance =
-      async () => {
-        try {
-          setSessionLoading(
-            true
-          );
-
-          setSessionError(
-            null
-          );
-
-          const response =
-            await fetch(
-              `${API_URL}/api/attendance/sessions/${encodeURIComponent(
-                studentRoll
-              )}`
-            );
-
-          let data = {};
-
-          try {
-            data =
-              await response.json();
-          } catch {
-            data = {};
-          }
+          const attended = Number(attendedValue);
+          const total = Number(totalValue);
 
           if (
-            !response.ok
+            attendedValue === null ||
+            attendedValue === undefined ||
+            totalValue === null ||
+            totalValue === undefined ||
+            String(attendedValue).trim() === "" ||
+            String(totalValue).trim() === "" ||
+            !Number.isFinite(attended) ||
+            !Number.isFinite(total) ||
+            attended < 0 ||
+            total < 0 ||
+            attended > total
           ) {
             throw new Error(
-              data.error ||
-                "Failed to load session attendance"
+              "The server returned invalid attendance totals."
             );
           }
 
-          const rows =
-            Array.isArray(
-              data
-            )
-              ? data
-              : Array.isArray(
-                  data?.sessions
-                )
-              ? data.sessions
-              : [];
+          return {
+            code:
+              row.SUBJECT_CODE ||
+              row.subject_code ||
+              "",
+            name:
+              row.SUBJECT_NAME ||
+              row.subject_name ||
+              "",
+            attended,
+            total,
+            theme:
+              SUBJECT_THEMES[index % SUBJECT_THEMES.length],
+          };
+        });
 
-          setSessionHistory(
-            rows
+        if (active) {
+          setSubjects(parsed);
+        }
+      } catch (err) {
+        if (!active) {
+          return;
+        }
+
+        console.error("Attendance load error:", err);
+
+        setSubjects([]);
+        setError(
+          err.message || "Failed to load attendance"
+        );
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    // REAL OVERALL TREND HISTORY
+
+    const loadTrend = async () => {
+      try {
+        const result =
+          await attendanceService.getAttendanceTrendHistory(
+            studentRoll,
+            8
           );
 
-          const oldestRow =
-            rows.length > 0
-              ? rows[
-                  rows.length -
-                    1
-                ]
-              : null;
+        const points = getCollection(
+          result,
+          ["data"],
+          "The server returned an invalid attendance history response."
+        );
+
+        if (active) {
+          setTrendData(points);
+        }
+      } catch (err) {
+        if (!active) {
+          return;
+        }
+
+        console.error("Attendance trend error:", err);
+
+        setTrendData([]);
+        setTrendError(
+          err.message || "Failed to load trend"
+        );
+      } finally {
+        if (active) {
+          setTrendLoading(false);
+        }
+      }
+    };
+
+    // THEORY / LAB SESSION HISTORY
+
+    const loadSessionAttendance = async () => {
+      try {
+        const response = await fetch(
+          `${API_URL}/api/attendance/sessions/${encodeURIComponent(
+            studentRoll
+          )}`,
+          {
+            headers: getAuthHeader(),
+            signal: sessionController.signal,
+          }
+        );
+
+        if (response.status === 401) {
+          throw new Error(
+            "Please log in again to load session attendance."
+          );
+        }
+
+        if (response.status === 403) {
+          throw new Error(
+            "Access to session attendance was denied."
+          );
+        }
+
+        let data;
+
+        try {
+          data = await response.json();
+        } catch {
+          throw new Error(
+            response.ok
+              ? "The server returned an invalid session attendance response."
+              : "Failed to load session attendance"
+          );
+        }
+
+        if (!response.ok) {
+          throw new Error(
+            typeof data?.error === "string"
+              ? data.error
+              : "Failed to load session attendance"
+          );
+        }
+
+        const rows = getCollection(
+          data,
+          ["sessions"],
+          "The server returned an invalid session attendance list."
+        );
+
+        const oldestRow =
+          rows.length > 0 ? rows[rows.length - 1] : null;
+
+        if (active) {
+          setSessionHistory(rows);
 
           setSessionTrackedFrom(
             data?.trackedFrom ||
@@ -903,217 +677,166 @@ export default function AttendancePage() {
               oldestRow?.session_date ||
               null
           );
-        } catch (err) {
-          console.error(
-            "Session attendance error:",
-            err
-          );
-
-          /*
-            Do NOT break the main Attendance page.
-
-            Aggregate attendance remains usable even
-            if session-level history is unavailable.
-          */
-
-          setSessionHistory(
-            []
-          );
-
-          setSessionTrackedFrom(
-            null
-          );
-
-          setSessionError(
-            err.message ||
-              "Failed to load session attendance"
-          );
-        } finally {
-          setSessionLoading(
-            false
-          );
         }
-      };
+      } catch (err) {
+        if (!active || err.name === "AbortError") {
+          return;
+        }
 
-    // -----------------------------------------------
+        console.error("Session attendance error:", err);
+
+        // Session failure does not overwrite aggregate attendance.
+        setSessionHistory([]);
+        setSessionTrackedFrom(null);
+
+        setSessionError(
+          err.message || "Failed to load session attendance"
+        );
+      } finally {
+        if (active) {
+          setSessionLoading(false);
+        }
+      }
+    };
+
     // SIDEBAR TODAY SUMMARY
-    // -----------------------------------------------
+    // null means unavailable; zero means a successful empty result.
 
-    const loadTodaySummary =
-      async () => {
+    const loadTodaySummary = async () => {
+      const [assignmentsResult, timetableResult] =
+        await Promise.allSettled([
+          assignmentService.getAssignments(studentRoll),
+          timetableService.getTimetable(studentRoll),
+        ]);
+
+      if (!active) {
+        return;
+      }
+
+      let pending = null;
+      let classesToday = null;
+
+      if (assignmentsResult.status === "fulfilled") {
         try {
-          const [
-            assignmentsResult,
-            timetableResult,
-          ] =
-            await Promise.allSettled(
-              [
-                assignmentService.getAssignments(
-                  studentRoll
-                ),
+          const items = getCollection(
+            assignmentsResult.value,
+            ["assignments", "data"],
+            "The server returned an invalid assignment summary."
+          );
 
-                timetableService.getTimetable(
-                  studentRoll
-                ),
-              ]
-            );
-
-          let pending = 0;
-
-          if (
-            assignmentsResult.status ===
-            "fulfilled"
-          ) {
-            const items =
-              Array.isArray(
-                assignmentsResult.value
-              )
-                ? assignmentsResult.value
-                : assignmentsResult
-                    .value
-                    ?.assignments ||
-                  assignmentsResult
-                    .value
-                    ?.data ||
-                  [];
-
-            pending =
-              items.filter(
-                (
-                  assignment
-                ) =>
-                  String(
-                    assignment.STATUS ||
-                      assignment.status ||
-                      ""
-                  ).toLowerCase() ===
-                  "pending"
-              ).length;
-          }
-
-          let classesToday =
-            0;
-
-          if (
-            timetableResult.status ===
-            "fulfilled"
-          ) {
-            const classes =
-              Array.isArray(
-                timetableResult.value
-              )
-                ? timetableResult.value
-                : timetableResult
-                    .value
-                    ?.classes ||
-                  timetableResult
-                    .value
-                    ?.data ||
-                  [];
-
-            const today =
-              DAYS[
-                new Date().getDay()
-              ];
-
-            classesToday =
-              classes.filter(
-                (
-                  item
-                ) =>
-                  String(
-                    item.DAY_OF_WEEK ||
-                      item.day_of_week ||
-                      ""
-                  ).toLowerCase() ===
-                  today.toLowerCase()
-              ).length;
-          }
-
-          setTodaySummary({
-            pendingTasks:
-              pending,
-
-            classesToday,
-          });
-        } catch {
-          // Optional summary.
+          pending = items.filter(
+            (assignment) =>
+              String(
+                assignment.STATUS ||
+                  assignment.status ||
+                  ""
+              ).toLowerCase() === "pending"
+          ).length;
+        } catch (err) {
+          console.error("Assignment summary error:", err);
         }
-      };
+      } else {
+        console.error(
+          "Assignment summary unavailable:",
+          assignmentsResult.reason
+        );
+      }
+
+      if (timetableResult.status === "fulfilled") {
+        try {
+          const classes = getCollection(
+            timetableResult.value,
+            ["classes", "data"],
+            "The server returned an invalid timetable summary."
+          );
+
+          const today = DAYS[new Date().getDay()];
+
+          classesToday = classes.filter(
+            (item) =>
+              String(
+                item.DAY_OF_WEEK ||
+                  item.day_of_week ||
+                  ""
+              ).toLowerCase() === today.toLowerCase()
+          ).length;
+        } catch (err) {
+          console.error("Timetable summary error:", err);
+        }
+      } else {
+        console.error(
+          "Timetable summary unavailable:",
+          timetableResult.reason
+        );
+      }
+
+      if (active) {
+        setTodaySummary({
+          pendingTasks: pending,
+          classesToday,
+        });
+      }
+    };
 
     loadAttendance();
     loadTrend();
     loadSessionAttendance();
     loadTodaySummary();
+
+    return () => {
+      active = false;
+      sessionController.abort();
+    };
   }, [studentRoll]);
 
-  // ===================================================
+  // =====================================================
   // LOGOUT
-  // ===================================================
+  // =====================================================
 
   const handleLogout = () => {
     authService.logout();
-
-    navigate(
-      "/login"
-    );
+    navigate("/login");
   };
 
-  // ===================================================
+  // =====================================================
   // UI
-  // ===================================================
+  // =====================================================
 
   return (
     <div className="flex min-h-screen bg-background">
-      {/* =================================================
-          DESKTOP SIDEBAR
-      ================================================= */}
-
+      {/* DESKTOP SIDEBAR */}
       <aside className="hidden lg:flex w-[280px] shrink-0 h-screen sticky top-0 bg-surface border-r border-outline-variant flex-col">
-        {/* BRAND */}
-
         <div className="px-md pt-md pb-sm">
           <CampusCopilotBrand />
         </div>
 
         {/* PROFILE */}
-
         <Link
           to="/profile"
           className="px-md py-md hover:bg-surface-container-low transition-colors"
         >
           <div className="flex items-center gap-sm">
             <div className="w-12 h-12 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold text-lg shrink-0">
-              {getInitials(
-                studentName
-              )}
+              {getInitials(studentName)}
             </div>
 
             <div className="min-w-0">
               <div className="font-title-md font-semibold text-on-surface">
-                {
-                  studentName
-                }
+                {studentName}
               </div>
 
               <div className="font-body-sm text-on-surface-variant leading-5">
-                {
-                  department
-                }
+                {department}
               </div>
 
               <div className="font-label-caps text-outline mt-0.5">
-                ID:{" "}
-                {
-                  studentRoll
-                }
+                ID: {studentRoll}
               </div>
             </div>
           </div>
         </Link>
 
         {/* NAVIGATION */}
-
         <div className="px-2 flex flex-col gap-1">
           <Link
             to="/dashboard"
@@ -1122,7 +845,6 @@ export default function AttendancePage() {
             <span className="material-symbols-outlined">
               dashboard
             </span>
-
             Home
           </Link>
 
@@ -1133,7 +855,6 @@ export default function AttendancePage() {
             <span className="material-symbols-outlined">
               calendar_month
             </span>
-
             Timetable
           </Link>
 
@@ -1143,14 +864,10 @@ export default function AttendancePage() {
           >
             <span
               className="material-symbols-outlined"
-              style={{
-                fontVariationSettings:
-                  "'FILL' 1",
-              }}
+              style={{ fontVariationSettings: "'FILL' 1" }}
             >
               analytics
             </span>
-
             Attendance
           </Link>
 
@@ -1161,7 +878,6 @@ export default function AttendancePage() {
             <span className="material-symbols-outlined">
               assignment
             </span>
-
             Assignments
           </Link>
 
@@ -1172,7 +888,6 @@ export default function AttendancePage() {
             <span className="material-symbols-outlined">
               description
             </span>
-
             Exams
           </Link>
 
@@ -1183,7 +898,6 @@ export default function AttendancePage() {
             <span className="material-symbols-outlined">
               campaign
             </span>
-
             Notices
           </Link>
 
@@ -1194,7 +908,6 @@ export default function AttendancePage() {
             <span className="material-symbols-outlined">
               insights
             </span>
-
             AI Analytics
           </Link>
 
@@ -1205,7 +918,6 @@ export default function AttendancePage() {
             <span className="material-symbols-outlined">
               folder_open
             </span>
-
             Resources
           </Link>
 
@@ -1216,13 +928,11 @@ export default function AttendancePage() {
             <span className="material-symbols-outlined">
               badge
             </span>
-
             Digital ID
           </Link>
         </div>
 
         {/* TODAY SUMMARY */}
-
         <div className="mx-4 mt-md border border-outline-variant rounded-xl bg-surface-container-lowest p-sm">
           <div className="font-label-caps text-outline mb-sm">
             TODAY SUMMARY
@@ -1246,7 +956,7 @@ export default function AttendancePage() {
               </div>
 
               <span className="font-body-sm font-bold text-secondary">
-                {loading
+                {loading || error
                   ? "--"
                   : `${overallPercentage}%`}
               </span>
@@ -1269,9 +979,7 @@ export default function AttendancePage() {
               </div>
 
               <span className="font-body-sm font-bold text-error">
-                {
-                  todaySummary.pendingTasks
-                }
+                {todaySummary.pendingTasks ?? "--"}
               </span>
             </Link>
 
@@ -1289,9 +997,7 @@ export default function AttendancePage() {
               </div>
 
               <span className="font-body-sm font-bold text-primary">
-                {
-                  todaySummary.classesToday
-                }
+                {todaySummary.classesToday ?? "--"}
               </span>
             </div>
           </div>
@@ -1300,7 +1006,6 @@ export default function AttendancePage() {
         <div className="flex-1" />
 
         {/* PROFILE + LOGOUT */}
-
         <div className="mx-2 px-2 py-sm border-t border-outline-variant">
           <Link
             to="/profile"
@@ -1309,39 +1014,29 @@ export default function AttendancePage() {
             <span className="material-symbols-outlined">
               account_circle
             </span>
-
             Profile
           </Link>
 
           <button
             type="button"
-            onClick={
-              handleLogout
-            }
+            onClick={handleLogout}
             className="w-full text-error px-4 py-2.5 rounded-xl hover:bg-error-container/20 flex items-center gap-sm text-left"
           >
             <span className="material-symbols-outlined">
               logout
             </span>
-
             Logout
           </button>
         </div>
       </aside>
 
-      {/* =================================================
-          MAIN CONTENT
-      ================================================= */}
-
+      {/* MAIN CONTENT */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* MOBILE HEADER */}
-
         <header className="lg:hidden sticky top-0 z-40 bg-surface border-b border-outline-variant px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold text-sm shrink-0">
-              {getInitials(
-                studentName
-              )}
+              {getInitials(studentName)}
             </div>
 
             <span className="font-headline-lg-mobile font-bold text-primary">
@@ -1352,8 +1047,6 @@ export default function AttendancePage() {
           <StudentNotificationBell />
         </header>
 
-        {/* CONTENT */}
-
         <main className="flex-1 px-4 lg:px-8 py-6 lg:py-8 pb-24 lg:pb-8 overflow-y-auto">
           <StudentPageHero
             eyebrow="ATTENDANCE ANALYTICS"
@@ -1362,53 +1055,40 @@ export default function AttendancePage() {
           />
 
           {/* MAIN ERROR */}
-
           {error && (
-            <div className="mb-6 p-4 rounded-xl bg-error-container/20 border border-error/30 text-error font-body-sm flex items-center gap-2">
+            <div
+              role="alert"
+              className="mb-6 p-4 rounded-xl bg-error-container/20 border border-error/30 text-error font-body-sm flex items-center gap-2"
+            >
               <span className="material-symbols-outlined text-[18px]">
                 error
               </span>
-
               {error}
             </div>
           )}
 
-          {/* MAIN LOADING */}
-
+          {/* Do not display calculated zero totals after a failed load. */}
           {loading ? (
             <div className="flex items-center justify-center py-24">
               <div className="w-10 h-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
             </div>
-          ) : (
+          ) : error ? null : (
             <>
-              {/* ==========================================
-                  TOP STAT CARDS
-              ========================================== */}
-
+              {/* TOP STAT CARDS */}
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
                 {/* OVERALL */}
-
                 <div className="rounded-xl bg-surface border border-outline-variant p-5 flex flex-col items-center text-center">
                   <div className="relative mb-3">
                     <CircularProgress
-                      percentage={
-                        overallPercentage
-                      }
+                      percentage={overallPercentage}
                       size={100}
                       strokeWidth={9}
-                      color={
-                        isGoodStanding
-                          ? "#006a61"
-                          : "#ba1a1a"
-                      }
+                      color={isGoodStanding ? "#006a61" : "#ba1a1a"}
                     />
 
                     <div className="absolute inset-0 flex items-center justify-center">
                       <span className="font-bold text-xl text-on-surface">
-                        {
-                          overallPercentage
-                        }
-                        %
+                        {overallPercentage}%
                       </span>
                     </div>
                   </div>
@@ -1425,9 +1105,7 @@ export default function AttendancePage() {
                     }`}
                   >
                     <span className="material-symbols-outlined text-[14px]">
-                      {isGoodStanding
-                        ? "check_circle"
-                        : "warning"}
+                      {isGoodStanding ? "check_circle" : "warning"}
                     </span>
 
                     {isGoodStanding
@@ -1437,7 +1115,6 @@ export default function AttendancePage() {
                 </div>
 
                 {/* CLASSES ATTENDED */}
-
                 <div className="rounded-xl bg-surface border border-outline-variant p-5 flex flex-col justify-center">
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-10 h-10 rounded-xl bg-primary-fixed text-primary flex items-center justify-center">
@@ -1452,16 +1129,10 @@ export default function AttendancePage() {
                   </div>
 
                   <div className="font-display-lg text-primary font-bold">
-                    {
-                      totalAttended
-                    }
+                    {totalAttended}
 
                     <span className="text-on-surface-variant font-normal text-lg">
-                      {" "}
-                      /{" "}
-                      {
-                        totalClasses
-                      }
+                      {" "}/ {totalClasses}
                     </span>
                   </div>
 
@@ -1469,17 +1140,13 @@ export default function AttendancePage() {
                     <div
                       className="h-full rounded-full bg-primary transition-all duration-700"
                       style={{
-                        width: `${Math.min(
-                          overallPercentage,
-                          100
-                        )}%`,
+                        width: `${Math.min(overallPercentage, 100)}%`,
                       }}
                     />
                   </div>
                 </div>
 
                 {/* SAFE ZONE */}
-
                 <div className="rounded-xl bg-surface border border-outline-variant p-5 flex flex-col justify-center">
                   <div className="flex items-center gap-3 mb-3">
                     <div
@@ -1490,9 +1157,7 @@ export default function AttendancePage() {
                       }`}
                     >
                       <span className="material-symbols-outlined">
-                        {isGoodStanding
-                          ? "shield"
-                          : "emergency"}
+                        {isGoodStanding ? "shield" : "emergency"}
                       </span>
                     </div>
 
@@ -1504,11 +1169,8 @@ export default function AttendancePage() {
                   {isGoodStanding ? (
                     <>
                       <div className="font-display-lg text-secondary font-bold">
-                        {
-                          overallBuffer
-                        }
+                        {overallBuffer}
                       </div>
-
                       <div className="font-body-sm text-on-surface-variant mt-1">
                         bunks remaining
                       </div>
@@ -1516,21 +1178,16 @@ export default function AttendancePage() {
                   ) : (
                     <>
                       <div className="font-display-lg text-error font-bold">
-                        {
-                          classesNeeded
-                        }
+                        {classesNeeded}
                       </div>
-
                       <div className="font-body-sm text-on-surface-variant mt-1">
-                        classes needed
-                        to recover
+                        classes needed to recover
                       </div>
                     </>
                   )}
                 </div>
 
                 {/* SUBJECT STATUS */}
-
                 <div className="rounded-xl bg-surface border border-outline-variant p-5 flex flex-col justify-center">
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-10 h-10 rounded-xl bg-tertiary-fixed text-tertiary flex items-center justify-center">
@@ -1545,41 +1202,27 @@ export default function AttendancePage() {
                   </div>
 
                   <div className="font-display-lg text-tertiary font-bold">
-                    {
-                      safeSubjects.length
-                    }
-
+                    {safeSubjects.length}
                     <span className="text-on-surface-variant font-normal text-lg">
-                      {" "}
-                      /{" "}
-                      {
-                        subjects.length
-                      }
+                      {" "}/ {subjects.length}
                     </span>
                   </div>
 
                   <div className="font-body-sm text-on-surface-variant mt-1">
-                    subjects above
-                    75%
+                    subjects above 75%
                   </div>
                 </div>
               </div>
 
-              {/* ==========================================
-                  ATTENDANCE HISTORY CHART
-              ========================================== */}
-
+              {/* ATTENDANCE HISTORY CHART */}
               <div className="rounded-xl bg-surface border border-outline-variant p-5 lg:p-6 mb-8">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
                   <div>
                     <h2 className="font-title-md font-semibold text-on-surface">
                       Attendance History
                     </h2>
-
                     <p className="font-body-sm text-on-surface-variant mt-0.5">
-                      Real aggregate
-                      attendance
-                      snapshots
+                      Real aggregate attendance snapshots
                     </p>
                   </div>
 
@@ -1605,35 +1248,21 @@ export default function AttendancePage() {
                     <span className="material-symbols-outlined text-3xl text-outline mb-2 block">
                       cloud_off
                     </span>
-
-                    Unable to load
-                    trend data
+                    {trendError}
                   </div>
-                ) : trendData.length ===
-                  0 ? (
+                ) : trendData.length === 0 ? (
                   <div className="text-center py-16 font-body-sm text-on-surface-variant">
                     <span className="material-symbols-outlined text-4xl text-outline mb-3 block">
                       timeline
                     </span>
-
-                    No attendance
-                    history yet.
+                    No attendance history yet.
                   </div>
                 ) : (
                   <>
-                    <div
-                      style={{
-                        height: 320,
-                      }}
-                    >
-                      <ResponsiveContainer
-                        width="100%"
-                        height="100%"
-                      >
+                    <div style={{ height: 320 }}>
+                      <ResponsiveContainer width="100%" height="100%">
                         <LineChart
-                          data={
-                            trendData
-                          }
+                          data={trendData}
                           margin={{
                             top: 8,
                             right: 16,
@@ -1644,9 +1273,7 @@ export default function AttendancePage() {
                           <CartesianGrid
                             strokeDasharray="3 3"
                             stroke="#c5c5d3"
-                            strokeOpacity={
-                              0.4
-                            }
+                            strokeOpacity={0.4}
                           />
 
                           <XAxis
@@ -1655,58 +1282,32 @@ export default function AttendancePage() {
                               fontSize: 12,
                               fill: "#757682",
                             }}
-                            axisLine={{
-                              stroke:
-                                "#c5c5d3",
-                            }}
-                            tickLine={
-                              false
-                            }
+                            axisLine={{ stroke: "#c5c5d3" }}
+                            tickLine={false}
                           />
 
                           <YAxis
-                            domain={[
-                              0,
-                              100,
-                            ]}
+                            domain={[0, 100]}
                             tick={{
                               fontSize: 12,
                               fill: "#757682",
                             }}
-                            axisLine={{
-                              stroke:
-                                "#c5c5d3",
-                            }}
-                            tickLine={
-                              false
-                            }
-                            tickFormatter={(
-                              value
-                            ) =>
-                              `${value}%`
-                            }
+                            axisLine={{ stroke: "#c5c5d3" }}
+                            tickLine={false}
+                            tickFormatter={(value) => `${value}%`}
                           />
 
-                          <Tooltip
-                            content={
-                              <ChartTooltip />
-                            }
-                          />
+                          <Tooltip content={<ChartTooltip />} />
 
                           <ReferenceLine
                             y={75}
                             stroke="#ba1a1a"
                             strokeDasharray="6 4"
-                            strokeWidth={
-                              1.5
-                            }
+                            strokeWidth={1.5}
                             label={{
-                              value:
-                                "Minimum 75%",
-                              position:
-                                "insideTopRight",
-                              fill:
-                                "#ba1a1a",
+                              value: "Minimum 75%",
+                              position: "insideTopRight",
+                              fill: "#ba1a1a",
                               fontSize: 11,
                               fontWeight: 600,
                             }}
@@ -1716,26 +1317,18 @@ export default function AttendancePage() {
                             type="monotone"
                             dataKey="percentage"
                             stroke="#00236f"
-                            strokeWidth={
-                              2.5
-                            }
-                            connectNulls={
-                              false
-                            }
+                            strokeWidth={2.5}
+                            connectNulls={false}
                             dot={{
                               r: 5,
-                              fill:
-                                "#00236f",
-                              stroke:
-                                "#fff",
+                              fill: "#00236f",
+                              stroke: "#fff",
                               strokeWidth: 2,
                             }}
                             activeDot={{
                               r: 7,
-                              fill:
-                                "#00236f",
-                              stroke:
-                                "#fff",
+                              fill: "#00236f",
+                              stroke: "#fff",
                               strokeWidth: 2,
                             }}
                           />
@@ -1743,57 +1336,38 @@ export default function AttendancePage() {
                       </ResponsiveContainer>
                     </div>
 
-                    {trendData.length ===
-                      1 && (
+                    {trendData.length === 1 && (
                       <p className="text-center font-body-sm text-on-surface-variant mt-4">
-                        Trend tracking
-                        has started.
-                        More history
-                        will appear as
-                        new attendance
-                        is recorded.
+                        Trend tracking has started. More history will
+                        appear as new attendance is recorded.
                       </p>
                     )}
                   </>
                 )}
               </div>
 
-              {/* ==========================================
-                  PERFORMANCE + SUBJECTS
-              ========================================== */}
-
+              {/* PERFORMANCE + SUBJECTS */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* ATTENDANCE PERFORMANCE */}
-
                 <div className="rounded-xl bg-surface border border-outline-variant p-5 lg:p-6">
                   <h2 className="font-title-md font-semibold text-on-surface mb-5">
-                    Attendance
-                    Performance
+                    Attendance Performance
                   </h2>
 
                   <div className="flex flex-col items-center mb-6">
                     <div className="relative">
                       <CircularProgress
-                        percentage={
-                          overallPercentage
-                        }
+                        percentage={overallPercentage}
                         size={140}
-                        strokeWidth={
-                          12
-                        }
+                        strokeWidth={12}
                         color={
-                          isGoodStanding
-                            ? "#006a61"
-                            : "#ba1a1a"
+                          isGoodStanding ? "#006a61" : "#ba1a1a"
                         }
                       />
 
                       <div className="absolute inset-0 flex flex-col items-center justify-center">
                         <span className="font-bold text-2xl text-on-surface">
-                          {
-                            overallPercentage
-                          }
-                          %
+                          {overallPercentage}%
                         </span>
 
                         <span className="font-body-sm text-on-surface-variant">
@@ -1828,13 +1402,7 @@ export default function AttendancePage() {
                       </span>
 
                       <span className="font-body-sm font-semibold text-on-surface">
-                        {
-                          totalAttended
-                        }{" "}
-                        /{" "}
-                        {
-                          totalClasses
-                        }
+                        {totalAttended} / {totalClasses}
                       </span>
                     </div>
 
@@ -1862,11 +1430,7 @@ export default function AttendancePage() {
                       <span className="material-symbols-outlined text-[16px] text-secondary mt-0.5 shrink-0">
                         info
                       </span>
-
-                      Maintain
-                      consistency to
-                      stay in the safe
-                      zone.
+                      Maintain consistency to stay in the safe zone.
                     </p>
                   </div>
 
@@ -1877,182 +1441,141 @@ export default function AttendancePage() {
                     <span className="material-symbols-outlined text-[18px]">
                       smart_toy
                     </span>
-
-                    Ask Copilot
-                    Attendance Advice
+                    Ask Copilot Attendance Advice
                   </Link>
                 </div>
 
                 {/* SUBJECT-WISE */}
-
                 <div className="rounded-xl bg-surface border border-outline-variant p-5 lg:p-6">
                   <h2 className="font-title-md font-semibold text-on-surface mb-5">
-                    Subject-wise
-                    Attendance
+                    Subject-wise Attendance
                   </h2>
 
-                  {subjects.length ===
-                  0 ? (
+                  {subjects.length === 0 ? (
                     <div className="text-center py-12 font-body-sm text-on-surface-variant">
                       <span className="material-symbols-outlined text-3xl text-outline mb-2 block">
                         menu_book
                       </span>
-
-                      No subjects
-                      found.
+                      No subjects found.
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {subjects.map(
-                        (
-                          subject
-                        ) => {
-                          const percentage =
-                            getPercentage(
-                              subject.attended,
-                              subject.total
-                            );
+                      {subjects.map((subject) => {
+                        const percentage = getPercentage(
+                          subject.attended,
+                          subject.total
+                        );
 
-                          const safe =
-                            percentage >=
-                            75;
+                        const safe = percentage >= 75;
 
-                          const bunks =
-                            calculateBunksLeft(
-                              subject.attended,
-                              subject.total
-                            );
+                        const bunks = calculateBunksLeft(
+                          subject.attended,
+                          subject.total
+                        );
 
-                          const needed =
-                            calculateClassesNeeded(
-                              subject.attended,
-                              subject.total
-                            );
+                        const needed = calculateClassesNeeded(
+                          subject.attended,
+                          subject.total
+                        );
 
-                          return (
-                            <div
-                              key={
-                                subject.code
-                              }
-                              className={`rounded-xl border p-4 ${subject.theme.bg} ${subject.theme.border}`}
-                            >
-                              <div className="flex items-start justify-between gap-3 mb-3">
-                                <div>
-                                  <div className="font-title-md font-semibold text-on-surface">
-                                    {
-                                      subject.name
-                                    }
-                                  </div>
-
-                                  <div className="font-body-sm text-on-surface-variant">
-                                    {
-                                      subject.code
-                                    }
-                                  </div>
+                        return (
+                          <div
+                            key={subject.code}
+                            className={`rounded-xl border p-4 ${subject.theme.bg} ${subject.theme.border}`}
+                          >
+                            <div className="flex items-start justify-between gap-3 mb-3">
+                              <div>
+                                <div className="font-title-md font-semibold text-on-surface">
+                                  {subject.name}
                                 </div>
 
-                                <span
-                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
-                                    safe
-                                      ? "bg-secondary-container/60 text-secondary"
-                                      : "bg-error-container/60 text-error"
-                                  }`}
-                                >
-                                  {safe
-                                    ? "Good Standing"
-                                    : "Needs Attention"}
-                                </span>
-                              </div>
-
-                              <div className="mb-3">
-                                <div className="flex items-center justify-between mb-1">
-                                  <span
-                                    className={`font-body-sm font-bold ${subject.theme.text}`}
-                                  >
-                                    {
-                                      percentage
-                                    }
-                                    %
-                                  </span>
-
-                                  <span className="font-body-sm text-on-surface-variant">
-                                    {
-                                      subject.attended
-                                    }{" "}
-                                    /{" "}
-                                    {
-                                      subject.total
-                                    }
-                                  </span>
-                                </div>
-
-                                <div className="w-full h-2 rounded-full bg-white/60 overflow-hidden">
-                                  <div
-                                    className={`h-full rounded-full transition-all duration-700 ${subject.theme.barFill}`}
-                                    style={{
-                                      width: `${Math.min(
-                                        percentage,
-                                        100
-                                      )}%`,
-                                    }}
-                                  />
+                                <div className="font-body-sm text-on-surface-variant">
+                                  {subject.code}
                                 </div>
                               </div>
 
-                              <div className="flex items-center gap-1.5">
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                  safe
+                                    ? "bg-secondary-container/60 text-secondary"
+                                    : "bg-error-container/60 text-error"
+                                }`}
+                              >
+                                {safe
+                                  ? "Good Standing"
+                                  : "Needs Attention"}
+                              </span>
+                            </div>
+
+                            <div className="mb-3">
+                              <div className="flex items-center justify-between mb-1">
                                 <span
-                                  className={`material-symbols-outlined text-[16px] ${
-                                    safe
-                                      ? "text-secondary"
-                                      : "text-error"
-                                  }`}
+                                  className={`font-body-sm font-bold ${subject.theme.text}`}
                                 >
-                                  {safe
-                                    ? "shield"
-                                    : "emergency"}
+                                  {percentage}%
                                 </span>
 
-                                <span
-                                  className={`font-body-sm font-medium ${
-                                    safe
-                                      ? "text-secondary"
-                                      : "text-error"
-                                  }`}
-                                >
-                                  {safe
-                                    ? `${bunks} bunks left`
-                                    : `Attend next ${needed} classes`}
+                                <span className="font-body-sm text-on-surface-variant">
+                                  {subject.attended} / {subject.total}
                                 </span>
+                              </div>
+
+                              <div className="w-full h-2 rounded-full bg-white/60 overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all duration-700 ${subject.theme.barFill}`}
+                                  style={{
+                                    width: `${Math.min(
+                                      percentage,
+                                      100
+                                    )}%`,
+                                  }}
+                                />
                               </div>
                             </div>
-                          );
-                        }
-                      )}
+
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                className={`material-symbols-outlined text-[16px] ${
+                                  safe
+                                    ? "text-secondary"
+                                    : "text-error"
+                                }`}
+                              >
+                                {safe ? "shield" : "emergency"}
+                              </span>
+
+                              <span
+                                className={`font-body-sm font-medium ${
+                                  safe
+                                    ? "text-secondary"
+                                    : "text-error"
+                                }`}
+                              >
+                                {safe
+                                  ? `${bunks} bunks left`
+                                  : `Attend next ${needed} classes`}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* ==========================================
-                  THEORY / LAB + RECENT ATTENDANCE
-              ========================================== */}
-
+              {/* THEORY / LAB + RECENT ATTENDANCE */}
               <div className="grid grid-cols-1 xl:grid-cols-[1.08fr_0.92fr] gap-6 mt-8">
-                {/* ======================================
-                    THEORY / LAB BREAKDOWN
-                ====================================== */}
-
+                {/* THEORY / LAB BREAKDOWN */}
                 <div className="rounded-xl bg-surface border border-outline-variant p-5 lg:p-6">
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-5">
                     <div>
                       <h2 className="font-title-md font-semibold text-on-surface">
-                        Theory & Lab
-                        Breakdown
+                        Theory & Lab Breakdown
                       </h2>
 
                       <p className="font-body-sm text-on-surface-variant mt-1">
-                        Since session
-                        tracking began
+                        Since session tracking began
                         {sessionTrackedFrom
                           ? ` • ${formatAttendanceDate(
                               sessionTrackedFrom
@@ -2065,13 +1588,9 @@ export default function AttendancePage() {
                       <span className="material-symbols-outlined text-[15px]">
                         history
                       </span>
-
-                      Session-tracked
-                      only
+                      Session-tracked only
                     </span>
                   </div>
-
-                  {/* IMPORTANT INFO */}
 
                   <div className="mb-5 rounded-xl border border-primary/15 bg-primary/5 p-3">
                     <p className="font-body-sm text-on-surface-variant flex items-start gap-2">
@@ -2080,18 +1599,10 @@ export default function AttendancePage() {
                       </span>
 
                       <span>
-                        The subject
-                        totals above are
-                        your complete
-                        historical
-                        attendance.
-                        Theory/Lab
-                        figures below
-                        include only
-                        classes recorded
-                        after detailed
-                        session tracking
-                        started.
+                        The subject totals above are your complete
+                        historical attendance. Theory/Lab figures below
+                        include only classes recorded after detailed
+                        session tracking started.
                       </span>
                     </p>
                   </div>
@@ -2105,228 +1616,151 @@ export default function AttendancePage() {
                       <span className="material-symbols-outlined text-3xl text-outline mb-2 block">
                         cloud_off
                       </span>
-
-                      Session-level
-                      attendance is
-                      currently
-                      unavailable.
+                      {sessionError}
                     </div>
-                  ) : sessionBreakdown.length ===
-                    0 ? (
+                  ) : sessionBreakdown.length === 0 ? (
                     <div className="text-center py-12 font-body-sm text-on-surface-variant">
                       <span className="material-symbols-outlined text-4xl text-outline mb-3 block">
                         event_busy
                       </span>
-
-                      No session-level
-                      attendance has
-                      been recorded
-                      yet.
+                      No session-level attendance has been recorded yet.
                     </div>
                   ) : (
                     <div className="space-y-5">
-                      {sessionBreakdown.map(
-                        (
-                          subject
-                        ) => {
-                          const aggregateSubject =
-                            subjects.find(
-                              (
-                                item
-                              ) =>
-                                String(
-                                  item.code
-                                ).toUpperCase() ===
-                                String(
-                                  subject.code
-                                ).toUpperCase()
-                            );
+                      {sessionBreakdown.map((subject) => {
+                        const aggregateSubject = subjects.find(
+                          (item) =>
+                            String(item.code).toUpperCase() ===
+                            String(subject.code).toUpperCase()
+                        );
 
-                          const aggregatePercentage =
-                            aggregateSubject
-                              ? getPercentage(
-                                  aggregateSubject.attended,
-                                  aggregateSubject.total
-                                )
-                              : null;
+                        const aggregatePercentage = aggregateSubject
+                          ? getPercentage(
+                              aggregateSubject.attended,
+                              aggregateSubject.total
+                            )
+                          : null;
 
-                          return (
-                            <div
-                              key={
-                                subject.code
-                              }
-                              className="rounded-xl border border-outline-variant bg-surface-container-lowest overflow-hidden"
-                            >
-                              {/* SUBJECT HEADER */}
-
-                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border-b border-outline-variant/70">
-                                <div>
-                                  <div className="font-title-md font-semibold text-on-surface">
-                                    {
-                                      subject.name
-                                    }
-                                  </div>
-
-                                  <div className="font-body-sm text-on-surface-variant">
-                                    {
-                                      subject.code
-                                    }
-                                  </div>
+                        return (
+                          <div
+                            key={subject.code}
+                            className="rounded-xl border border-outline-variant bg-surface-container-lowest overflow-hidden"
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border-b border-outline-variant/70">
+                              <div>
+                                <div className="font-title-md font-semibold text-on-surface">
+                                  {subject.name}
                                 </div>
 
-                                <div className="flex flex-wrap gap-2">
-                                  {aggregateSubject && (
-                                    <span className="rounded-lg bg-surface px-2.5 py-1 text-xs font-semibold text-on-surface border border-outline-variant">
-                                      Overall:{" "}
-                                      {
-                                        aggregatePercentage
-                                      }
-                                      % •{" "}
-                                      {
-                                        aggregateSubject.attended
-                                      }
-                                      /
-                                      {
-                                        aggregateSubject.total
-                                      }
-                                    </span>
-                                  )}
-
-                                  <span className="rounded-lg bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
-                                    Tracked:{" "}
-                                    {
-                                      subject.percentage
-                                    }
-                                    % •{" "}
-                                    {
-                                      subject.attended
-                                    }
-                                    /
-                                    {
-                                      subject.total
-                                    }
-                                  </span>
+                                <div className="font-body-sm text-on-surface-variant">
+                                  {subject.code}
                                 </div>
                               </div>
 
-                              {/* THEORY / LAB ROWS */}
+                              <div className="flex flex-wrap gap-2">
+                                {aggregateSubject && (
+                                  <span className="rounded-lg bg-surface px-2.5 py-1 text-xs font-semibold text-on-surface border border-outline-variant">
+                                    Overall: {aggregatePercentage}% •{" "}
+                                    {aggregateSubject.attended}/
+                                    {aggregateSubject.total}
+                                  </span>
+                                )}
 
-                              <div className="divide-y divide-outline-variant/60">
-                                {subject.sessionTypes.map(
-                                  (
-                                    type
-                                  ) => {
-                                    const safe =
-                                      type.percentage >=
-                                      75;
+                                <span className="rounded-lg bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+                                  Tracked: {subject.percentage}% •{" "}
+                                  {subject.attended}/{subject.total}
+                                </span>
+                              </div>
+                            </div>
 
-                                    const isLab =
-                                      String(
-                                        type.name
-                                      )
-                                        .toLowerCase()
-                                        .includes(
-                                          "lab"
-                                        );
+                            <div className="divide-y divide-outline-variant/60">
+                              {subject.sessionTypes.map((type) => {
+                                const safe = type.percentage >= 75;
 
-                                    return (
-                                      <div
-                                        key={`${subject.code}-${type.name}`}
-                                        className="p-4"
-                                      >
-                                        <div className="flex items-start justify-between gap-4 mb-2">
-                                          <div className="flex items-center gap-2">
-                                            <div
-                                              className={`w-9 h-9 rounded-lg flex items-center justify-center ${
-                                                isLab
-                                                  ? "bg-tertiary-fixed text-tertiary"
-                                                  : "bg-primary-fixed text-primary"
-                                              }`}
-                                            >
-                                              <span className="material-symbols-outlined text-[19px]">
-                                                {isLab
-                                                  ? "science"
-                                                  : "menu_book"}
-                                              </span>
-                                            </div>
+                                const isLab = String(type.name)
+                                  .toLowerCase()
+                                  .includes("lab");
 
-                                            <div>
-                                              <div className="font-body-sm font-semibold text-on-surface">
-                                                {
-                                                  type.name
-                                                }
-                                              </div>
-
-                                              <div className="font-body-sm text-on-surface-variant">
-                                                {
-                                                  type.attended
-                                                }{" "}
-                                                /{" "}
-                                                {
-                                                  type.total
-                                                }{" "}
-                                                present
-                                              </div>
-                                            </div>
-                                          </div>
-
-                                          <span
-                                            className={`text-sm font-bold ${
-                                              safe
-                                                ? "text-secondary"
-                                                : "text-error"
-                                            }`}
-                                          >
-                                            {
-                                              type.percentage
-                                            }
-                                            %
+                                return (
+                                  <div
+                                    key={`${subject.code}-${type.name}`}
+                                    className="p-4"
+                                  >
+                                    <div className="flex items-start justify-between gap-4 mb-2">
+                                      <div className="flex items-center gap-2">
+                                        <div
+                                          className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                                            isLab
+                                              ? "bg-tertiary-fixed text-tertiary"
+                                              : "bg-primary-fixed text-primary"
+                                          }`}
+                                        >
+                                          <span className="material-symbols-outlined text-[19px]">
+                                            {isLab
+                                              ? "science"
+                                              : "menu_book"}
                                           </span>
                                         </div>
 
-                                        <div className="w-full h-2 rounded-full bg-surface-container-low overflow-hidden">
-                                          <div
-                                            className={`h-full rounded-full transition-all duration-700 ${
-                                              safe
-                                                ? "bg-secondary"
-                                                : "bg-error"
-                                            }`}
-                                            style={{
-                                              width: `${Math.min(
-                                                type.percentage,
-                                                100
-                                              )}%`,
-                                            }}
-                                          />
+                                        <div>
+                                          <div className="font-body-sm font-semibold text-on-surface">
+                                            {type.name}
+                                          </div>
+
+                                          <div className="font-body-sm text-on-surface-variant">
+                                            {type.attended} /{" "}
+                                            {type.total} present
+                                          </div>
                                         </div>
                                       </div>
-                                    );
-                                  }
-                                )}
-                              </div>
+
+                                      <span
+                                        className={`text-sm font-bold ${
+                                          safe
+                                            ? "text-secondary"
+                                            : "text-error"
+                                        }`}
+                                      >
+                                        {type.percentage}%
+                                      </span>
+                                    </div>
+
+                                    <div className="w-full h-2 rounded-full bg-surface-container-low overflow-hidden">
+                                      <div
+                                        className={`h-full rounded-full transition-all duration-700 ${
+                                          safe
+                                            ? "bg-secondary"
+                                            : "bg-error"
+                                        }`}
+                                        style={{
+                                          width: `${Math.min(
+                                            type.percentage,
+                                            100
+                                          )}%`,
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
-                          );
-                        }
-                      )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
 
-                {/* ======================================
-                    RECENT ATTENDANCE
-                ====================================== */}
-
+                {/* RECENT ATTENDANCE */}
                 <div className="rounded-xl bg-surface border border-outline-variant p-5 lg:p-6">
                   <div className="flex items-start justify-between gap-3 mb-5">
                     <div>
                       <h2 className="font-title-md font-semibold text-on-surface">
-                        Recent
-                        Attendance
+                        Recent Attendance
                       </h2>
 
                       <p className="font-body-sm text-on-surface-variant mt-1">
-                        Latest Theory
-                        and Lab records
+                        Latest Theory and Lab records
                       </p>
                     </div>
 
@@ -2344,144 +1778,113 @@ export default function AttendancePage() {
                       <span className="material-symbols-outlined text-3xl text-outline mb-2 block">
                         cloud_off
                       </span>
-
-                      Recent sessions
-                      are currently
-                      unavailable.
+                      {sessionError}
                     </div>
-                  ) : recentSessions.length ===
-                    0 ? (
+                  ) : recentSessions.length === 0 ? (
                     <div className="text-center py-12 font-body-sm text-on-surface-variant">
                       <span className="material-symbols-outlined text-4xl text-outline mb-3 block">
                         history_toggle_off
                       </span>
-
-                      No recent
-                      attendance
-                      sessions yet.
+                      No recent attendance sessions yet.
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {recentSessions.map(
-                        (
-                          session,
-                          index
-                        ) => {
-                          const sessionId =
-                            session.SESSION_ID ||
-                            session.sessionId ||
-                            session.session_id ||
-                            index;
+                      {recentSessions.map((session, index) => {
+                        const sessionId =
+                          session.SESSION_ID ||
+                          session.sessionId ||
+                          session.session_id ||
+                          index;
 
-                          const subjectCode =
-                            session.SUBJECT_CODE ||
-                            session.subjectCode ||
-                            session.subject_code ||
-                            "--";
+                        const subjectCode =
+                          session.SUBJECT_CODE ||
+                          session.subjectCode ||
+                          session.subject_code ||
+                          "--";
 
-                          const subjectName =
-                            session.SUBJECT_NAME ||
-                            session.subjectName ||
-                            session.subject_name ||
-                            subjectCode;
+                        const subjectName =
+                          session.SUBJECT_NAME ||
+                          session.subjectName ||
+                          session.subject_name ||
+                          subjectCode;
 
-                          const type =
-                            session.SESSION_TYPE ||
-                            session.sessionType ||
-                            session.session_type ||
-                            "Session";
+                        const type =
+                          session.SESSION_TYPE ||
+                          session.sessionType ||
+                          session.session_type ||
+                          "Session";
 
-                          const section =
-                            session.SECTION ||
-                            session.section ||
-                            "";
+                        const section =
+                          session.SECTION ||
+                          session.section ||
+                          "";
 
-                          const date =
-                            session.SESSION_DATE ||
-                            session.sessionDate ||
-                            session.session_date;
+                        const date =
+                          session.SESSION_DATE ||
+                          session.sessionDate ||
+                          session.session_date;
 
-                          const status =
-                            String(
-                              session.STATUS ||
-                                session.status ||
-                                ""
-                            ).toUpperCase();
+                        const status = String(
+                          session.STATUS ||
+                            session.status ||
+                            ""
+                        ).toUpperCase();
 
-                          const isPresent =
-                            status ===
-                            "PRESENT";
+                        const isPresent = status === "PRESENT";
 
-                          return (
-                            <div
-                              key={`${sessionId}-${index}`}
-                              className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4"
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="flex flex-wrap items-center gap-2 mb-1">
-                                    <span className="font-title-md font-semibold text-on-surface">
-                                      {
-                                        subjectName
-                                      }
-                                    </span>
-
-                                    <span className="font-mono-sm text-xs text-outline">
-                                      {
-                                        subjectCode
-                                      }
-                                    </span>
-                                  </div>
-
-                                  <div className="font-body-sm text-on-surface-variant">
-                                    {
-                                      type
-                                    }
-                                  </div>
-
-                                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-outline">
-                                    <span className="inline-flex items-center gap-1">
-                                      <span className="material-symbols-outlined text-[14px]">
-                                        calendar_month
-                                      </span>
-
-                                      {formatAttendanceDate(
-                                        date
-                                      )}
-                                    </span>
-
-                                    {section && (
-                                      <span>
-                                        Section{" "}
-                                        {
-                                          section
-                                        }
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-
-                                <span
-                                  className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold ${
-                                    isPresent
-                                      ? "bg-secondary-container text-secondary"
-                                      : "bg-error-container text-error"
-                                  }`}
-                                >
-                                  <span className="material-symbols-outlined text-[14px]">
-                                    {isPresent
-                                      ? "check_circle"
-                                      : "cancel"}
+                        return (
+                          <div
+                            key={`${sessionId}-${index}`}
+                            className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2 mb-1">
+                                  <span className="font-title-md font-semibold text-on-surface">
+                                    {subjectName}
                                   </span>
 
-                                  {status ||
-                                    "--"}
-                                </span>
+                                  <span className="font-mono-sm text-xs text-outline">
+                                    {subjectCode}
+                                  </span>
+                                </div>
+
+                                <div className="font-body-sm text-on-surface-variant">
+                                  {type}
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-outline">
+                                  <span className="inline-flex items-center gap-1">
+                                    <span className="material-symbols-outlined text-[14px]">
+                                      calendar_month
+                                    </span>
+                                    {formatAttendanceDate(date)}
+                                  </span>
+
+                                  {section && (
+                                    <span>Section {section}</span>
+                                  )}
+                                </div>
                               </div>
+
+                              <span
+                                className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold ${
+                                  isPresent
+                                    ? "bg-secondary-container text-secondary"
+                                    : "bg-error-container text-error"
+                                }`}
+                              >
+                                <span className="material-symbols-outlined text-[14px]">
+                                  {isPresent
+                                    ? "check_circle"
+                                    : "cancel"}
+                                </span>
+                                {status || "--"}
+                              </span>
                             </div>
-                          );
-                        }
-                      )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -2491,10 +1894,7 @@ export default function AttendancePage() {
         </main>
       </div>
 
-      {/* =================================================
-          MOBILE BOTTOM NAVIGATION
-      ================================================= */}
-
+      {/* MOBILE BOTTOM NAVIGATION */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 h-[64px] bg-surface border-t border-outline-variant">
         <div className="h-full flex items-center justify-around">
           <Link
@@ -2504,10 +1904,7 @@ export default function AttendancePage() {
             <span className="material-symbols-outlined">
               dashboard
             </span>
-
-            <span className="text-[10px]">
-              Home
-            </span>
+            <span className="text-[10px]">Home</span>
           </Link>
 
           <Link
@@ -2517,10 +1914,7 @@ export default function AttendancePage() {
             <span className="material-symbols-outlined">
               calendar_month
             </span>
-
-            <span className="text-[10px]">
-              Timetable
-            </span>
+            <span className="text-[10px]">Timetable</span>
           </Link>
 
           <Link
@@ -2529,17 +1923,11 @@ export default function AttendancePage() {
           >
             <span
               className="material-symbols-outlined"
-              style={{
-                fontVariationSettings:
-                  "'FILL' 1",
-              }}
+              style={{ fontVariationSettings: "'FILL' 1" }}
             >
               analytics
             </span>
-
-            <span className="text-[10px]">
-              Attendance
-            </span>
+            <span className="text-[10px]">Attendance</span>
           </Link>
 
           <Link
@@ -2549,10 +1937,7 @@ export default function AttendancePage() {
             <span className="material-symbols-outlined">
               smart_toy
             </span>
-
-            <span className="text-[10px]">
-              Copilot
-            </span>
+            <span className="text-[10px]">Copilot</span>
           </Link>
 
           <Link
@@ -2562,10 +1947,7 @@ export default function AttendancePage() {
             <span className="material-symbols-outlined">
               account_circle
             </span>
-
-            <span className="text-[10px]">
-              Profile
-            </span>
+            <span className="text-[10px]">Profile</span>
           </Link>
         </div>
       </nav>

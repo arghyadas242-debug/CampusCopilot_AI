@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 
-import { authService } from "../../services/api";
+import { authService, getAuthHeader } from "../../services/api";
 import CampusCopilotBrand from "./CampusCopilotBrand";
 
 const API_URL = "http://localhost:5000";
@@ -42,9 +42,7 @@ function getStudentInitials(name) {
     .split(/\s+/)
     .filter(Boolean);
 
-  if (parts.length === 0) {
-    return "--";
-  }
+  if (parts.length === 0) return "--";
 
   return parts
     .slice(0, 2)
@@ -52,26 +50,62 @@ function getStudentInitials(name) {
     .join("");
 }
 
-async function requestJson(path) {
-  const token = localStorage.getItem("campus_token");
+async function requestJson(path, signal) {
   const response = await fetch(`${API_URL}${path}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    headers: getAuthHeader(),
+    signal,
   });
 
-  const data = await response.json().catch(() => null);
-
   if (!response.ok) {
-    throw new Error(data?.error || `Request failed with status ${response.status}`);
+    const error = new Error(
+      response.status === 401
+        ? "Please log in again to load your student information."
+        : response.status === 403
+        ? "Access denied. Your student information could not be loaded."
+        : "Unable to load student information. Please try again."
+    );
+    error.status = response.status;
+    throw error;
   }
 
-  return data;
+  try {
+    return await response.json();
+  } catch (error) {
+    if (error.name === "AbortError") throw error;
+    throw new Error("Invalid response received from the server.");
+  }
+}
+
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function requireRows(value) {
+  if (!Array.isArray(value) || !value.every(isRecord)) {
+    throw new Error("Invalid student records received.");
+  }
+  return value;
+}
+
+function readClassCount(value) {
+  if (
+    (typeof value !== "number" && typeof value !== "string") ||
+    (typeof value === "string" && value.trim() === "")
+  ) {
+    throw new Error("Invalid attendance totals received.");
+  }
+
+  const count = Number(value);
+
+  if (!Number.isFinite(count) || count < 0) {
+    throw new Error("Invalid attendance totals received.");
+  }
+
+  return count;
 }
 
 function formatAttendance(value) {
-  if (value === null) {
-    return "--";
-  }
-
+  if (value === null || !Number.isFinite(value)) return "--";
   return `${Number.isInteger(value) ? value : value.toFixed(1)}%`;
 }
 
@@ -84,85 +118,157 @@ export default function StudentSidebar({ activePath }) {
   const [attendance, setAttendance] = useState(null);
   const [pendingTasks, setPendingTasks] = useState(null);
   const [classesToday, setClassesToday] = useState(null);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+
+    setProfile(null);
+    setAttendance(null);
+    setPendingTasks(null);
+    setClassesToday(null);
+    setLoadError("");
+
     if (!studentRoll) {
-      return undefined;
+      setLoadError("Student roll number is unavailable. Please log in again.");
+
+      return () => {
+        cancelled = true;
+        controller.abort();
+      };
     }
 
-    let cancelled = false;
-
     async function loadSidebarData() {
-      const encodedRoll = encodeURIComponent(studentRoll);
-      const results = await Promise.allSettled([
-        requestJson(`/api/students/${encodedRoll}`),
-        requestJson(`/api/attendance/${encodedRoll}`),
-        requestJson(`/api/assignments/${encodedRoll}`),
-        requestJson(`/api/timetable/${encodedRoll}`),
-      ]);
+      try {
+        const encodedRoll = encodeURIComponent(studentRoll);
+        const results = await Promise.allSettled([
+          requestJson(`/api/students/${encodedRoll}`, controller.signal),
+          requestJson(`/api/attendance/${encodedRoll}`, controller.signal),
+          requestJson(`/api/assignments/${encodedRoll}`, controller.signal),
+          requestJson(`/api/timetable/${encodedRoll}`, controller.signal),
+        ]);
 
-      if (cancelled) {
-        return;
-      }
+        if (cancelled) return;
 
-      if (results[0].status === "fulfilled") {
-        setProfile(results[0].value);
-      }
-
-      if (results[1].status === "fulfilled" && Array.isArray(results[1].value)) {
-        const totals = results[1].value.reduce(
-          (sum, row) => ({
-            attended:
-              sum.attended +
-              (Number(row.ATTENDED_CLASSES ?? row.attended_classes) || 0),
-            total:
-              sum.total +
-              (Number(row.TOTAL_CLASSES ?? row.total_classes) || 0),
-          }),
-          { attended: 0, total: 0 }
+        const authFailure = results.find(
+          (result) =>
+            result.status === "rejected" &&
+            [401, 403].includes(result.reason?.status)
         );
 
-        setAttendance(
-          totals.total > 0
-            ? Number(((totals.attended / totals.total) * 100).toFixed(1))
-            : null
-        );
-      }
+        if (authFailure) throw authFailure.reason;
 
-      if (results[2].status === "fulfilled" && Array.isArray(results[2].value)) {
-        setPendingTasks(
-          results[2].value.filter(
+        const failedSections = [];
+
+        function readResult(index, label, parse) {
+          const result = results[index];
+
+          if (result.status !== "fulfilled") {
+            failedSections.push(label);
+            return null;
+          }
+
+          try {
+            return parse(result.value);
+          } catch {
+            failedSections.push(label);
+            return null;
+          }
+        }
+
+        const loadedProfile = readResult(0, "Profile", (data) => {
+          if (
+            !isRecord(data) ||
+            !data.NAME ||
+            String(data.STUDENT_ROLL ?? "").trim() !== studentRoll
+          ) {
+            throw new Error("Invalid student profile received.");
+          }
+
+          return data;
+        });
+
+        const loadedAttendance = readResult(1, "Attendance", (data) => {
+          const rows = requireRows(data);
+          let attended = 0;
+          let total = 0;
+
+          rows.forEach((row) => {
+            const rowAttended = readClassCount(
+              row.ATTENDED_CLASSES ?? row.attended_classes
+            );
+            const rowTotal = readClassCount(
+              row.TOTAL_CLASSES ?? row.total_classes
+            );
+
+            if (rowAttended > rowTotal) {
+              throw new Error("Invalid attendance totals received.");
+            }
+
+            attended += rowAttended;
+            total += rowTotal;
+          });
+
+          if (!Number.isFinite(attended) || !Number.isFinite(total)) {
+            throw new Error("Invalid attendance totals received.");
+          }
+
+          return total > 0
+            ? Number(((attended / total) * 100).toFixed(1))
+            : null;
+        });
+
+        const loadedPendingTasks = readResult(2, "Assignments", (data) =>
+          requireRows(data).filter(
             (assignment) =>
               String(assignment.STATUS ?? assignment.status ?? "")
                 .trim()
                 .toLowerCase() === "pending"
           ).length
         );
-      }
 
-      if (results[3].status === "fulfilled" && Array.isArray(results[3].value)) {
-        const weekday = new Intl.DateTimeFormat("en-US", {
-          weekday: "long",
-          timeZone: "Asia/Kolkata",
-        }).format(new Date());
+        const loadedClassesToday = readResult(3, "Timetable", (data) => {
+          const weekday = new Intl.DateTimeFormat("en-US", {
+            weekday: "long",
+            timeZone: "Asia/Kolkata",
+          }).format(new Date());
 
-        setClassesToday(
-          results[3].value.filter(
+          return requireRows(data).filter(
             (entry) =>
               String(entry.DAY_OF_WEEK ?? entry.day_of_week ?? "")
                 .trim()
                 .toLowerCase() === weekday.toLowerCase()
-          ).length
+          ).length;
+        });
+
+        setProfile(loadedProfile);
+        setAttendance(loadedAttendance);
+        setPendingTasks(loadedPendingTasks);
+        setClassesToday(loadedClassesToday);
+        setLoadError(
+          failedSections.length > 0
+            ? `Could not load: ${failedSections.join(", ")}.`
+            : ""
+        );
+      } catch (error) {
+        if (cancelled || error.name === "AbortError") return;
+
+        setProfile(null);
+        setAttendance(null);
+        setPendingTasks(null);
+        setClassesToday(null);
+        setLoadError(
+          error.message || "Unable to load student sidebar information."
         );
       }
     }
 
-    loadSidebarData().catch((error) => {
-      console.error("Student sidebar data error:", error);
-    });
+    loadSidebarData();
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [studentRoll]);
 
@@ -182,7 +288,10 @@ export default function StudentSidebar({ activePath }) {
         <CampusCopilotBrand />
       </div>
 
-      <Link to="/profile" className="px-md py-md transition-colors hover:bg-surface-container-low">
+      <Link
+        to="/profile"
+        className="px-md py-md transition-colors hover:bg-surface-container-low"
+      >
         <div className="flex items-center gap-sm">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary-container text-lg font-bold text-on-primary-container">
             {getStudentInitials(displayName)}
@@ -230,11 +339,20 @@ export default function StudentSidebar({ activePath }) {
 
       <div className="mx-4 mt-md rounded-xl border border-outline-variant bg-surface-container-lowest p-sm">
         <div className="mb-sm font-label-caps text-outline">TODAY SUMMARY</div>
+
+        {loadError && (
+          <p role="alert" className="mb-sm text-xs text-error">
+            {loadError}
+          </p>
+        )}
+
         <div className="space-y-3">
           <Link to="/attendance" className="flex items-center justify-between gap-2">
             <span className="flex items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-secondary-container text-secondary">
-                <span className="material-symbols-outlined text-[16px]">monitoring</span>
+                <span className="material-symbols-outlined text-[16px]">
+                  monitoring
+                </span>
               </span>
               <span className="font-body-sm text-on-surface">Attendance</span>
             </span>
@@ -246,7 +364,9 @@ export default function StudentSidebar({ activePath }) {
           <Link to="/assignments" className="flex items-center justify-between gap-2">
             <span className="flex items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-tertiary/10 text-tertiary">
-                <span className="material-symbols-outlined text-[16px]">assignment</span>
+                <span className="material-symbols-outlined text-[16px]">
+                  assignment
+                </span>
               </span>
               <span className="font-body-sm text-on-surface">Pending Tasks</span>
             </span>
@@ -258,7 +378,9 @@ export default function StudentSidebar({ activePath }) {
           <Link to="/timetable" className="flex items-center justify-between gap-2">
             <span className="flex items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <span className="material-symbols-outlined text-[16px]">school</span>
+                <span className="material-symbols-outlined text-[16px]">
+                  school
+                </span>
               </span>
               <span className="font-body-sm text-on-surface">Classes Today</span>
             </span>
