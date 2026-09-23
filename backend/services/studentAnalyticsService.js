@@ -1,9 +1,82 @@
 const oracledb = require("oracledb");
 const getConnection = require("../db");
 
+// =====================================================
+// VALIDATION
+// =====================================================
+
+function numeric(
+  value,
+  label,
+  {
+    nullable = false,
+    integer = false,
+    min = 0,
+    max = Infinity,
+  } = {}
+) {
+  if (nullable && value === null) {
+    return null;
+  }
+
+  if (
+    !["number", "string"].includes(typeof value) ||
+    String(value).trim() === ""
+  ) {
+    throw new Error(`Missing or invalid ${label}.`);
+  }
+
+  const number = Number(value);
+
+  if (
+    !Number.isFinite(number) ||
+    number < min ||
+    number > max ||
+    (integer && !Number.isSafeInteger(number))
+  ) {
+    throw new Error(`Invalid ${label}.`);
+  }
+
+  return number;
+}
+
+function validateAssignmentCounts(row, aggregate = false) {
+  row.TOTAL_ASSIGNMENTS = numeric(
+    row.TOTAL_ASSIGNMENTS,
+    "assignment total",
+    { integer: true }
+  );
+
+  for (const key of [
+    "COMPLETED_ASSIGNMENTS",
+    "PENDING_ASSIGNMENTS",
+    "DUE_SOON_ASSIGNMENTS",
+  ]) {
+    // SUM returns NULL when the aggregate contains no rows.
+    const value =
+      aggregate &&
+      row.TOTAL_ASSIGNMENTS === 0 &&
+      row[key] === null
+        ? 0
+        : row[key];
+
+    row[key] = numeric(value, key, {
+      integer: true,
+      max: row.TOTAL_ASSIGNMENTS,
+    });
+  }
+
+  if (
+    row.COMPLETED_ASSIGNMENTS + row.PENDING_ASSIGNMENTS !==
+      row.TOTAL_ASSIGNMENTS ||
+    row.DUE_SOON_ASSIGNMENTS > row.PENDING_ASSIGNMENTS
+  ) {
+    throw new Error("Inconsistent assignment totals.");
+  }
+}
 
 // =====================================================
-// HELPERS
+// CALCULATION HELPERS
 // =====================================================
 
 function clamp(value, min = 0, max = 100) {
@@ -46,41 +119,19 @@ function calculateWeightedScore(parts) {
 }
 
 function getReadinessStatus(score) {
-  if (score === null) {
-    return "No Data";
-  }
-
-  if (score >= 85) {
-    return "Strong";
-  }
-
-  if (score >= 75) {
-    return "Stable";
-  }
-
-  if (score >= 65) {
-    return "Needs Attention";
-  }
-
+  if (score === null) return "No Data";
+  if (score >= 85) return "Strong";
+  if (score >= 75) return "Stable";
+  if (score >= 65) return "Needs Attention";
   return "High Priority";
 }
 
 function getRiskLevel(score) {
-  if (score === null) {
-    return "UNKNOWN";
-  }
-
-  if (score >= 85) {
-    return "LOW";
-  }
-
-  if (score >= 70) {
-    return "MODERATE";
-  }
-
+  if (score === null) return "UNKNOWN";
+  if (score >= 85) return "LOW";
+  if (score >= 70) return "MODERATE";
   return "HIGH";
 }
-
 
 // =====================================================
 // STUDENT PROFILE
@@ -99,18 +150,18 @@ async function loadStudent(connection, studentRoll) {
       FROM students
       WHERE UPPER(student_roll) = UPPER(:studentRoll)
     `,
-    {
-      studentRoll,
-    },
-    {
-      outFormat: oracledb.OUT_FORMAT_OBJECT,
-    }
+    { studentRoll },
+    { outFormat: oracledb.OUT_FORMAT_OBJECT }
   );
 
   if (result.rows.length === 0) {
     const error = new Error("Student record not found.");
     error.statusCode = 404;
     throw error;
+  }
+
+  if (result.rows.length !== 1) {
+    throw new Error("Ambiguous student profile.");
   }
 
   const row = result.rows[0];
@@ -124,7 +175,6 @@ async function loadStudent(connection, studentRoll) {
     section: row.SECTION,
   };
 }
-
 
 // =====================================================
 // SUBJECT ANALYTICS
@@ -196,20 +246,18 @@ async function loadSubjectAnalytics(connection, studentRoll) {
           SUM(
             CASE
               WHEN LOWER(NVL(status, 'pending'))
-                   NOT IN ('completed', 'done', 'submitted')
-               AND due_date IS NOT NULL
-               AND TRUNC(due_date)
-                   BETWEEN TRUNC(SYSDATE)
-                   AND TRUNC(SYSDATE) + 7
+                NOT IN ('completed', 'done', 'submitted')
+                AND due_date IS NOT NULL
+                AND TRUNC(due_date)
+                  BETWEEN TRUNC(SYSDATE)
+                  AND TRUNC(SYSDATE) + 7
               THEN 1
               ELSE 0
             END
           ) AS due_soon_assignments
 
         FROM assignments
-
         WHERE UPPER(student_roll) = UPPER(:studentRoll)
-
         GROUP BY subject_code
       ),
 
@@ -227,7 +275,6 @@ async function loadSubjectAnalytics(connection, studentRoll) {
           ) AS rn
 
         FROM exams
-
         WHERE UPPER(student_roll) = UPPER(:studentRoll)
           AND exam_date >= TRUNC(SYSDATE)
       )
@@ -236,7 +283,6 @@ async function loadSubjectAnalytics(connection, studentRoll) {
         s.subject_code,
         s.subject_name,
         s.faculty_name,
-
         a.attended_classes,
         a.total_classes,
 
@@ -270,84 +316,79 @@ async function loadSubjectAnalytics(connection, studentRoll) {
 
       LEFT JOIN attendance a
         ON a.subject_code = ss.subject_code
-       AND UPPER(a.student_roll) = UPPER(:studentRoll)
+        AND UPPER(a.student_roll) = UPPER(:studentRoll)
 
       LEFT JOIN assignment_stats ast
         ON ast.subject_code = ss.subject_code
 
       LEFT JOIN upcoming_exams ue
         ON ue.subject_code = ss.subject_code
-       AND ue.rn = 1
+        AND ue.rn = 1
 
       ORDER BY s.subject_name
     `,
-    {
-      studentRoll,
-    },
-    {
-      outFormat: oracledb.OUT_FORMAT_OBJECT,
-    }
+    { studentRoll },
+    { outFormat: oracledb.OUT_FORMAT_OBJECT }
   );
 
-  return result.rows.map((row) => {
-    const attended =
-      row.ATTENDED_CLASSES === null
-        ? null
-        : Number(row.ATTENDED_CLASSES);
+  for (const row of result.rows) {
+    row.ATTENDED_CLASSES = numeric(
+      row.ATTENDED_CLASSES,
+      "attended classes",
+      { nullable: true, integer: true }
+    );
 
-    const total =
-      row.TOTAL_CLASSES === null
-        ? null
-        : Number(row.TOTAL_CLASSES);
+    row.TOTAL_CLASSES = numeric(
+      row.TOTAL_CLASSES,
+      "total classes",
+      { nullable: true, integer: true }
+    );
+
+    if (
+      (row.ATTENDED_CLASSES === null) !==
+        (row.TOTAL_CLASSES === null) ||
+      (
+        row.ATTENDED_CLASSES !== null &&
+        row.ATTENDED_CLASSES > row.TOTAL_CLASSES
+      )
+    ) {
+      throw new Error("Inconsistent attendance counts.");
+    }
+
+    validateAssignmentCounts(row);
+
+    row.DAYS_UNTIL_EXAM = numeric(
+      row.DAYS_UNTIL_EXAM,
+      "exam days",
+      { nullable: true, integer: true }
+    );
+  }
+
+  return result.rows.map((row) => {
+    const attended = row.ATTENDED_CLASSES;
+    const total = row.TOTAL_CLASSES;
 
     const attendancePercentage =
-      attended !== null &&
-      total !== null &&
-      total > 0
+      attended !== null && total !== null && total > 0
         ? round((attended / total) * 100)
         : null;
 
-    const totalAssignments =
-      Number(row.TOTAL_ASSIGNMENTS || 0);
-
-    const completedAssignments =
-      Number(row.COMPLETED_ASSIGNMENTS || 0);
-
-    const pendingAssignments =
-      Number(row.PENDING_ASSIGNMENTS || 0);
-
-    const dueSoonAssignments =
-      Number(row.DUE_SOON_ASSIGNMENTS || 0);
+    const totalAssignments = row.TOTAL_ASSIGNMENTS;
+    const completedAssignments = row.COMPLETED_ASSIGNMENTS;
+    const pendingAssignments = row.PENDING_ASSIGNMENTS;
+    const dueSoonAssignments = row.DUE_SOON_ASSIGNMENTS;
 
     const assignmentCompletion =
       totalAssignments > 0
         ? round(
-            (completedAssignments / totalAssignments) *
-              100
+            (completedAssignments / totalAssignments) * 100
           )
         : null;
 
-    /*
-      Subject Readiness Index:
-
-      Attendance             60%
-      Assignment completion  40%
-
-      If one component does not exist,
-      the available component is re-weighted automatically.
-
-      This is NOT an exam mark or grade.
-    */
-
+    // Existing subject readiness weights remain unchanged.
     const readinessScore = calculateWeightedScore([
-      {
-        value: attendancePercentage,
-        weight: 0.6,
-      },
-      {
-        value: assignmentCompletion,
-        weight: 0.4,
-      },
+      { value: attendancePercentage, weight: 0.6 },
+      { value: assignmentCompletion, weight: 0.4 },
     ]);
 
     return {
@@ -376,39 +417,24 @@ async function loadSubjectAnalytics(connection, studentRoll) {
                 ? row.NEXT_EXAM_DATE.toISOString()
                 : row.NEXT_EXAM_DATE,
 
-            startTime:
-              row.NEXT_EXAM_START_TIME,
-
-            type:
-              row.NEXT_EXAM_TYPE,
-
-            room:
-              row.NEXT_EXAM_ROOM,
-
-            daysUntil:
-              row.DAYS_UNTIL_EXAM === null
-                ? null
-                : Number(row.DAYS_UNTIL_EXAM),
+            startTime: row.NEXT_EXAM_START_TIME,
+            type: row.NEXT_EXAM_TYPE,
+            room: row.NEXT_EXAM_ROOM,
+            daysUntil: row.DAYS_UNTIL_EXAM,
           }
         : null,
 
       readinessScore,
-
-      status:
-        getReadinessStatus(readinessScore),
+      status: getReadinessStatus(readinessScore),
     };
   });
 }
-
 
 // =====================================================
 // ASSIGNMENT OVERVIEW
 // =====================================================
 
-async function loadAssignmentOverview(
-  connection,
-  studentRoll
-) {
+async function loadAssignmentOverview(connection, studentRoll) {
   const result = await connection.execute(
     `
       SELECT
@@ -435,65 +461,54 @@ async function loadAssignmentOverview(
         SUM(
           CASE
             WHEN LOWER(NVL(status, 'pending'))
-                 NOT IN ('completed', 'done', 'submitted')
-             AND due_date IS NOT NULL
-             AND TRUNC(due_date)
-                 BETWEEN TRUNC(SYSDATE)
-                 AND TRUNC(SYSDATE) + 7
+              NOT IN ('completed', 'done', 'submitted')
+              AND due_date IS NOT NULL
+              AND TRUNC(due_date)
+                BETWEEN TRUNC(SYSDATE)
+                AND TRUNC(SYSDATE) + 7
             THEN 1
             ELSE 0
           END
         ) AS due_soon_assignments
 
       FROM assignments
-
       WHERE UPPER(student_roll) = UPPER(:studentRoll)
     `,
-    {
-      studentRoll,
-    },
-    {
-      outFormat: oracledb.OUT_FORMAT_OBJECT,
-    }
+    { studentRoll },
+    { outFormat: oracledb.OUT_FORMAT_OBJECT }
   );
 
-  const row = result.rows[0] || {};
+  if (result.rows.length !== 1) {
+    throw new Error("Missing assignment totals.");
+  }
 
-  const total =
-    Number(row.TOTAL_ASSIGNMENTS || 0);
+  const row = result.rows[0];
 
-  const completed =
-    Number(row.COMPLETED_ASSIGNMENTS || 0);
+  validateAssignmentCounts(row, true);
 
-  const pending =
-    Number(row.PENDING_ASSIGNMENTS || 0);
-
-  const dueSoon =
-    Number(row.DUE_SOON_ASSIGNMENTS || 0);
-
-  const completionPercentage =
-    total > 0
-      ? round((completed / total) * 100)
-      : null;
+  const total = row.TOTAL_ASSIGNMENTS;
+  const completed = row.COMPLETED_ASSIGNMENTS;
+  const pending = row.PENDING_ASSIGNMENTS;
+  const dueSoon = row.DUE_SOON_ASSIGNMENTS;
 
   return {
     total,
     completed,
     pending,
     dueSoon,
-    completionPercentage,
+
+    completionPercentage:
+      total > 0
+        ? round((completed / total) * 100)
+        : null,
   };
 }
-
 
 // =====================================================
 // UPCOMING EXAMS
 // =====================================================
 
-async function loadExamOverview(
-  connection,
-  studentRoll
-) {
+async function loadExamOverview(connection, studentRoll) {
   const result = await connection.execute(
     `
       SELECT
@@ -511,25 +526,25 @@ async function loadExamOverview(
 
       FROM exams e
 
-      JOIN subjects s
+      LEFT JOIN subjects s
         ON s.subject_code = e.subject_code
 
-      WHERE UPPER(e.student_roll) =
-            UPPER(:studentRoll)
-
+      WHERE UPPER(e.student_roll) = UPPER(:studentRoll)
         AND e.exam_date >= TRUNC(SYSDATE)
 
-      ORDER BY
-        e.exam_date,
-        e.start_time
+      ORDER BY e.exam_date, e.start_time
     `,
-    {
-      studentRoll,
-    },
-    {
-      outFormat: oracledb.OUT_FORMAT_OBJECT,
-    }
+    { studentRoll },
+    { outFormat: oracledb.OUT_FORMAT_OBJECT }
   );
+
+  for (const row of result.rows) {
+    row.DAYS_UNTIL = numeric(
+      row.DAYS_UNTIL,
+      "exam days",
+      { nullable: true, integer: true }
+    );
+  }
 
   const exams = result.rows.map((row) => ({
     examId: row.ID,
@@ -545,11 +560,7 @@ async function loadExamOverview(
     endTime: row.END_TIME,
     room: row.ROOM,
     examType: row.EXAM_TYPE,
-
-    daysUntil:
-      row.DAYS_UNTIL === null
-        ? null
-        : Number(row.DAYS_UNTIL),
+    daysUntil: row.DAYS_UNTIL,
   }));
 
   return {
@@ -559,15 +570,11 @@ async function loadExamOverview(
   };
 }
 
-
 // =====================================================
 // EXAM RESULT ANALYTICS
 // =====================================================
 
-async function loadExamResultAnalytics(
-  connection,
-  studentRoll
-) {
+async function loadExamResultAnalytics(connection, studentRoll) {
   const result = await connection.execute(
     `
       SELECT
@@ -606,59 +613,64 @@ async function loadExamResultAnalytics(
           WHERE UPPER(er2.subject_code) =
                 UPPER(er.subject_code)
 
-            AND UPPER(
-                  NVL(
-                    er2.exam_type,
-                    'UNKNOWN'
-                  )
-                ) =
-                UPPER(
-                  NVL(
-                    er.exam_type,
-                    'UNKNOWN'
-                  )
-                )
+            AND UPPER(NVL(er2.exam_type, 'UNKNOWN')) =
+                UPPER(NVL(er.exam_type, 'UNKNOWN'))
 
             AND (
               (
                 er2.exam_date IS NULL
                 AND er.exam_date IS NULL
               )
-              OR
-              TRUNC(er2.exam_date) =
-              TRUNC(er.exam_date)
+              OR TRUNC(er2.exam_date) = TRUNC(er.exam_date)
             )
         ) AS class_average_percentage
 
       FROM exam_results er
 
       JOIN subjects s
-        ON s.subject_code =
-           er.subject_code
+        ON s.subject_code = er.subject_code
 
-      WHERE UPPER(er.student_roll) =
-            UPPER(:studentRoll)
+      WHERE UPPER(er.student_roll) = UPPER(:studentRoll)
 
       ORDER BY
         er.exam_date ASC NULLS LAST,
         er.created_at ASC,
         er.result_id ASC
     `,
-    {
-      studentRoll,
-    },
-    {
-      outFormat:
-        oracledb.OUT_FORMAT_OBJECT,
-    }
+    { studentRoll },
+    { outFormat: oracledb.OUT_FORMAT_OBJECT }
   );
 
-  const rows =
-    result.rows || [];
+  for (const row of result.rows) {
+    row.MAX_MARKS = numeric(
+      row.MAX_MARKS,
+      "maximum marks"
+    );
 
-  // ---------------------------------------------------
-  // NO REAL RESULT DATA YET
-  // ---------------------------------------------------
+    if (row.MAX_MARKS <= 0) {
+      throw new Error("Maximum marks must be positive.");
+    }
+
+    row.MARKS_OBTAINED = numeric(
+      row.MARKS_OBTAINED,
+      "marks obtained",
+      { max: row.MAX_MARKS }
+    );
+
+    row.PERCENTAGE = numeric(
+      row.PERCENTAGE,
+      "assessment percentage",
+      { max: 100 }
+    );
+
+    row.CLASS_AVERAGE_PERCENTAGE = numeric(
+      row.CLASS_AVERAGE_PERCENTAGE,
+      "class average",
+      { nullable: true, max: 100 }
+    );
+  }
+
+  const rows = result.rows;
 
   if (rows.length === 0) {
     return {
@@ -674,146 +686,72 @@ async function loadExamResultAnalytics(
     };
   }
 
-  // ---------------------------------------------------
-  // OVERALL PERFORMANCE
-  // ---------------------------------------------------
-
   let totalMarksObtained = 0;
   let totalMaxMarks = 0;
 
   rows.forEach((row) => {
-    totalMarksObtained +=
-      Number(
-        row.MARKS_OBTAINED || 0
-      );
-
-    totalMaxMarks +=
-      Number(
-        row.MAX_MARKS || 0
-      );
+    totalMarksObtained += row.MARKS_OBTAINED;
+    totalMaxMarks += row.MAX_MARKS;
   });
 
   const overallPercentage =
     totalMaxMarks > 0
-      ? round(
-          (
-            totalMarksObtained /
-            totalMaxMarks
-          ) * 100
-        )
+      ? round((totalMarksObtained / totalMaxMarks) * 100)
       : null;
 
-  // ---------------------------------------------------
-  // CLASS AVERAGE
-  // ---------------------------------------------------
-
-  const classAverageValues =
-    rows
-      .map((row) =>
-        row.CLASS_AVERAGE_PERCENTAGE === null
-          ? null
-          : Number(
-              row.CLASS_AVERAGE_PERCENTAGE
-            )
-      )
-      .filter(
-        (value) =>
-          value !== null &&
-          Number.isFinite(value)
-      );
+  const classAverageValues = rows
+    .map((row) => row.CLASS_AVERAGE_PERCENTAGE)
+    .filter(
+      (value) =>
+        value !== null &&
+        Number.isFinite(value)
+    );
 
   const classAveragePercentage =
     classAverageValues.length > 0
       ? round(
           classAverageValues.reduce(
-            (total, value) =>
-              total + value,
+            (total, value) => total + value,
             0
-          ) /
-            classAverageValues.length
+          ) / classAverageValues.length
         )
       : null;
 
-  // ---------------------------------------------------
-  // GROUP RESULTS BY SUBJECT
-  // ---------------------------------------------------
-
-  const subjectMap =
-    new Map();
+  const subjectMap = new Map();
 
   rows.forEach((row) => {
-    const subjectCode =
-      row.SUBJECT_CODE;
+    const subjectCode = row.SUBJECT_CODE;
 
-    if (
-      !subjectMap.has(
-        subjectCode
-      )
-    ) {
-      subjectMap.set(
+    if (!subjectMap.has(subjectCode)) {
+      subjectMap.set(subjectCode, {
         subjectCode,
-        {
-          subjectCode,
-
-          subjectName:
-            row.SUBJECT_NAME,
-
-          totalAssessments:
-            0,
-
-          marksObtained:
-            0,
-
-          maxMarks:
-            0,
-
-          classAverages:
-            [],
-        }
-      );
+        subjectName: row.SUBJECT_NAME,
+        totalAssessments: 0,
+        marksObtained: 0,
+        maxMarks: 0,
+        classAverages: [],
+      });
     }
 
-    const subject =
-      subjectMap.get(
-        subjectCode
-      );
+    const subject = subjectMap.get(subjectCode);
 
-    subject.totalAssessments +=
-      1;
+    subject.totalAssessments += 1;
+    subject.marksObtained += row.MARKS_OBTAINED;
+    subject.maxMarks += row.MAX_MARKS;
 
-    subject.marksObtained +=
-      Number(
-        row.MARKS_OBTAINED || 0
-      );
-
-    subject.maxMarks +=
-      Number(
-        row.MAX_MARKS || 0
-      );
-
-    if (
-      row.CLASS_AVERAGE_PERCENTAGE !==
-      null
-    ) {
+    if (row.CLASS_AVERAGE_PERCENTAGE !== null) {
       subject.classAverages.push(
-        Number(
-          row.CLASS_AVERAGE_PERCENTAGE
-        )
+        row.CLASS_AVERAGE_PERCENTAGE
       );
     }
   });
 
-  const subjects =
-    Array.from(
-      subjectMap.values()
-    ).map((subject) => {
+  const subjects = Array.from(subjectMap.values()).map(
+    (subject) => {
       const percentage =
         subject.maxMarks > 0
           ? round(
-              (
-                subject.marksObtained /
-                subject.maxMarks
-              ) * 100
+              (subject.marksObtained / subject.maxMarks) * 100
             )
           : null;
 
@@ -821,58 +759,27 @@ async function loadExamResultAnalytics(
         subject.classAverages.length > 0
           ? round(
               subject.classAverages.reduce(
-                (total, value) =>
-                  total + value,
+                (total, value) => total + value,
                 0
-              ) /
-                subject.classAverages.length
+              ) / subject.classAverages.length
             )
           : null;
 
       return {
-        subjectCode:
-          subject.subjectCode,
-
-        subjectName:
-          subject.subjectName,
-
-        totalAssessments:
-          subject.totalAssessments,
-
-        marksObtained:
-          round(
-            subject.marksObtained,
-            2
-          ),
-
-        maxMarks:
-          round(
-            subject.maxMarks,
-            2
-          ),
-
+        subjectCode: subject.subjectCode,
+        subjectName: subject.subjectName,
+        totalAssessments: subject.totalAssessments,
+        marksObtained: round(subject.marksObtained, 2),
+        maxMarks: round(subject.maxMarks, 2),
         percentage,
-
-        classAveragePercentage:
-          subjectClassAverage,
+        classAveragePercentage: subjectClassAverage,
       };
-    });
+    }
+  );
 
-  // ---------------------------------------------------
-  // BEST / WEAKEST SUBJECT
-  // ---------------------------------------------------
-
-  const comparableSubjects =
-    subjects
-      .filter(
-        (subject) =>
-          subject.percentage !== null
-      )
-      .sort(
-        (a, b) =>
-          b.percentage -
-          a.percentage
-      );
+  const comparableSubjects = subjects
+    .filter((subject) => subject.percentage !== null)
+    .sort((a, b) => b.percentage - a.percentage);
 
   const bestSubject =
     comparableSubjects.length > 0
@@ -881,104 +788,48 @@ async function loadExamResultAnalytics(
 
   const weakestSubject =
     comparableSubjects.length > 0
-      ? comparableSubjects[
-          comparableSubjects.length -
-            1
-        ]
+      ? comparableSubjects[comparableSubjects.length - 1]
       : null;
 
-  // ---------------------------------------------------
-  // RESULT TREND
-  // ---------------------------------------------------
+  const trend = rows.map((row) => ({
+    resultId: row.RESULT_ID,
+    subjectCode: row.SUBJECT_CODE,
+    subjectName: row.SUBJECT_NAME,
+    examType: row.EXAM_TYPE,
+    marksObtained: row.MARKS_OBTAINED,
+    maxMarks: row.MAX_MARKS,
+    percentage: row.PERCENTAGE,
+    classAveragePercentage: row.CLASS_AVERAGE_PERCENTAGE,
 
-  const trend =
-    rows.map((row) => ({
-      resultId:
-        row.RESULT_ID,
+    examDate:
+      row.EXAM_DATE instanceof Date
+        ? row.EXAM_DATE.toISOString()
+        : row.EXAM_DATE,
 
-      subjectCode:
-        row.SUBJECT_CODE,
-
-      subjectName:
-        row.SUBJECT_NAME,
-
-      examType:
-        row.EXAM_TYPE,
-
-      marksObtained:
-        Number(
-          row.MARKS_OBTAINED
-        ),
-
-      maxMarks:
-        Number(
-          row.MAX_MARKS
-        ),
-
-      percentage:
-        row.PERCENTAGE === null
-          ? null
-          : Number(
-              row.PERCENTAGE
-            ),
-
-      classAveragePercentage:
-        row.CLASS_AVERAGE_PERCENTAGE === null
-          ? null
-          : Number(
-              row.CLASS_AVERAGE_PERCENTAGE
-            ),
-
-      examDate:
-        row.EXAM_DATE instanceof Date
-          ? row.EXAM_DATE.toISOString()
-          : row.EXAM_DATE,
-
-      createdAt:
-        row.CREATED_AT instanceof Date
-          ? row.CREATED_AT.toISOString()
-          : row.CREATED_AT,
-    }));
+    createdAt:
+      row.CREATED_AT instanceof Date
+        ? row.CREATED_AT.toISOString()
+        : row.CREATED_AT,
+  }));
 
   return {
-    totalAssessments:
-      rows.length,
-
-    totalMarksObtained:
-      round(
-        totalMarksObtained,
-        2
-      ),
-
-    totalMaxMarks:
-      round(
-        totalMaxMarks,
-        2
-      ),
-
+    totalAssessments: rows.length,
+    totalMarksObtained: round(totalMarksObtained, 2),
+    totalMaxMarks: round(totalMaxMarks, 2),
     overallPercentage,
-
     classAveragePercentage,
-
     bestSubject,
-
     weakestSubject,
-
     subjects,
-
     trend,
   };
 }
-
 
 // =====================================================
 // STUDY SESSION ANALYTICS
 // =====================================================
 
-async function loadStudySessionAnalytics(
-  connection,
-  studentRoll
-) {
+async function loadStudySessionAnalytics(connection, studentRoll) {
   const result = await connection.execute(
     `
       SELECT
@@ -989,68 +840,34 @@ async function loadStudySessionAnalytics(
         ss.end_time,
         ss.created_at,
 
-        TO_CHAR(
-          ss.start_time,
-          'YYYY-MM-DD'
-        ) AS study_date,
+        TO_CHAR(ss.start_time, 'YYYY-MM-DD') AS study_date,
 
         TRUNC(SYSDATE) -
-        TRUNC(
-          CAST(
-            ss.start_time
-            AS DATE
-          )
-        ) AS days_ago,
+        TRUNC(CAST(ss.start_time AS DATE)) AS days_ago,
 
         CASE
           WHEN ss.end_time IS NOT NULL
-           AND ss.end_time >=
-               ss.start_time
-          THEN
-            ROUND(
-              (
-                CAST(
-                  ss.end_time
-                  AS DATE
-                ) -
-                CAST(
-                  ss.start_time
-                  AS DATE
-                )
-              ) *
-              24 *
-              60,
-              2
-            )
+            AND ss.end_time >= ss.start_time
+          THEN ROUND(
+            (
+              CAST(ss.end_time AS DATE) -
+              CAST(ss.start_time AS DATE)
+            ) * 24 * 60,
+            2
+          )
           ELSE NULL
         END AS duration_minutes,
 
         CASE
-          WHEN
-            TRUNC(
-              CAST(
-                ss.start_time
-                AS DATE
-              )
-            ) =
-            TRUNC(SYSDATE)
+          WHEN TRUNC(CAST(ss.start_time AS DATE)) =
+               TRUNC(SYSDATE)
           THEN 1
           ELSE 0
         END AS is_today,
 
         CASE
-          WHEN
-            TRUNC(
-              CAST(
-                ss.start_time
-                AS DATE
-              ),
-              'IW'
-            ) =
-            TRUNC(
-              SYSDATE,
-              'IW'
-            )
+          WHEN TRUNC(CAST(ss.start_time AS DATE), 'IW') =
+               TRUNC(SYSDATE, 'IW')
           THEN 1
           ELSE 0
         END AS is_this_week
@@ -1058,34 +875,54 @@ async function loadStudySessionAnalytics(
       FROM study_sessions ss
 
       LEFT JOIN subjects s
-        ON s.subject_code =
-           ss.subject_code
+        ON s.subject_code = ss.subject_code
 
-      WHERE UPPER(
-              ss.student_roll
-            ) =
-            UPPER(
-              :studentRoll
-            )
+      WHERE UPPER(ss.student_roll) = UPPER(:studentRoll)
 
-      ORDER BY
-        ss.start_time DESC
+      ORDER BY ss.start_time DESC
     `,
-    {
-      studentRoll,
-    },
-    {
-      outFormat:
-        oracledb.OUT_FORMAT_OBJECT,
-    }
+    { studentRoll },
+    { outFormat: oracledb.OUT_FORMAT_OBJECT }
   );
 
-  const rows =
-    result.rows || [];
+  for (const row of result.rows) {
+    row.DURATION_MINUTES = numeric(
+      row.DURATION_MINUTES,
+      "session duration",
+      { nullable: true }
+    );
 
-  // ---------------------------------------------------
-  // NO STUDY DATA YET
-  // ---------------------------------------------------
+    if (
+      !row.START_TIME ||
+      row.END_TIME === undefined ||
+      (
+        row.END_TIME !== null &&
+        row.DURATION_MINUTES === null
+      )
+    ) {
+      throw new Error("Invalid study session times.");
+    }
+
+    row.DAYS_AGO = numeric(
+      row.DAYS_AGO,
+      "study date offset",
+      { integer: true, min: -Infinity }
+    );
+
+    row.IS_TODAY = numeric(
+      row.IS_TODAY,
+      "today flag",
+      { integer: true, max: 1 }
+    );
+
+    row.IS_THIS_WEEK = numeric(
+      row.IS_THIS_WEEK,
+      "week flag",
+      { integer: true, max: 1 }
+    );
+  }
+
+  const rows = result.rows;
 
   if (rows.length === 0) {
     return {
@@ -1104,305 +941,122 @@ async function loadStudySessionAnalytics(
     };
   }
 
-  // ---------------------------------------------------
-  // COMPLETED / ACTIVE SESSIONS
-  // ---------------------------------------------------
+  const completedRows = rows.filter(
+    (row) =>
+      row.END_TIME !== null &&
+      row.DURATION_MINUTES !== null
+  );
 
-  const completedRows =
-    rows.filter(
-      (row) =>
-        row.END_TIME !== null &&
-        row.DURATION_MINUTES !== null
-    );
+  const activeSessions = rows.filter(
+    (row) => row.END_TIME === null
+  ).length;
 
-  const activeSessions =
-    rows.filter(
-      (row) =>
-        row.END_TIME === null
-    ).length;
+  const totalMinutes = completedRows.reduce(
+    (total, row) => total + row.DURATION_MINUTES,
+    0
+  );
 
-  // ---------------------------------------------------
-  // TOTAL STUDY TIME
-  // ---------------------------------------------------
-
-  const totalMinutes =
-    completedRows.reduce(
-      (total, row) =>
-        total +
-        Number(
-          row.DURATION_MINUTES || 0
-        ),
+  const todayMinutes = completedRows
+    .filter((row) => row.IS_TODAY === 1)
+    .reduce(
+      (total, row) => total + row.DURATION_MINUTES,
       0
     );
 
-  // ---------------------------------------------------
-  // TODAY
-  // ---------------------------------------------------
-
-  const todayMinutes =
-    completedRows
-      .filter(
-        (row) =>
-          Number(
-            row.IS_TODAY
-          ) === 1
-      )
-      .reduce(
-        (total, row) =>
-          total +
-          Number(
-            row.DURATION_MINUTES || 0
-          ),
-        0
-      );
-
-  // ---------------------------------------------------
-  // CURRENT WEEK
-  // ---------------------------------------------------
-
-  const weekMinutes =
-    completedRows
-      .filter(
-        (row) =>
-          Number(
-            row.IS_THIS_WEEK
-          ) === 1
-      )
-      .reduce(
-        (total, row) =>
-          total +
-          Number(
-            row.DURATION_MINUTES || 0
-          ),
-        0
-      );
-
-  // ---------------------------------------------------
-  // CURRENT STREAK
-  //
-  // A streak requires at least one completed session
-  // today, then yesterday, then the previous day, etc.
-  // ---------------------------------------------------
-
-  const studyDays =
-    new Set(
-      completedRows
-        .map((row) =>
-          row.DAYS_AGO === null
-            ? null
-            : Number(
-                row.DAYS_AGO
-              )
-        )
-        .filter(
-          (daysAgo) =>
-            Number.isInteger(
-              daysAgo
-            ) &&
-            daysAgo >= 0
-        )
+  const weekMinutes = completedRows
+    .filter((row) => row.IS_THIS_WEEK === 1)
+    .reduce(
+      (total, row) => total + row.DURATION_MINUTES,
+      0
     );
 
-  let currentStreak =
-    0;
+  // Existing rule: a streak starts with a completed session today.
+  const studyDays = new Set(
+    completedRows
+      .map((row) => row.DAYS_AGO)
+      .filter(
+        (daysAgo) =>
+          Number.isInteger(daysAgo) &&
+          daysAgo >= 0
+      )
+  );
 
-  while (
-    studyDays.has(
-      currentStreak
-    )
-  ) {
-    currentStreak +=
-      1;
+  let currentStreak = 0;
+
+  while (studyDays.has(currentStreak)) {
+    currentStreak += 1;
   }
 
-  // ---------------------------------------------------
-  // SUBJECT-WISE STUDY TIME
-  // ---------------------------------------------------
-
-  const subjectMap =
-    new Map();
+  const subjectMap = new Map();
 
   completedRows.forEach((row) => {
-    const subjectCode =
-      row.SUBJECT_CODE ||
-      "GENERAL";
+    const subjectCode = row.SUBJECT_CODE || "GENERAL";
 
-    if (
-      !subjectMap.has(
-        subjectCode
-      )
-    ) {
-      subjectMap.set(
+    if (!subjectMap.has(subjectCode)) {
+      subjectMap.set(subjectCode, {
         subjectCode,
-        {
-          subjectCode,
-
-          subjectName:
-            row.SUBJECT_NAME ||
-            "General Study",
-
-          sessionCount:
-            0,
-
-          totalMinutes:
-            0,
-        }
-      );
+        subjectName: row.SUBJECT_NAME || "General Study",
+        sessionCount: 0,
+        totalMinutes: 0,
+      });
     }
 
-    const subject =
-      subjectMap.get(
-        subjectCode
-      );
+    const subject = subjectMap.get(subjectCode);
 
-    subject.sessionCount +=
-      1;
-
-    subject.totalMinutes +=
-      Number(
-        row.DURATION_MINUTES || 0
-      );
+    subject.sessionCount += 1;
+    subject.totalMinutes += row.DURATION_MINUTES;
   });
 
-  const subjects =
-    Array.from(
-      subjectMap.values()
-    )
-      .map((subject) => ({
-        subjectCode:
-          subject.subjectCode,
+  const subjects = Array.from(subjectMap.values())
+    .map((subject) => ({
+      subjectCode: subject.subjectCode,
+      subjectName: subject.subjectName,
+      sessionCount: subject.sessionCount,
+      totalMinutes: round(subject.totalMinutes, 1),
+      totalHours: round(subject.totalMinutes / 60, 1),
+    }))
+    .sort((a, b) => b.totalMinutes - a.totalMinutes);
 
-        subjectName:
-          subject.subjectName,
+  const recentSessions = rows.slice(0, 10).map((row) => ({
+    studySessionId: row.STUDY_SESSION_ID,
+    subjectCode: row.SUBJECT_CODE,
+    subjectName: row.SUBJECT_NAME,
 
-        sessionCount:
-          subject.sessionCount,
+    startTime:
+      row.START_TIME instanceof Date
+        ? row.START_TIME.toISOString()
+        : row.START_TIME,
 
-        totalMinutes:
-          round(
-            subject.totalMinutes,
-            1
-          ),
+    endTime:
+      row.END_TIME instanceof Date
+        ? row.END_TIME.toISOString()
+        : row.END_TIME,
 
-        totalHours:
-          round(
-            subject.totalMinutes /
-              60,
-            1
-          ),
-      }))
-      .sort(
-        (a, b) =>
-          b.totalMinutes -
-          a.totalMinutes
-      );
-
-  // ---------------------------------------------------
-  // RECENT STUDY SESSIONS
-  // ---------------------------------------------------
-
-  const recentSessions =
-    rows
-      .slice(
-        0,
-        10
-      )
-      .map((row) => ({
-        studySessionId:
-          row.STUDY_SESSION_ID,
-
-        subjectCode:
-          row.SUBJECT_CODE,
-
-        subjectName:
-          row.SUBJECT_NAME,
-
-        startTime:
-          row.START_TIME instanceof Date
-            ? row.START_TIME.toISOString()
-            : row.START_TIME,
-
-        endTime:
-          row.END_TIME instanceof Date
-            ? row.END_TIME.toISOString()
-            : row.END_TIME,
-
-        durationMinutes:
-          row.DURATION_MINUTES === null
-            ? null
-            : Number(
-                row.DURATION_MINUTES
-              ),
-
-        active:
-          row.END_TIME === null,
-      }));
+    durationMinutes: row.DURATION_MINUTES,
+    active: row.END_TIME === null,
+  }));
 
   return {
-    totalSessions:
-      rows.length,
-
-    completedSessions:
-      completedRows.length,
-
+    totalSessions: rows.length,
+    completedSessions: completedRows.length,
     activeSessions,
-
-    totalMinutes:
-      round(
-        totalMinutes,
-        1
-      ),
-
-    totalHours:
-      round(
-        totalMinutes /
-          60,
-        1
-      ),
-
-    todayMinutes:
-      round(
-        todayMinutes,
-        1
-      ),
-
-    todayHours:
-      round(
-        todayMinutes /
-          60,
-        1
-      ),
-
-    weekMinutes:
-      round(
-        weekMinutes,
-        1
-      ),
-
-    weekHours:
-      round(
-        weekMinutes /
-          60,
-        1
-      ),
-
+    totalMinutes: round(totalMinutes, 1),
+    totalHours: round(totalMinutes / 60, 1),
+    todayMinutes: round(todayMinutes, 1),
+    todayHours: round(todayMinutes / 60, 1),
+    weekMinutes: round(weekMinutes, 1),
+    weekHours: round(weekMinutes / 60, 1),
     currentStreak,
-
     subjects,
-
     recentSessions,
   };
 }
-
 
 // =====================================================
 // TIMETABLE OVERVIEW
 // =====================================================
 
-async function loadTimetableOverview(
-  connection,
-  studentRoll
-) {
+async function loadTimetableOverview(connection, studentRoll) {
   const result = await connection.execute(
     `
       SELECT
@@ -1411,44 +1065,55 @@ async function loadTimetableOverview(
         SUM(
           CASE
             WHEN LOWER(TRIM(day_of_week)) =
-                 LOWER(
-                   TRIM(
-                     TO_CHAR(
-                       SYSDATE,
-                       'FMDay',
-                       'NLS_DATE_LANGUAGE=ENGLISH'
-                     )
-                   )
-                 )
+              LOWER(
+                TRIM(
+                  TO_CHAR(
+                    SYSDATE,
+                    'FMDay',
+                    'NLS_DATE_LANGUAGE=ENGLISH'
+                  )
+                )
+              )
             THEN 1
             ELSE 0
           END
         ) AS today_classes
 
       FROM timetable
-
-      WHERE UPPER(student_roll) =
-            UPPER(:studentRoll)
+      WHERE UPPER(student_roll) = UPPER(:studentRoll)
     `,
+    { studentRoll },
+    { outFormat: oracledb.OUT_FORMAT_OBJECT }
+  );
+
+  if (result.rows.length !== 1) {
+    throw new Error("Missing timetable totals.");
+  }
+
+  const row = result.rows[0];
+
+  row.WEEKLY_CLASSES = numeric(
+    row.WEEKLY_CLASSES,
+    "weekly classes",
+    { integer: true }
+  );
+
+  row.TODAY_CLASSES = numeric(
+    row.WEEKLY_CLASSES === 0 && row.TODAY_CLASSES === null
+      ? 0
+      : row.TODAY_CLASSES,
+    "today classes",
     {
-      studentRoll,
-    },
-    {
-      outFormat: oracledb.OUT_FORMAT_OBJECT,
+      integer: true,
+      max: row.WEEKLY_CLASSES,
     }
   );
 
-  const row = result.rows[0] || {};
-
   return {
-    weeklyClasses:
-      Number(row.WEEKLY_CLASSES || 0),
-
-    todayClasses:
-      Number(row.TODAY_CLASSES || 0),
+    weeklyClasses: row.WEEKLY_CLASSES,
+    todayClasses: row.TODAY_CLASSES,
   };
 }
-
 
 // =====================================================
 // OVERALL ATTENDANCE
@@ -1463,11 +1128,8 @@ function calculateAttendanceOverview(subjects) {
       subject.attendance.attendedClasses !== null &&
       subject.attendance.totalClasses !== null
     ) {
-      attended +=
-        subject.attendance.attendedClasses;
-
-      total +=
-        subject.attendance.totalClasses;
+      attended += subject.attendance.attendedClasses;
+      total += subject.attendance.totalClasses;
     }
   });
 
@@ -1494,68 +1156,38 @@ function calculateAttendanceOverview(subjects) {
     totalClasses: total,
     percentage,
     requiredPercentage: 75,
-
-    nearThresholdCount:
-      nearThreshold.length,
-
-    belowThresholdCount:
-      belowThreshold.length,
+    nearThresholdCount: nearThreshold.length,
+    belowThresholdCount: belowThreshold.length,
   };
 }
-
 
 // =====================================================
 // WORKLOAD HEALTH
 // =====================================================
 
-function calculateWorkloadHealth(
-  assignments,
-  exams
-) {
+function calculateWorkloadHealth(assignments, exams) {
   let score = 100;
 
-  /*
-    Deterministic workload penalties.
+  score -= Math.min(assignments.dueSoon * 15, 45);
 
-    These do NOT estimate grades.
-  */
+  const examsWithin7Days = exams.exams.filter(
+    (exam) =>
+      exam.daysUntil !== null &&
+      exam.daysUntil >= 0 &&
+      exam.daysUntil <= 7
+  ).length;
 
-  score -=
-    Math.min(
-      assignments.dueSoon * 15,
-      45
+  score -= Math.min(examsWithin7Days * 15, 30);
+
+  if (assignments.pending > 3) {
+    score -= Math.min(
+      (assignments.pending - 3) * 5,
+      20
     );
-
-  const examsWithin7Days =
-    exams.exams.filter(
-      (exam) =>
-        exam.daysUntil !== null &&
-        exam.daysUntil >= 0 &&
-        exam.daysUntil <= 7
-    ).length;
-
-  score -=
-    Math.min(
-      examsWithin7Days * 15,
-      30
-    );
-
-  if (
-    assignments.pending > 3
-  ) {
-    score -=
-      Math.min(
-        (
-          assignments.pending -
-          3
-        ) * 5,
-        20
-      );
   }
 
   return clamp(score);
 }
-
 
 // =====================================================
 // DETERMINISTIC INSIGHTS
@@ -1564,102 +1196,63 @@ function calculateWorkloadHealth(
 function buildDeterministicInsights(analytics) {
   const insights = [];
 
-  const subjects =
-    [...analytics.subjects].sort(
-      (a, b) =>
-        (
-          a.readinessScore ??
-          101
-        ) -
-        (
-          b.readinessScore ??
-          101
-        )
-    );
+  const subjects = [...analytics.subjects].sort(
+    (a, b) =>
+      (a.readinessScore ?? 101) -
+      (b.readinessScore ?? 101)
+  );
 
-  const prioritySubject =
-    subjects.find(
-      (subject) =>
-        subject.readinessScore !==
-        null
-    );
+  const prioritySubject = subjects.find(
+    (subject) => subject.readinessScore !== null
+  );
 
   if (
     prioritySubject &&
-    prioritySubject.readinessScore <
-      80
+    prioritySubject.readinessScore < 80
   ) {
     const parts = [];
 
-    if (
-      prioritySubject
-        .attendance
-        .percentage !== null
-    ) {
+    if (prioritySubject.attendance.percentage !== null) {
       parts.push(
         `attendance is ${prioritySubject.attendance.percentage}%`
       );
     }
 
-    if (
-      prioritySubject
-        .assignments
-        .pending > 0
-    ) {
+    if (prioritySubject.assignments.pending > 0) {
       parts.push(
         `${prioritySubject.assignments.pending} assignment(s) remain pending`
       );
     }
 
     insights.push({
-      type:
-        "HIGH_IMPACT",
-
-      title:
-        `Prioritize ${prioritySubject.subjectName}`,
+      type: "HIGH_IMPACT",
+      title: `Prioritize ${prioritySubject.subjectName}`,
 
       description:
         parts.length > 0
-          ? `${parts.join(
-              " and "
-            )}. This currently gives it the lowest readiness index among your tracked subjects.`
+          ? `${parts.join(" and ")}. This currently gives it the lowest readiness index among your tracked subjects.`
           : "This subject currently has the lowest readiness index among your tracked subjects.",
     });
   }
 
-  if (
-    analytics.assignments
-      .pending > 0
-  ) {
+  if (analytics.assignments.pending > 0) {
     insights.push({
-      type:
-        "WORKLOAD",
-
-      title:
-        `${analytics.assignments.pending} assignment(s) pending`,
+      type: "WORKLOAD",
+      title: `${analytics.assignments.pending} assignment(s) pending`,
 
       description:
-        analytics.assignments
-          .dueSoon > 0
+        analytics.assignments.dueSoon > 0
           ? `${analytics.assignments.dueSoon} pending assignment(s) are due within the next 7 days. Clear those first to reduce near-term workload pressure.`
           : `You currently have ${analytics.assignments.pending} pending assignment(s). Finishing them will improve your assignment-completion component.`,
     });
   }
 
-  if (
-    analytics.exams
-      .nextExam
-  ) {
-    const exam =
-      analytics.exams
-        .nextExam;
+  if (analytics.exams.nextExam) {
+    const exam = analytics.exams.nextExam;
 
     insights.push({
-      type:
-        "EXAM",
-
-      title:
-        `Next exam: ${exam.subjectName}`,
+      type: "EXAM",
+      title: `Next exam: ${exam.subjectName}`,
 
       description:
         `${exam.examType || "Exam"} is scheduled in ${exam.daysUntil} day(s). Use your remaining time alongside attendance and assignment obligations for this subject.`,
@@ -1667,232 +1260,147 @@ function buildDeterministicInsights(analytics) {
   }
 
   if (
-    analytics.attendance
-      .percentage !== null &&
-    analytics.attendance
-      .percentage >= 80 &&
-    analytics.attendance
-      .belowThresholdCount ===
-      0
+    analytics.attendance.percentage !== null &&
+    analytics.attendance.percentage >= 80 &&
+    analytics.attendance.belowThresholdCount === 0
   ) {
     insights.push({
-      type:
-        "CONSISTENCY",
-
-      title:
-        "Attendance currently stable",
+      type: "CONSISTENCY",
+      title: "Attendance currently stable",
 
       description:
         `Your overall attendance is ${analytics.attendance.percentage}% and no tracked subject is currently below the 75% requirement.`,
     });
   }
 
-  if (
-    insights.length === 0
-  ) {
+  if (insights.length === 0) {
     insights.push({
-      type:
-        "CONSISTENCY",
+      type: "CONSISTENCY",
 
       title:
-        "Academic data is currently stable",
+        analytics.readiness.score === null
+          ? "Readiness data is unavailable"
+          : "No immediate priority detected",
 
       description:
-        "No immediate attendance, assignment, or exam-pressure issue was detected from the available CampusCopilot records.",
+        analytics.readiness.score === null
+          ? "There are no usable attendance, assignment or upcoming-exam records to calculate readiness. This does not establish academic performance."
+          : "No immediate attendance, assignment, or exam-pressure issue was detected from the available CampusCopilot records.",
     });
   }
 
-  return insights.slice(
-    0,
-    3
-  );
+  return insights.slice(0, 3);
 }
-
 
 // =====================================================
 // MAIN ANALYTICS BUILDER
 // =====================================================
 
+// The calling route must authenticate the user and authorize
+// access to this studentRoll before invoking this service.
+
 async function getStudentAnalytics(studentRoll) {
+  if (
+    !["string", "number"].includes(typeof studentRoll) ||
+    (
+      typeof studentRoll === "number" &&
+      (
+        !Number.isSafeInteger(studentRoll) ||
+        studentRoll <= 0
+      )
+    ) ||
+    !String(studentRoll).trim() ||
+    String(studentRoll).trim().length > 100 ||
+    /[\u0000-\u001f\u007f]/.test(String(studentRoll))
+  ) {
+    const error = new Error("Invalid student roll number.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  studentRoll = String(studentRoll).trim();
+
   let connection;
 
   try {
-    connection =
-      await getConnection();
+    connection = await getConnection();
 
-    // -------------------------------------------------
-    // STUDENT
-    // -------------------------------------------------
+    const student = await loadStudent(
+      connection,
+      studentRoll
+    );
 
-    const student =
-      await loadStudent(
-        connection,
-        studentRoll
-      );
+    studentRoll = String(student.studentRoll).trim();
 
-    // -------------------------------------------------
-    // SUBJECTS
-    // -------------------------------------------------
+    const subjects = await loadSubjectAnalytics(
+      connection,
+      studentRoll
+    );
 
-    const subjects =
-      await loadSubjectAnalytics(
-        connection,
-        studentRoll
-      );
+    const assignments = await loadAssignmentOverview(
+      connection,
+      studentRoll
+    );
 
-    // -------------------------------------------------
-    // ASSIGNMENTS
-    // -------------------------------------------------
+    const exams = await loadExamOverview(
+      connection,
+      studentRoll
+    );
 
-    const assignments =
-      await loadAssignmentOverview(
-        connection,
-        studentRoll
-      );
+    const timetable = await loadTimetableOverview(
+      connection,
+      studentRoll
+    );
 
-    // -------------------------------------------------
-    // UPCOMING EXAMS
-    // -------------------------------------------------
+    const examResults = await loadExamResultAnalytics(
+      connection,
+      studentRoll
+    );
 
-    const exams =
-      await loadExamOverview(
-        connection,
-        studentRoll
-      );
+    const studyActivity = await loadStudySessionAnalytics(
+      connection,
+      studentRoll
+    );
 
-    // -------------------------------------------------
-    // TIMETABLE
-    // -------------------------------------------------
-
-    const timetable =
-      await loadTimetableOverview(
-        connection,
-        studentRoll
-      );
-
-    // -------------------------------------------------
-    // REAL EXAM RESULTS
-    // -------------------------------------------------
-
-    const examResults =
-      await loadExamResultAnalytics(
-        connection,
-        studentRoll
-      );
-
-    // -------------------------------------------------
-    // REAL STUDY ACTIVITY
-    // -------------------------------------------------
-
-    const studyActivity =
-      await loadStudySessionAnalytics(
-        connection,
-        studentRoll
-      );
-
-    // -------------------------------------------------
-    // ATTENDANCE
-    // -------------------------------------------------
-
-    const attendance =
-      calculateAttendanceOverview(
-        subjects
-      );
-
-    // -------------------------------------------------
-    // WORKLOAD
-    // -------------------------------------------------
+    const attendance = calculateAttendanceOverview(subjects);
 
     const workloadHealth =
-      calculateWorkloadHealth(
-        assignments,
-        exams
-      );
+      attendance.percentage === null &&
+      assignments.total === 0 &&
+      exams.count === 0
+        ? null
+        : calculateWorkloadHealth(assignments, exams);
 
-    /*
-      Overall Academic Readiness Index
-
-      Attendance health       50%
-      Assignment completion   35%
-      Workload balance        15%
-
-      Missing components are automatically
-      re-weighted.
-
-      IMPORTANT:
-
-      EXAM_RESULTS and STUDY_SESSIONS are currently
-      displayed as separate real analytics.
-
-      They do NOT affect the readiness score yet.
-
-      This prevents us from silently changing the
-      meaning of the existing readiness index.
-
-      This is NOT a GPA, mark or university grade.
-    */
-
-    const readinessScore =
-      calculateWeightedScore([
-        {
-          value:
-            attendance.percentage,
-
-          weight:
-            0.5,
-        },
-
-        {
-          value:
-            assignments
-              .completionPercentage,
-
-          weight:
-            0.35,
-        },
-
-        {
-          value:
-            workloadHealth,
-
-          weight:
-            0.15,
-        },
-      ]);
-
-    // -------------------------------------------------
-    // FINAL ANALYTICS
-    // -------------------------------------------------
+    // Preserve existing weights.
+    // Exam results and study activity remain separate analytics.
+    const readinessScore = calculateWeightedScore([
+      {
+        value: attendance.percentage,
+        weight: 0.5,
+      },
+      {
+        value: assignments.completionPercentage,
+        weight: 0.35,
+      },
+      {
+        value: workloadHealth,
+        weight: 0.15,
+      },
+    ]);
 
     const analytics = {
-      calculatedAt:
-        new Date().toISOString(),
-
+      calculatedAt: new Date().toISOString(),
       student,
 
       readiness: {
-        score:
-          readinessScore,
-
-        status:
-          getReadinessStatus(
-            readinessScore
-          ),
-
-        riskLevel:
-          getRiskLevel(
-            readinessScore
-          ),
+        score: readinessScore,
+        status: getReadinessStatus(readinessScore),
+        riskLevel: getRiskLevel(readinessScore),
 
         methodology: {
-          attendanceWeight:
-            50,
-
-          assignmentWeight:
-            35,
-
-          workloadWeight:
-            15,
+          attendanceWeight: 50,
+          assignmentWeight: 35,
+          workloadWeight: 15,
 
           note:
             "This is a CampusCopilot readiness index, not a GPA or academic grade.",
@@ -1900,36 +1408,23 @@ async function getStudentAnalytics(studentRoll) {
       },
 
       attendance,
-
       assignments,
-
       exams,
-
       examResults,
-
       studyActivity,
-
       timetable,
 
       workload: {
-        healthScore:
-          workloadHealth,
+        healthScore: workloadHealth,
       },
 
       subjects,
     };
 
-    // -------------------------------------------------
-    // DETERMINISTIC RECOMMENDATIONS
-    // -------------------------------------------------
-
     analytics.deterministicInsights =
-      buildDeterministicInsights(
-        analytics
-      );
+      buildDeterministicInsights(analytics);
 
     return analytics;
-
   } finally {
     if (connection) {
       try {
@@ -1943,11 +1438,6 @@ async function getStudentAnalytics(studentRoll) {
     }
   }
 }
-
-
-// =====================================================
-// EXPORTS
-// =====================================================
 
 module.exports = {
   getStudentAnalytics,

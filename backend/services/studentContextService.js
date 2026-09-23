@@ -2,22 +2,30 @@ const oracledb = require("oracledb");
 const getConnection = require("../db");
 
 const CAMPUS_TIME_ZONE =
-  process.env.CAMPUS_TIME_ZONE ||
-  "Asia/Kolkata";
-
+  process.env.CAMPUS_TIME_ZONE || "Asia/Kolkata";
 
 // =====================================================
 // HELPERS
 // =====================================================
 
 function numberValue(value) {
+  if (
+    value === null ||
+    value === undefined ||
+    !["number", "string"].includes(typeof value) ||
+    String(value).trim() === ""
+  ) {
+    throw new Error("Attendance counts are unavailable.");
+  }
+
   const parsed = Number(value);
 
-  return Number.isFinite(parsed)
-    ? parsed
-    : 0;
-}
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error("Invalid attendance counts.");
+  }
 
+  return parsed;
+}
 
 function isoValue(value) {
   if (!value) {
@@ -31,48 +39,29 @@ function isoValue(value) {
   return value;
 }
 
-
 function getCampusDay() {
-  return new Intl.DateTimeFormat(
-    "en-US",
-    {
-      weekday: "long",
-      timeZone: CAMPUS_TIME_ZONE,
-    }
-  ).format(new Date());
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    timeZone: CAMPUS_TIME_ZONE,
+  }).format(new Date());
 }
-
 
 function getCampusDate() {
-  return new Intl.DateTimeFormat(
-    "en-CA",
-    {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      timeZone: CAMPUS_TIME_ZONE,
-    }
-  ).format(new Date());
+  return new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: CAMPUS_TIME_ZONE,
+  }).format(new Date());
 }
 
-
 // =====================================================
-// DETECT WHAT DATABASE CONTEXT IS NEEDED
+// DETECT REQUIRED DATABASE CONTEXT
 // =====================================================
 
 function detectContextTypes(message = "") {
-  const text =
-    String(message)
-      .trim()
-      .toLowerCase();
-
-  const types =
-    new Set();
-
-
-  // ---------------------------------------------------
-  // ATTENDANCE
-  // ---------------------------------------------------
+  const text = String(message).trim().toLowerCase();
+  const types = new Set();
 
   if (
     /\battendance\b/.test(text) ||
@@ -86,11 +75,6 @@ function detectContextTypes(message = "") {
     types.add("attendance");
   }
 
-
-  // ---------------------------------------------------
-  // TIMETABLE
-  // ---------------------------------------------------
-
   if (
     /\btimetable\b/.test(text) ||
     /\bschedule\b/.test(text) ||
@@ -102,11 +86,6 @@ function detectContextTypes(message = "") {
   ) {
     types.add("timetable");
   }
-
-
-  // ---------------------------------------------------
-  // ASSIGNMENTS
-  // ---------------------------------------------------
 
   if (
     /\bassignment\b/.test(text) ||
@@ -120,11 +99,6 @@ function detectContextTypes(message = "") {
     types.add("assignments");
   }
 
-
-  // ---------------------------------------------------
-  // EXAMS
-  // ---------------------------------------------------
-
   if (
     /\bexam\b/.test(text) ||
     /\bexams\b/.test(text) ||
@@ -137,11 +111,6 @@ function detectContextTypes(message = "") {
     types.add("exams");
   }
 
-
-  // ---------------------------------------------------
-  // NOTICES
-  // ---------------------------------------------------
-
   if (
     /\bnotice\b/.test(text) ||
     /\bnotices\b/.test(text) ||
@@ -151,11 +120,6 @@ function detectContextTypes(message = "") {
   ) {
     types.add("notices");
   }
-
-
-  // ---------------------------------------------------
-  // RESOURCES
-  // ---------------------------------------------------
 
   if (
     /\bresource\b/.test(text) ||
@@ -169,11 +133,6 @@ function detectContextTypes(message = "") {
   ) {
     types.add("resources");
   }
-
-
-  // ---------------------------------------------------
-  // BROAD ACADEMIC OVERVIEW
-  // ---------------------------------------------------
 
   if (
     /\bacademic overview\b/.test(text) ||
@@ -192,12 +151,6 @@ function detectContextTypes(message = "") {
     types.add("notices");
   }
 
-
-  // ---------------------------------------------------
-  // "CAN I SKIP CLASS?"
-  // Needs attendance + timetable together
-  // ---------------------------------------------------
-
   if (
     text.includes("skip") ||
     text.includes("miss class") ||
@@ -208,22 +161,16 @@ function detectContextTypes(message = "") {
     types.add("timetable");
   }
 
-
   return Array.from(types);
 }
 
-
 // =====================================================
-// LOAD STUDENT PROFILE
+// STUDENT PROFILE
 // =====================================================
 
-async function loadStudentProfile(
-  connection,
-  studentRoll
-) {
-  const result =
-    await connection.execute(
-      `
+async function loadStudentProfile(connection, studentRoll) {
+  const result = await connection.execute(
+    `
       SELECT
         student_roll,
         name,
@@ -232,70 +179,43 @@ async function loadStudentProfile(
         semester,
         section
       FROM students
-      WHERE UPPER(student_roll) =
-            UPPER(:studentRoll)
-      `,
-      {
-        studentRoll,
-      },
-      {
-        outFormat:
-          oracledb.OUT_FORMAT_OBJECT,
-      }
-    );
+      WHERE UPPER(student_roll) = UPPER(:studentRoll)
+    `,
+    { studentRoll },
+    {
+      outFormat: oracledb.OUT_FORMAT_OBJECT,
+    }
+  );
 
-
-  if (
-    result.rows.length === 0
-  ) {
-    const error =
-      new Error(
-        "Student record not found."
-      );
-
+  if (result.rows.length === 0) {
+    const error = new Error("Student record not found.");
     error.statusCode = 404;
-
     throw error;
   }
 
+  if (result.rows.length !== 1) {
+    throw new Error("Ambiguous student profile.");
+  }
 
-  const row =
-    result.rows[0];
-
+  const row = result.rows[0];
 
   return {
-    studentRoll:
-      row.STUDENT_ROLL,
-
-    name:
-      row.NAME,
-
-    email:
-      row.EMAIL,
-
-    department:
-      row.DEPARTMENT,
-
-    semester:
-      row.SEMESTER,
-
-    section:
-      row.SECTION,
+    studentRoll: row.STUDENT_ROLL,
+    name: row.NAME,
+    email: row.EMAIL,
+    department: row.DEPARTMENT,
+    semester: row.SEMESTER,
+    section: row.SECTION,
   };
 }
-
 
 // =====================================================
 // ATTENDANCE
 // =====================================================
 
-async function loadAttendance(
-  connection,
-  studentRoll
-) {
-  const result =
-    await connection.execute(
-      `
+async function loadAttendance(connection, studentRoll) {
+  const result = await connection.execute(
+    `
       SELECT
         a.id,
         a.subject_code,
@@ -305,172 +225,106 @@ async function loadAttendance(
       FROM attendance a
 
       JOIN subjects s
-        ON a.subject_code =
-           s.subject_code
+        ON a.subject_code = s.subject_code
 
-      WHERE UPPER(a.student_roll) =
-            UPPER(:studentRoll)
+      WHERE UPPER(a.student_roll) = UPPER(:studentRoll)
 
-      ORDER BY
-        s.subject_name
-      `,
-      {
-        studentRoll,
-      },
-      {
-        outFormat:
-          oracledb.OUT_FORMAT_OBJECT,
-      }
+      ORDER BY s.subject_name
+    `,
+    { studentRoll },
+    {
+      outFormat: oracledb.OUT_FORMAT_OBJECT,
+    }
+  );
+
+  const subjects = result.rows.map((row) => {
+    const attended = numberValue(row.ATTENDED_CLASSES);
+    const total = numberValue(row.TOTAL_CLASSES);
+
+    if (attended > total) {
+      throw new Error(
+        "Attended classes exceed total classes."
+      );
+    }
+
+    const currentPercentage =
+      total > 0
+        ? Number(((attended / total) * 100).toFixed(1))
+        : null;
+
+    // These are hypothetical next-class calculations,
+    // not recorded attendance percentages.
+    const ifMissNextPercentage = Number(
+      ((attended / (total + 1)) * 100).toFixed(1)
     );
 
+    const ifAttendNextPercentage = Number(
+      (((attended + 1) / (total + 1)) * 100).toFixed(1)
+    );
 
-  const subjects =
-    result.rows.map((row) => {
-
-      const attended =
-        numberValue(
-          row.ATTENDED_CLASSES
-        );
-
-      const total =
-        numberValue(
-          row.TOTAL_CLASSES
-        );
-
-
-      const currentPercentage =
-        total > 0
-          ? Number(
-              (
-                (attended / total) *
-                100
-              ).toFixed(1)
-            )
-          : 0;
-
-
-      const ifMissNextPercentage =
-        Number(
-          (
-            (attended /
-              (total + 1)) *
-            100
-          ).toFixed(1)
-        );
-
-
-      const ifAttendNextPercentage =
-        Number(
-          (
-            ((attended + 1) /
-              (total + 1)) *
-            100
-          ).toFixed(1)
-        );
-
-
-      const classesNeededFor75 =
-        currentPercentage >= 75
+    const classesNeededFor75 =
+      total === 0
+        ? null
+        : currentPercentage >= 75
           ? 0
           : Math.max(
               0,
               Math.ceil(
-                (
-                  75 * total -
-                  100 * attended
-                ) / 25
+                (75 * total - 100 * attended) / 25
               )
             );
 
+    return {
+      attendanceId: row.ID,
+      subjectCode: row.SUBJECT_CODE,
+      subjectName: row.SUBJECT_NAME,
+      attendedClasses: attended,
+      totalClasses: total,
+      percentage: currentPercentage,
+      ifMissNextPercentage,
+      ifAttendNextPercentage,
 
-      return {
-        attendanceId:
-          row.ID,
+      canMissNextAndRemainAt75:
+        ifMissNextPercentage >= 75,
 
-        subjectCode:
-          row.SUBJECT_CODE,
+      consecutiveClassesNeededFor75:
+        classesNeededFor75,
+    };
+  });
 
-        subjectName:
-          row.SUBJECT_NAME,
+  const totalAttended = subjects.reduce(
+    (sum, subject) => sum + subject.attendedClasses,
+    0
+  );
 
-        attendedClasses:
-          attended,
-
-        totalClasses:
-          total,
-
-        percentage:
-          currentPercentage,
-
-        ifMissNextPercentage,
-
-        ifAttendNextPercentage,
-
-        canMissNextAndRemainAt75:
-          ifMissNextPercentage >=
-          75,
-
-        consecutiveClassesNeededFor75:
-          classesNeededFor75,
-      };
-    });
-
-
-  const totalAttended =
-    subjects.reduce(
-      (sum, subject) =>
-        sum +
-        subject.attendedClasses,
-      0
-    );
-
-
-  const totalClasses =
-    subjects.reduce(
-      (sum, subject) =>
-        sum +
-        subject.totalClasses,
-      0
-    );
-
+  const totalClasses = subjects.reduce(
+    (sum, subject) => sum + subject.totalClasses,
+    0
+  );
 
   const overallPercentage =
     totalClasses > 0
       ? Number(
-          (
-            (totalAttended /
-              totalClasses) *
-            100
-          ).toFixed(1)
+          ((totalAttended / totalClasses) * 100).toFixed(1)
         )
       : null;
 
-
   return {
     requiredPercentage: 75,
-
     overallPercentage,
-
     totalAttended,
-
     totalClasses,
-
     subjects,
   };
 }
-
 
 // =====================================================
 // TIMETABLE
 // =====================================================
 
-async function loadTimetable(
-  connection,
-  studentRoll
-) {
-  const result =
-    await connection.execute(
-      `
+async function loadTimetable(connection, studentRoll) {
+  const result = await connection.execute(
+    `
       SELECT
         t.id,
         t.subject_code,
@@ -483,11 +337,9 @@ async function loadTimetable(
       FROM timetable t
 
       JOIN subjects s
-        ON t.subject_code =
-           s.subject_code
+        ON t.subject_code = s.subject_code
 
-      WHERE UPPER(t.student_roll) =
-            UPPER(:studentRoll)
+      WHERE UPPER(t.student_roll) = UPPER(:studentRoll)
 
       ORDER BY
         CASE t.day_of_week
@@ -501,88 +353,48 @@ async function loadTimetable(
           ELSE 8
         END,
         t.start_time
-      `,
-      {
-        studentRoll,
-      },
-      {
-        outFormat:
-          oracledb.OUT_FORMAT_OBJECT,
-      }
-    );
+    `,
+    { studentRoll },
+    {
+      outFormat: oracledb.OUT_FORMAT_OBJECT,
+    }
+  );
 
+  const campusDay = getCampusDay();
 
-  const campusDay =
-    getCampusDay();
+  const weeklySchedule = result.rows.map((row) => ({
+    timetableId: row.ID,
+    subjectCode: row.SUBJECT_CODE,
+    subjectName: row.SUBJECT_NAME,
+    facultyName: row.FACULTY_NAME,
+    dayOfWeek: row.DAY_OF_WEEK,
+    startTime: row.START_TIME,
+    endTime: row.END_TIME,
+    room: row.ROOM,
+  }));
 
-
-  const weeklySchedule =
-    result.rows.map(
-      (row) => ({
-        timetableId:
-          row.ID,
-
-        subjectCode:
-          row.SUBJECT_CODE,
-
-        subjectName:
-          row.SUBJECT_NAME,
-
-        facultyName:
-          row.FACULTY_NAME,
-
-        dayOfWeek:
-          row.DAY_OF_WEEK,
-
-        startTime:
-          row.START_TIME,
-
-        endTime:
-          row.END_TIME,
-
-        room:
-          row.ROOM,
-      })
-    );
-
-
-  const todayClasses =
-    weeklySchedule.filter(
-      (item) =>
-        String(
-          item.dayOfWeek || ""
-        ).toLowerCase() ===
-        campusDay.toLowerCase()
-    );
-
+  const todayClasses = weeklySchedule.filter(
+    (item) =>
+      String(item.dayOfWeek || "").toLowerCase() ===
+      campusDay.toLowerCase()
+  );
 
   return {
-    campusTimeZone:
-      CAMPUS_TIME_ZONE,
-
+    campusTimeZone: CAMPUS_TIME_ZONE,
     campusDay,
-
-    campusDate:
-      getCampusDate(),
-
+    campusDate: getCampusDate(),
     todayClasses,
-
     weeklySchedule,
   };
 }
-
 
 // =====================================================
 // ASSIGNMENTS
 // =====================================================
 
-async function loadAssignments(
-  connection,
-  studentRoll
-) {
-  const result =
-    await connection.execute(
-      `
+async function loadAssignments(connection, studentRoll) {
+  const result = await connection.execute(
+    `
       SELECT
         a.id,
         a.subject_code,
@@ -595,101 +407,58 @@ async function loadAssignments(
       FROM assignments a
 
       JOIN subjects s
-        ON a.subject_code =
-           s.subject_code
+        ON a.subject_code = s.subject_code
 
-      WHERE UPPER(a.student_roll) =
-            UPPER(:studentRoll)
+      WHERE UPPER(a.student_roll) = UPPER(:studentRoll)
 
       ORDER BY
         CASE
-          WHEN LOWER(
-            NVL(a.status, 'pending')
-          ) = 'pending'
+          WHEN LOWER(NVL(a.status, 'pending')) = 'pending'
           THEN 0
           ELSE 1
         END,
         a.due_date NULLS LAST,
         a.id DESC
-      `,
-      {
-        studentRoll,
-      },
-      {
-        outFormat:
-          oracledb.OUT_FORMAT_OBJECT,
-      }
-    );
+    `,
+    { studentRoll },
+    {
+      outFormat: oracledb.OUT_FORMAT_OBJECT,
+    }
+  );
 
+  const assignments = result.rows.map((row) => ({
+    assignmentId: row.ID,
+    subjectCode: row.SUBJECT_CODE,
+    subjectName: row.SUBJECT_NAME,
+    title: row.TITLE,
+    description: row.DESCRIPTION,
+    dueDate: isoValue(row.DUE_DATE),
+    priority: row.PRIORITY,
+    status: row.STATUS,
+  }));
 
-  const assignments =
-    result.rows.map(
-      (row) => ({
-        assignmentId:
-          row.ID,
-
-        subjectCode:
-          row.SUBJECT_CODE,
-
-        subjectName:
-          row.SUBJECT_NAME,
-
-        title:
-          row.TITLE,
-
-        description:
-          row.DESCRIPTION,
-
-        dueDate:
-          isoValue(
-            row.DUE_DATE
-          ),
-
-        priority:
-          row.PRIORITY,
-
-        status:
-          row.STATUS,
-      })
-    );
-
-
-  const pending =
-    assignments.filter(
-      (assignment) =>
-        String(
-          assignment.status ||
-            "pending"
-        ).toLowerCase() ===
-        "pending"
-    );
-
+  const pending = assignments.filter(
+    (assignment) =>
+      String(
+        assignment.status || "pending"
+      ).toLowerCase() === "pending"
+  );
 
   return {
-    total:
-      assignments.length,
-
-    pendingCount:
-      pending.length,
-
+    total: assignments.length,
+    pendingCount: pending.length,
     pending,
-
     assignments,
   };
 }
-
 
 // =====================================================
 // EXAMS
 // =====================================================
 
-async function loadExams(
-  connection,
-  studentRoll
-) {
-  const result =
-    await connection.execute(
-      `
+async function loadExams(connection, studentRoll) {
+  const result = await connection.execute(
+    `
       SELECT
         e.id,
         e.subject_code,
@@ -701,85 +470,47 @@ async function loadExams(
         e.exam_type
       FROM exams e
 
-      JOIN subjects s
-        ON e.subject_code =
-           s.subject_code
+      LEFT JOIN subjects s
+        ON e.subject_code = s.subject_code
 
-      WHERE UPPER(e.student_roll) =
-            UPPER(:studentRoll)
-
-        AND e.exam_date >=
-            TRUNC(SYSDATE)
+      WHERE UPPER(e.student_roll) = UPPER(:studentRoll)
+        AND e.exam_date >= TRUNC(SYSDATE)
 
       ORDER BY
         e.exam_date,
         e.start_time
-      `,
-      {
-        studentRoll,
-      },
-      {
-        outFormat:
-          oracledb.OUT_FORMAT_OBJECT,
-      }
-    );
+    `,
+    { studentRoll },
+    {
+      outFormat: oracledb.OUT_FORMAT_OBJECT,
+    }
+  );
 
-
-  const exams =
-    result.rows.map(
-      (row) => ({
-        examId:
-          row.ID,
-
-        subjectCode:
-          row.SUBJECT_CODE,
-
-        subjectName:
-          row.SUBJECT_NAME,
-
-        examDate:
-          isoValue(
-            row.EXAM_DATE
-          ),
-
-        startTime:
-          row.START_TIME,
-
-        endTime:
-          row.END_TIME,
-
-        room:
-          row.ROOM,
-
-        examType:
-          row.EXAM_TYPE,
-      })
-    );
-
+  const exams = result.rows.map((row) => ({
+    examId: row.ID,
+    subjectCode: row.SUBJECT_CODE,
+    subjectName: row.SUBJECT_NAME,
+    examDate: isoValue(row.EXAM_DATE),
+    startTime: row.START_TIME,
+    endTime: row.END_TIME,
+    room: row.ROOM,
+    examType: row.EXAM_TYPE,
+  }));
 
   return {
-    upcomingCount:
-      exams.length,
-
-    nextExam:
-      exams[0] || null,
-
-    upcoming:
-      exams,
+    upcomingCount: exams.length,
+    nextExam: exams[0] || null,
+    upcoming: exams,
   };
 }
-
 
 // =====================================================
 // NOTICES
 // =====================================================
 
-async function loadNotices(
-  connection
-) {
-  const result =
-    await connection.execute(
-      `
+async function loadNotices(connection) {
+  const result = await connection.execute(
+    `
       SELECT
         id,
         title,
@@ -807,58 +538,56 @@ async function loadNotices(
         id DESC
 
       FETCH FIRST 10 ROWS ONLY
-      `,
-      [],
-      {
-        outFormat:
-          oracledb.OUT_FORMAT_OBJECT,
-      }
-    );
-
-
-  return result.rows.map(
-    (row) => ({
-      noticeId:
-        row.ID,
-
-      title:
-        row.TITLE,
-
-      author:
-        row.AUTHOR,
-
-      tag:
-        row.TAG,
-
-      category:
-        row.CATEGORY,
-
-      content:
-        row.CONTENT_EXCERPT,
-
-      aiSummary:
-        row.AI_SUMMARY,
-
-      createdAt:
-        isoValue(
-          row.CREATED_AT
-        ),
-    })
+    `,
+    [],
+    {
+      outFormat: oracledb.OUT_FORMAT_OBJECT,
+    }
   );
-}
 
+  return result.rows.map((row) => ({
+    noticeId: row.ID,
+    title: row.TITLE,
+    author: row.AUTHOR,
+    tag: row.TAG,
+    category: row.CATEGORY,
+    content: row.CONTENT_EXCERPT,
+    aiSummary: row.AI_SUMMARY,
+    createdAt: isoValue(row.CREATED_AT),
+  }));
+}
 
 // =====================================================
 // RESOURCES
 // =====================================================
 
-async function loadResources(
-  connection,
-  semester
-) {
-  const result =
-    await connection.execute(
-      `
+async function loadResources(connection, semester) {
+  let cleanSemester = null;
+
+  if (
+    semester !== null &&
+    semester !== undefined &&
+    semester !== ""
+  ) {
+    if (
+      !["string", "number"].includes(typeof semester)
+    ) {
+      throw new Error("Invalid student semester.");
+    }
+
+    cleanSemester = Number(semester);
+
+    if (
+      !Number.isInteger(cleanSemester) ||
+      cleanSemester < 1 ||
+      cleanSemester > 8
+    ) {
+      throw new Error("Invalid student semester.");
+    }
+  }
+
+  const result = await connection.execute(
+    `
       SELECT
         r.resource_id,
         r.subject_code,
@@ -873,226 +602,143 @@ async function loadResources(
       FROM resources r
 
       JOIN subjects s
-        ON r.subject_code =
-           s.subject_code
+        ON r.subject_code = s.subject_code
 
       WHERE
-        :semester IS NULL
-        OR r.semester IS NULL
+        r.semester IS NULL
         OR r.semester = :semester
 
       ORDER BY
         r.created_at DESC,
         r.resource_id DESC
-      `,
-      {
-        semester:
-          semester === null ||
-          semester === undefined
-            ? null
-            : Number(semester),
-      },
-      {
-        outFormat:
-          oracledb.OUT_FORMAT_OBJECT,
-      }
-    );
-
-
-  return result.rows.map(
-    (row) => ({
-      resourceId:
-        row.RESOURCE_ID,
-
-      subjectCode:
-        row.SUBJECT_CODE,
-
-      subjectName:
-        row.SUBJECT_NAME,
-
-      title:
-        row.TITLE,
-
-      description:
-        row.DESCRIPTION,
-
-      resourceType:
-        row.RESOURCE_TYPE,
-
-      resourceUrl:
-        row.RESOURCE_URL,
-
-      semester:
-        row.SEMESTER,
-
-      uploadedBy:
-        row.UPLOADED_BY,
-
-      createdAt:
-        isoValue(
-          row.CREATED_AT
-        ),
-    })
+    `,
+    {
+      semester: cleanSemester,
+    },
+    {
+      outFormat: oracledb.OUT_FORMAT_OBJECT,
+    }
   );
-}
 
+  return result.rows.map((row) => ({
+    resourceId: row.RESOURCE_ID,
+    subjectCode: row.SUBJECT_CODE,
+    subjectName: row.SUBJECT_NAME,
+    title: row.TITLE,
+    description: row.DESCRIPTION,
+    resourceType: row.RESOURCE_TYPE,
+    resourceUrl: row.RESOURCE_URL,
+    semester: row.SEMESTER,
+    uploadedBy: row.UPLOADED_BY,
+    createdAt: isoValue(row.CREATED_AT),
+  }));
+}
 
 // =====================================================
 // MAIN CONTEXT BUILDER
 // =====================================================
 
-async function getStudentContext(
-  studentRoll,
-  message
-) {
+// The calling route must authenticate the user and authorize
+// this studentRoll before invoking this service.
+
+async function getStudentContext(studentRoll, message) {
+  if (
+    !["string", "number"].includes(typeof studentRoll) ||
+    (
+      typeof studentRoll === "number" &&
+      (
+        !Number.isSafeInteger(studentRoll) ||
+        studentRoll <= 0
+      )
+    ) ||
+    !String(studentRoll).trim() ||
+    String(studentRoll).trim().length > 100 ||
+    /[\u0000-\u001f\u007f]/.test(String(studentRoll))
+  ) {
+    const error = new Error("Invalid student roll number.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  studentRoll = String(studentRoll).trim();
+
+  if (message === undefined) {
+    message = "";
+  }
+
+  if (
+    typeof message !== "string" ||
+    message.length > 10000
+  ) {
+    const error = new Error("Invalid context message.");
+    error.statusCode = 400;
+    throw error;
+  }
+
   let connection;
 
   try {
-    connection =
-      await getConnection();
+    connection = await getConnection();
 
+    const student = await loadStudentProfile(
+      connection,
+      studentRoll
+    );
 
-    // Student identity is always fetched
-    // from Oracle.
+    studentRoll = String(student.studentRoll).trim();
 
-    const student =
-      await loadStudentProfile(
+    const contextTypes = detectContextTypes(message);
+
+    const context = {
+      generatedAt: new Date().toISOString(),
+      campusDate: getCampusDate(),
+      campusDay: getCampusDay(),
+      campusTimeZone: CAMPUS_TIME_ZONE,
+      student,
+      retrievedContextTypes: contextTypes,
+    };
+
+    if (contextTypes.includes("attendance")) {
+      context.attendance = await loadAttendance(
         connection,
         studentRoll
       );
+    }
 
-
-    const contextTypes =
-      detectContextTypes(
-        message
+    if (contextTypes.includes("timetable")) {
+      context.timetable = await loadTimetable(
+        connection,
+        studentRoll
       );
-
-
-    const context = {
-      generatedAt:
-        new Date().toISOString(),
-
-      campusDate:
-        getCampusDate(),
-
-      campusDay:
-        getCampusDay(),
-
-      campusTimeZone:
-        CAMPUS_TIME_ZONE,
-
-      student,
-
-      retrievedContextTypes:
-        contextTypes,
-    };
-
-
-    // ---------------------------------------------
-    // ATTENDANCE
-    // ---------------------------------------------
-
-    if (
-      contextTypes.includes(
-        "attendance"
-      )
-    ) {
-      context.attendance =
-        await loadAttendance(
-          connection,
-          studentRoll
-        );
     }
 
-
-    // ---------------------------------------------
-    // TIMETABLE
-    // ---------------------------------------------
-
-    if (
-      contextTypes.includes(
-        "timetable"
-      )
-    ) {
-      context.timetable =
-        await loadTimetable(
-          connection,
-          studentRoll
-        );
+    if (contextTypes.includes("assignments")) {
+      context.assignments = await loadAssignments(
+        connection,
+        studentRoll
+      );
     }
 
-
-    // ---------------------------------------------
-    // ASSIGNMENTS
-    // ---------------------------------------------
-
-    if (
-      contextTypes.includes(
-        "assignments"
-      )
-    ) {
-      context.assignments =
-        await loadAssignments(
-          connection,
-          studentRoll
-        );
+    if (contextTypes.includes("exams")) {
+      context.exams = await loadExams(
+        connection,
+        studentRoll
+      );
     }
 
-
-    // ---------------------------------------------
-    // EXAMS
-    // ---------------------------------------------
-
-    if (
-      contextTypes.includes(
-        "exams"
-      )
-    ) {
-      context.exams =
-        await loadExams(
-          connection,
-          studentRoll
-        );
+    if (contextTypes.includes("notices")) {
+      context.notices = await loadNotices(connection);
     }
 
-
-    // ---------------------------------------------
-    // NOTICES
-    // ---------------------------------------------
-
-    if (
-      contextTypes.includes(
-        "notices"
-      )
-    ) {
-      context.notices =
-        await loadNotices(
-          connection
-        );
+    if (contextTypes.includes("resources")) {
+      context.resources = await loadResources(
+        connection,
+        student.semester
+      );
     }
-
-
-    // ---------------------------------------------
-    // RESOURCES
-    // ---------------------------------------------
-
-    if (
-      contextTypes.includes(
-        "resources"
-      )
-    ) {
-      context.resources =
-        await loadResources(
-          connection,
-          student.semester
-        );
-    }
-
 
     return context;
-
   } finally {
-
     if (connection) {
       try {
         await connection.close();
@@ -1105,7 +751,6 @@ async function getStudentContext(
     }
   }
 }
-
 
 module.exports = {
   detectContextTypes,

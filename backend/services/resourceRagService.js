@@ -1,90 +1,110 @@
 const fs = require("fs/promises");
 const path = require("path");
 const oracledb = require("oracledb");
+const { PDFParse } = require("pdf-parse");
 
-const {
-  PDFParse,
-} = require("pdf-parse");
-
-const getConnection =
-  require("../db");
-
+const getConnection = require("../db");
 
 // =====================================================
 // CONFIGURATION
 // =====================================================
 
-const RESOURCE_UPLOAD_DIR =
-  path.join(
-    __dirname,
-    "..",
-    "uploads",
-    "resources"
-  );
+const RESOURCE_UPLOAD_DIR = path.join(
+  __dirname,
+  "..",
+  "uploads",
+  "resources"
+);
 
+const MAX_CHUNK_LENGTH = 2800;
+const CHUNK_OVERLAP = 350;
 
-const MAX_CHUNK_LENGTH =
-  2800;
+// =====================================================
+// INPUT VALIDATION
+// =====================================================
 
+function inputError(message) {
+  const error = new Error(message);
+  error.statusCode = 400;
+  return error;
+}
 
-const CHUNK_OVERLAP =
-  350;
+function validateResourceId(value) {
+  if (
+    !["string", "number"].includes(typeof value) ||
+    !/^\d+$/.test(String(value).trim())
+  ) {
+    throw inputError("Invalid resource ID.");
+  }
 
+  const id = Number(value);
+
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    throw inputError("Invalid resource ID.");
+  }
+
+  return id;
+}
+
+function validateInteger(
+  value,
+  minimum,
+  maximum,
+  label
+) {
+  if (
+    !["string", "number"].includes(typeof value) ||
+    String(value).trim() === ""
+  ) {
+    throw inputError(`Invalid ${label}.`);
+  }
+
+  const number = Number(value);
+
+  if (
+    !Number.isSafeInteger(number) ||
+    number < minimum ||
+    number > maximum
+  ) {
+    throw inputError(`Invalid ${label}.`);
+  }
+
+  return number;
+}
 
 // =====================================================
 // ENSURE UPLOAD DIRECTORY
 // =====================================================
 
 async function ensureUploadDirectory() {
-  await fs.mkdir(
-    RESOURCE_UPLOAD_DIR,
-    {
-      recursive: true,
-    }
-  );
+  await fs.mkdir(RESOURCE_UPLOAD_DIR, {
+    recursive: true,
+  });
 }
-
 
 // =====================================================
 // RESOURCE PDF PATH
 // =====================================================
 
-function getResourcePdfPath(
-  resourceId
-) {
+function getResourcePdfPath(resourceId) {
   return path.join(
     RESOURCE_UPLOAD_DIR,
-    `${resourceId}.pdf`
+    `${validateResourceId(resourceId)}.pdf`
   );
 }
-
 
 // =====================================================
 // NORMALIZE TEXT
 // =====================================================
 
-function normalizeDocumentText(
-  value
-) {
-  return String(
-    value || ""
-  )
+function normalizeDocumentText(value) {
+  return String(value || "")
     .replace(/\r/g, "")
-    .replace(
-      /[ \t]+/g,
-      " "
-    )
-    .replace(
-      /\n[ \t]+/g,
-      "\n"
-    )
-    .replace(
-      /\n{3,}/g,
-      "\n\n"
-    )
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
-
 
 // =====================================================
 // VALIDATE PDF BUFFER
@@ -92,97 +112,55 @@ function normalizeDocumentText(
 
 function isPdfBuffer(buffer) {
   if (
-    !Buffer.isBuffer(
-      buffer
-    ) ||
+    !Buffer.isBuffer(buffer) ||
     buffer.length < 5
   ) {
     return false;
   }
 
-
-  return (
-    buffer
-      .subarray(
-        0,
-        5
-      )
-      .toString() ===
-    "%PDF-"
-  );
+  return buffer.subarray(0, 5).toString() === "%PDF-";
 }
-
 
 // =====================================================
 // EXTRACT PDF TEXT
 // =====================================================
 
-async function extractPdfText(
-  buffer
-) {
-  if (
-    !isPdfBuffer(
-      buffer
-    )
-  ) {
-    const error =
-      new Error(
-        "The uploaded file is not a valid PDF."
-      );
+async function extractPdfText(buffer) {
+  if (!isPdfBuffer(buffer)) {
+    const error = new Error(
+      "The uploaded file is not a valid PDF."
+    );
 
-    error.statusCode =
-      400;
-
+    error.statusCode = 400;
     throw error;
   }
 
-
   let parser;
 
-
   try {
-    parser =
-      new PDFParse({
-        data:
-          buffer,
-      });
+    parser = new PDFParse({
+      data: buffer,
+    });
 
+    const result = await parser.getText();
 
-    const result =
-      await parser.getText();
+    const text = normalizeDocumentText(result?.text);
 
-
-    const text =
-      normalizeDocumentText(
-        result?.text
+    if (!text || text.length < 20) {
+      const error = new Error(
+        "This PDF does not contain enough extractable text for CampusCopilot. Scanned image-only PDFs will require OCR."
       );
 
-
-    if (
-      !text ||
-      text.length < 20
-    ) {
-      const error =
-        new Error(
-          "This PDF does not contain enough extractable text for CampusCopilot. Scanned image-only PDFs will require OCR."
-        );
-
-      error.statusCode =
-        422;
-
+      error.statusCode = 422;
       throw error;
     }
 
-
     return text;
-
   } finally {
     if (parser) {
       try {
         await parser.destroy();
-      } catch (
-        destroyError
-      ) {
+      } catch (destroyError) {
         console.error(
           "PDF parser cleanup error:",
           destroyError
@@ -192,177 +170,116 @@ async function extractPdfText(
   }
 }
 
-
 // =====================================================
 // FIND A GOOD CHUNK END
 // =====================================================
 
-function findChunkBoundary(
-  text,
-  start,
-  idealEnd
-) {
-  if (
-    idealEnd >=
-    text.length
-  ) {
+function findChunkBoundary(text, start, idealEnd) {
+  if (idealEnd >= text.length) {
     return text.length;
   }
 
+  const minimumBoundary = Math.max(
+    start + 1000,
+    idealEnd - 500
+  );
 
-  const minimumBoundary =
-    Math.max(
-      start + 1000,
-      idealEnd - 500
-    );
-
-
-  const searchArea =
-    text.slice(
-      minimumBoundary,
-      idealEnd
-    );
-
-
-  const candidates = [
-    searchArea.lastIndexOf(
-      "\n\n"
-    ),
-
-    searchArea.lastIndexOf(
-      ". "
-    ),
-
-    searchArea.lastIndexOf(
-      "\n"
-    ),
-
-    searchArea.lastIndexOf(
-      " "
-    ),
-  ];
-
-
-  const bestRelative =
-    Math.max(
-      ...candidates
-    );
-
-
-  if (
-    bestRelative < 0
-  ) {
+  if (minimumBoundary >= idealEnd) {
     return idealEnd;
   }
 
-
-  return (
-    minimumBoundary +
-    bestRelative +
-    1
+  const searchArea = text.slice(
+    minimumBoundary,
+    idealEnd
   );
-}
 
+  const candidates = [
+    searchArea.lastIndexOf("\n\n"),
+    searchArea.lastIndexOf(". "),
+    searchArea.lastIndexOf("\n"),
+    searchArea.lastIndexOf(" "),
+  ];
+
+  const bestRelative = Math.max(...candidates);
+
+  if (bestRelative < 0) {
+    return idealEnd;
+  }
+
+  return minimumBoundary + bestRelative + 1;
+}
 
 // =====================================================
 // SPLIT DOCUMENT INTO CHUNKS
 // =====================================================
 
-function chunkDocumentText(
-  text,
-  options = {}
-) {
-  const cleanText =
-    normalizeDocumentText(
-      text
-    );
-
+function chunkDocumentText(text, options = {}) {
+  const cleanText = normalizeDocumentText(text);
 
   if (!cleanText) {
     return [];
   }
 
+  if (
+    !options ||
+    typeof options !== "object" ||
+    Array.isArray(options)
+  ) {
+    throw inputError("Invalid chunk options.");
+  }
 
-  const maxLength =
-    Number(
-      options.maxLength
-    ) ||
-    MAX_CHUNK_LENGTH;
+  const maxLength = validateInteger(
+    options.maxLength ?? MAX_CHUNK_LENGTH,
+    1,
+    MAX_CHUNK_LENGTH,
+    "chunk length"
+  );
 
-
-  const overlap =
-    Number(
-      options.overlap
-    ) ||
-    CHUNK_OVERLAP;
-
+  const overlap = validateInteger(
+    options.overlap ??
+      Math.min(CHUNK_OVERLAP, maxLength - 1),
+    0,
+    maxLength - 1,
+    "chunk overlap"
+  );
 
   const chunks = [];
-
-
   let start = 0;
 
+  while (start < cleanText.length) {
+    const idealEnd = Math.min(
+      start + maxLength,
+      cleanText.length
+    );
 
-  while (
-    start <
-    cleanText.length
-  ) {
-    const idealEnd =
-      Math.min(
-        start +
-          maxLength,
-        cleanText.length
-      );
+    const end = findChunkBoundary(
+      cleanText,
+      start,
+      idealEnd
+    );
 
-
-    const end =
-      findChunkBoundary(
-        cleanText,
-        start,
-        idealEnd
-      );
-
-
-    const chunk =
-      cleanText
-        .slice(
-          start,
-          end
-        )
-        .trim();
-
+    const chunk = cleanText
+      .slice(start, end)
+      .trim();
 
     if (chunk) {
-      chunks.push(
-        chunk
-      );
+      chunks.push(chunk);
     }
 
-
-    if (
-      end >=
-      cleanText.length
-    ) {
+    if (end >= cleanText.length) {
       break;
     }
 
+    const nextStart = Math.max(
+      start + 1,
+      end - overlap
+    );
 
-    const nextStart =
-      Math.max(
-        start + 1,
-        end -
-          overlap
-      );
-
-
-    start =
-      nextStart;
+    start = nextStart;
   }
-
 
   return chunks;
 }
-
 
 // =====================================================
 // DELETE RESOURCE CHUNKS
@@ -378,14 +295,10 @@ async function deleteResourceChunks(
       WHERE resource_id = :resourceId
     `,
     {
-      resourceId:
-        Number(
-          resourceId
-        ),
+      resourceId: validateResourceId(resourceId),
     }
   );
 }
-
 
 // =====================================================
 // REPLACE RESOURCE CHUNKS
@@ -396,22 +309,16 @@ async function replaceResourceChunks(
   resourceId,
   text
 ) {
-  const chunks =
-    chunkDocumentText(
-      text
-    );
-
+  const chunks = chunkDocumentText(text);
 
   await deleteResourceChunks(
     connection,
     resourceId
   );
 
-
   for (
     let index = 0;
-    index <
-    chunks.length;
+    index < chunks.length;
     index += 1
   ) {
     await connection.execute(
@@ -428,332 +335,224 @@ async function replaceResourceChunks(
         )
       `,
       {
-        resourceId:
-          Number(
-            resourceId
-          ),
-
-        chunkIndex:
-          index,
-
-        chunkText:
-          chunks[index],
+        resourceId: validateResourceId(resourceId),
+        chunkIndex: index,
+        chunkText: chunks[index],
       }
     );
   }
 
-
   return chunks.length;
 }
-
 
 // =====================================================
 // SAVE RESOURCE PDF
 // =====================================================
 
-async function saveResourcePdf(
-  resourceId,
-  buffer
-) {
+async function saveResourcePdf(resourceId, buffer) {
+  const filePath = getResourcePdfPath(resourceId);
+
+  if (!isPdfBuffer(buffer)) {
+    throw inputError(
+      "The uploaded file is not a valid PDF."
+    );
+  }
+
   await ensureUploadDirectory();
 
-
-  const filePath =
-    getResourcePdfPath(
-      resourceId
-    );
-
-
-  await fs.writeFile(
-    filePath,
-    buffer
-  );
-
+  await fs.writeFile(filePath, buffer);
 
   return filePath;
 }
-
 
 // =====================================================
 // DELETE RESOURCE PDF
 // =====================================================
 
-async function deleteResourcePdf(
-  resourceId
-) {
-  const filePath =
-    getResourcePdfPath(
-      resourceId
-    );
-
+async function deleteResourcePdf(resourceId) {
+  const filePath = getResourcePdfPath(resourceId);
 
   try {
-    await fs.unlink(
-      filePath
-    );
-
+    await fs.unlink(filePath);
   } catch (error) {
-    if (
-      error.code !==
-      "ENOENT"
-    ) {
+    if (error.code !== "ENOENT") {
       throw error;
     }
   }
 }
 
-
 // =====================================================
 // TOKENIZE QUERY
 // =====================================================
 
-const STOP_WORDS =
-  new Set([
-    "the",
-    "a",
-    "an",
-    "and",
-    "or",
-    "but",
-    "is",
-    "are",
-    "was",
-    "were",
-    "be",
-    "been",
-    "being",
-    "to",
-    "of",
-    "in",
-    "on",
-    "for",
-    "with",
-    "from",
-    "by",
-    "at",
-    "as",
-    "it",
-    "this",
-    "that",
-    "these",
-    "those",
-    "what",
-    "which",
-    "who",
-    "how",
-    "why",
-    "when",
-    "where",
-    "me",
-    "my",
-    "please",
-    "explain",
-    "tell",
-  ]);
+const STOP_WORDS = new Set([
+  "the",
+  "a",
+  "an",
+  "and",
+  "or",
+  "but",
+  "is",
+  "are",
+  "was",
+  "were",
+  "be",
+  "been",
+  "being",
+  "to",
+  "of",
+  "in",
+  "on",
+  "for",
+  "with",
+  "from",
+  "by",
+  "at",
+  "as",
+  "it",
+  "this",
+  "that",
+  "these",
+  "those",
+  "what",
+  "which",
+  "who",
+  "how",
+  "why",
+  "when",
+  "where",
+  "me",
+  "my",
+  "please",
+  "explain",
+  "tell",
+]);
 
-
-function tokenize(
-  value
-) {
-  return String(
-    value || ""
-  )
+function tokenize(value) {
+  return String(value || "")
     .toLowerCase()
-    .replace(
-      /[^a-z0-9]+/g,
-      " "
-    )
+    .replace(/[^a-z0-9]+/g, " ")
     .split(/\s+/)
-    .map(
-      (word) =>
-        word.trim()
-    )
+    .map((word) => word.trim())
     .filter(
       (word) =>
         word.length >= 2 &&
-        !STOP_WORDS.has(
-          word
-        )
+        !STOP_WORDS.has(word)
     );
 }
-
 
 // =====================================================
 // SCORE CHUNK
 // =====================================================
 
-function scoreChunk(
-  chunkText,
-  question
-) {
-  const normalizedChunk =
-    String(
-      chunkText || ""
-    )
-      .toLowerCase();
+function scoreChunk(chunkText, question) {
+  const normalizedChunk = String(
+    chunkText || ""
+  ).toLowerCase();
 
+  const questionTokens = [
+    ...new Set(tokenize(question)),
+  ];
 
-  const questionTokens =
-    [
-      ...new Set(
-        tokenize(
-          question
-        )
-      ),
-    ];
-
-
-  if (
-    questionTokens.length ===
-    0
-  ) {
+  if (questionTokens.length === 0) {
     return 0;
   }
 
-
   let score = 0;
 
-
-  questionTokens.forEach(
-    (token) => {
-      if (
-        normalizedChunk.includes(
-          token
-        )
-      ) {
-        score +=
-          token.length >= 6
-            ? 3
-            : 1;
-      }
+  questionTokens.forEach((token) => {
+    if (normalizedChunk.includes(token)) {
+      score += token.length >= 6 ? 3 : 1;
     }
-  );
+  });
 
-
-  const normalizedQuestion =
-    questionTokens.join(
-      " "
-    );
-
+  const normalizedQuestion = questionTokens.join(" ");
 
   if (
     normalizedQuestion &&
-    normalizedChunk.includes(
-      normalizedQuestion
-    )
+    normalizedChunk.includes(normalizedQuestion)
   ) {
     score += 10;
   }
 
-
   return score;
 }
-
 
 // =====================================================
 // GET RELEVANT RESOURCE CHUNKS
 // =====================================================
+
+// Callers must authenticate and authorize resource access
+// before calling this service.
 
 async function getRelevantResourceChunks(
   resourceId,
   question,
   limit = 5
 ) {
+  resourceId = validateResourceId(resourceId);
+
+  limit = validateInteger(
+    limit,
+    1,
+    50,
+    "retrieval limit"
+  );
+
   let connection;
 
-
   try {
-    connection =
-      await getConnection();
+    connection = await getConnection();
 
+    const result = await connection.execute(
+      `
+        SELECT
+          chunk_id,
+          chunk_index,
+          DBMS_LOB.SUBSTR(
+            chunk_text,
+            4000,
+            1
+          ) AS chunk_text
+        FROM resource_chunks
+        WHERE resource_id = :resourceId
+        ORDER BY chunk_index
+      `,
+      {
+        resourceId: validateResourceId(resourceId),
+      },
+      {
+        outFormat: oracledb.OUT_FORMAT_OBJECT,
+      }
+    );
 
-    const result =
-      await connection.execute(
-        `
-          SELECT
-            chunk_id,
-            chunk_index,
-            DBMS_LOB.SUBSTR(
-              chunk_text,
-              4000,
-              1
-            ) AS chunk_text
-          FROM resource_chunks
-          WHERE resource_id =
-                :resourceId
-          ORDER BY chunk_index
-        `,
-        {
-          resourceId:
-            Number(
-              resourceId
-            ),
-        },
-        {
-          outFormat:
-            oracledb
-              .OUT_FORMAT_OBJECT,
-        }
-      );
+    const scored = result.rows.map((row) => ({
+      chunkId: row.CHUNK_ID,
+      chunkIndex: row.CHUNK_INDEX,
+      text: row.CHUNK_TEXT,
+      score: scoreChunk(row.CHUNK_TEXT, question),
+    }));
 
-
-    const scored =
-      result.rows.map(
-        (row) => ({
-          chunkId:
-            row.CHUNK_ID,
-
-          chunkIndex:
-            row.CHUNK_INDEX,
-
-          text:
-            row.CHUNK_TEXT,
-
-          score:
-            scoreChunk(
-              row.CHUNK_TEXT,
-              question
-            ),
-        })
-      );
-
-
-    const hasMatches =
-      scored.some(
-        (item) =>
-          item.score > 0
-      );
-
+    const hasMatches = scored.some(
+      (item) => item.score > 0
+    );
 
     if (!hasMatches) {
-      return scored
-        .slice(
-          0,
-          limit
-        );
+      return scored.slice(0, limit);
     }
-
 
     return scored
       .sort(
         (a, b) =>
-          b.score -
-          a.score ||
-          a.chunkIndex -
-          b.chunkIndex
+          b.score - a.score ||
+          a.chunkIndex - b.chunkIndex
       )
-      .slice(
-        0,
-        limit
-      );
-
+      .slice(0, limit);
   } finally {
     if (connection) {
       try {
         await connection.close();
-      } catch (
-        closeError
-      ) {
+      } catch (closeError) {
         console.error(
           "Resource retrieval connection close error:",
           closeError
@@ -763,31 +562,20 @@ async function getRelevantResourceChunks(
   }
 }
 
-
 // =====================================================
 // EXPORTS
 // =====================================================
 
 module.exports = {
   RESOURCE_UPLOAD_DIR,
-
   ensureUploadDirectory,
-
   getResourcePdfPath,
-
   isPdfBuffer,
-
   extractPdfText,
-
   chunkDocumentText,
-
   deleteResourceChunks,
-
   replaceResourceChunks,
-
   saveResourcePdf,
-
   deleteResourcePdf,
-
   getRelevantResourceChunks,
 };

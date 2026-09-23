@@ -1,6 +1,8 @@
 const express = require("express");
 const oracledb = require("oracledb");
 const multer = require("multer");
+const fs = require("fs/promises");
+const crypto = require("crypto");
 
 const getConnection = require("../db");
 
@@ -13,32 +15,35 @@ const {
   extractPdfText,
   replaceResourceChunks,
   deleteResourceChunks,
-  saveResourcePdf,
-  deleteResourcePdf,
+  getResourcePdfPath,
+  ensureUploadDirectory,
 } = require("../services/resourceRagService");
-
 
 const router = express.Router();
 
-
 // =====================================================
 // ADMIN AUTHORIZATION
-//
-// All routes in this file are mounted under:
-// /api/admin/resources
-//
-// Only authenticated admins can access them.
 // =====================================================
 
-router.use(
-  authenticateToken,
-  requireAdmin
-);
+router.use(authenticateToken, requireAdmin);
 
+router.use((req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  next();
+});
 
 // =====================================================
-// RESOURCE CONFIGURATION
+// CONFIGURATION
 // =====================================================
+
+const DB_OPTIONS = {
+  outFormat: oracledb.OUT_FORMAT_OBJECT,
+  autoCommit: false,
+};
+
+const WRITE_OPTIONS = {
+  autoCommit: false,
+};
 
 const VALID_RESOURCE_TYPES = [
   "PDF",
@@ -49,7 +54,6 @@ const VALID_RESOURCE_TYPES = [
   "Other",
 ];
 
-
 const FILE_RESOURCE_TYPES = new Set([
   "PDF",
   "Notes",
@@ -57,9 +61,186 @@ const FILE_RESOURCE_TYPES = new Set([
   "Other",
 ]);
 
+// =====================================================
+// VALIDATION
+// =====================================================
+
+class RequestError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+
+function resourceId(value) {
+  if (
+    !/^\d+$/.test(String(value)) ||
+    !Number.isSafeInteger(Number(value)) ||
+    Number(value) <= 0
+  ) {
+    throw new RequestError(400, "Invalid resource ID");
+  }
+
+  return Number(value);
+}
+
+function textField(value, label, required = false) {
+  if (value === undefined || value === null) {
+    value = "";
+  }
+
+  if (typeof value !== "string") {
+    throw new RequestError(
+      400,
+      `${label} must be text.`
+    );
+  }
+
+  const clean = value.trim();
+
+  if (required && !clean) {
+    throw new RequestError(
+      400,
+      "Subject, title and resource type are required."
+    );
+  }
+
+  return clean;
+}
+
+function parseInput(req) {
+  if (
+    !req.body ||
+    typeof req.body !== "object" ||
+    Array.isArray(req.body)
+  ) {
+    throw new RequestError(
+      400,
+      "A request body is required."
+    );
+  }
+
+  const body = req.body;
+
+  const type = textField(
+    body.resourceType,
+    "Resource type",
+    true
+  );
+
+  if (!VALID_RESOURCE_TYPES.includes(type)) {
+    throw new RequestError(400, "Invalid resource type");
+  }
+
+  let semester = null;
+
+  if (
+    body.semester !== undefined &&
+    body.semester !== null &&
+    body.semester !== ""
+  ) {
+    if (
+      !["string", "number"].includes(
+        typeof body.semester
+      )
+    ) {
+      throw new RequestError(
+        400,
+        "Semester must be between 1 and 8"
+      );
+    }
+
+    semester = Number(body.semester);
+
+    if (
+      !Number.isInteger(semester) ||
+      semester < 1 ||
+      semester > 8
+    ) {
+      throw new RequestError(
+        400,
+        "Semester must be between 1 and 8"
+      );
+    }
+  }
+
+  if (
+    req.file &&
+    !FILE_RESOURCE_TYPES.has(type)
+  ) {
+    throw new RequestError(
+      400,
+      "PDF upload is available for PDF, Notes, Question Paper and Other resource types."
+    );
+  }
+
+  return {
+    subjectCode: textField(
+      body.subjectCode,
+      "Subject",
+      true
+    ).toUpperCase(),
+
+    title: textField(body.title, "Title", true),
+
+    description:
+      textField(body.description, "Description") || null,
+
+    resourceType: type,
+
+    resourceUrl: textField(
+      body.resourceUrl,
+      "Resource URL"
+    ),
+
+    semester,
+
+    uploadedBy:
+      textField(body.uploadedBy, "Uploaded by") ||
+      "Academic Office",
+  };
+}
+
+function localUrl(id) {
+  return `/api/resources/${id}/file`;
+}
+
+function isLocalUrl(value) {
+  return /^\/api\/resources\/\d+\/file$/.test(
+    String(value || "")
+  );
+}
+
+function externalUrl(value) {
+  let parsed;
+
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new RequestError(
+      400,
+      "Provide a valid HTTP or HTTPS resource URL."
+    );
+  }
+
+  if (
+    !/^https?:\/\//i.test(value) ||
+    !["http:", "https:"].includes(parsed.protocol) ||
+    parsed.username ||
+    parsed.password ||
+    /[\u0000-\u0020\u007f\\]/.test(value)
+  ) {
+    throw new RequestError(
+      400,
+      "Provide a valid HTTP or HTTPS resource URL without embedded credentials."
+    );
+  }
+
+  return value;
+}
 
 // =====================================================
-// MULTER CONFIGURATION
+// UPLOAD
 // =====================================================
 
 const upload = multer({
@@ -69,1514 +250,829 @@ const upload = multer({
     fileSize: 10 * 1024 * 1024,
     files: 1,
     fields: 20,
+    parts: 21,
   },
 
-  fileFilter: (
-    req,
-    file,
-    callback
-  ) => {
-    const isPdf =
-      file.mimetype ===
-        "application/pdf" ||
-      String(
-        file.originalname || ""
-      )
+  fileFilter(req, file, callback) {
+    const pdfMetadata =
+      file.mimetype === "application/pdf" ||
+      String(file.originalname || "")
         .toLowerCase()
         .endsWith(".pdf");
 
-
-    if (!isPdf) {
+    if (!pdfMetadata) {
       return callback(
-        new Error(
+        new RequestError(
+          400,
           "Only PDF files can be uploaded."
         )
       );
     }
 
-
-    return callback(
-      null,
-      true
-    );
+    return callback(null, true);
   },
 });
 
-
-// =====================================================
-// SAFE PDF UPLOAD MIDDLEWARE
-// =====================================================
-
-function optionalPdfUpload(
-  req,
-  res,
-  next
-) {
-  upload.single("file")(
-    req,
-    res,
-    (error) => {
-      if (!error) {
-        return next();
-      }
-
-
-      if (
-        error instanceof
-        multer.MulterError
-      ) {
-        if (
-          error.code ===
-          "LIMIT_FILE_SIZE"
-        ) {
-          return res
-            .status(400)
-            .json({
-              error:
-                "PDF file size must be 10 MB or less.",
-            });
-        }
-
-
-        return res
-          .status(400)
-          .json({
-            error:
-              `PDF upload failed: ${error.message}`,
-          });
-      }
-
-
-      return res
-        .status(400)
-        .json({
-          error:
-            error.message ||
-            "Unable to upload PDF.",
-        });
+function optionalPdfUpload(req, res, next) {
+  upload.single("file")(req, res, (error) => {
+    if (!error) {
+      return next();
     }
-  );
+
+    console.error("Resource upload error:", error);
+
+    const message =
+      error instanceof RequestError
+        ? error.message
+        : error.code === "LIMIT_FILE_SIZE"
+          ? "PDF file size must be 10 MB or less."
+          : "Invalid PDF upload. Use one file in the file field and valid form fields.";
+
+    return res.status(400).json({
+      error: message,
+    });
+  });
 }
 
-
-// =====================================================
-// SEMESTER HELPER
-// =====================================================
-
-function parseSemester(value) {
-  if (
-    value === undefined ||
-    value === null ||
-    value === ""
-  ) {
+async function extractUpload(file) {
+  if (!file) {
     return null;
   }
 
+  try {
+    return await extractPdfText(file.buffer);
+  } catch (error) {
+    console.error("Resource PDF extraction error:", error);
 
-  const semester =
-    Number(value);
-
-
-  if (
-    !Number.isInteger(
-      semester
-    ) ||
-    semester < 1 ||
-    semester > 8
-  ) {
-    const error =
-      new Error(
-        "Semester must be between 1 and 8"
+    if (error.statusCode === 422) {
+      throw new RequestError(
+        422,
+        "This PDF does not contain enough extractable text for CampusCopilot. Scanned image-only PDFs will require OCR."
       );
+    }
 
+    if (error.statusCode === 400) {
+      throw new RequestError(
+        400,
+        "The uploaded file is not a valid PDF."
+      );
+    }
 
-    error.statusCode =
-      400;
+    throw new RequestError(
+      422,
+      "Unable to read this PDF. Upload a readable, unencrypted PDF."
+    );
+  }
+}
 
+// =====================================================
+// FILE STAGING AND RECOVERY
+// =====================================================
 
-    throw error;
+// Staging and backup files are never returned in API responses.
+// Existing resource rows remain locked during file recovery.
+
+function fileChange(id) {
+  const target = getResourcePdfPath(id);
+  const suffix = crypto.randomUUID();
+
+  return {
+    target,
+    staged: `${target}.${suffix}.pending`,
+    backup: `${target}.${suffix}.backup`,
+    moved: false,
+    installed: false,
+    stagedCreated: false,
+  };
+}
+
+async function removeIfPresent(filename) {
+  try {
+    await fs.unlink(filename);
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      throw error;
+    }
+  }
+}
+
+async function applyFileChange(
+  change,
+  buffer,
+  creating = false
+) {
+  await ensureUploadDirectory();
+
+  if (buffer) {
+    change.stagedCreated = true;
+
+    await fs.writeFile(change.staged, buffer, {
+      flag: "wx",
+      mode: 0o600,
+    });
   }
 
+  if (creating) {
+    try {
+      await fs.lstat(change.target);
 
-  return semester;
-}
-
-
-// =====================================================
-// RESOURCE TYPE HELPER
-// =====================================================
-
-function validateResourceType(
-  value
-) {
-  const resourceType =
-    String(
-      value || ""
-    ).trim();
-
-
-  if (
-    !VALID_RESOURCE_TYPES.includes(
-      resourceType
-    )
-  ) {
-    const error =
-      new Error(
-        "Invalid resource type"
+      throw new RequestError(
+        409,
+        "A file already exists for this resource ID. No existing file was overwritten."
       );
-
-
-    error.statusCode =
-      400;
-
-
-    throw error;
+    } catch (error) {
+      if (error.code !== "ENOENT") {
+        throw error;
+      }
+    }
+  } else {
+    try {
+      await fs.rename(change.target, change.backup);
+      change.moved = true;
+    } catch (error) {
+      if (error.code !== "ENOENT") {
+        throw error;
+      }
+    }
   }
 
+  if (buffer) {
+    await fs.rename(change.staged, change.target);
 
-  return resourceType;
+    change.installed = true;
+    change.stagedCreated = false;
+  }
 }
 
+async function restoreFile(change) {
+  if (!change) {
+    return;
+  }
 
-// =====================================================
-// LOCAL RESOURCE URL
-// =====================================================
+  if (change.installed) {
+    await removeIfPresent(change.target);
+  }
 
-function buildLocalResourceUrl(
-  resourceId
-) {
-  return `/api/resources/${resourceId}/file`;
+  if (change.moved) {
+    await fs.rename(change.backup, change.target);
+  }
+
+  if (change.stagedCreated) {
+    await removeIfPresent(change.staged);
+  }
 }
 
+async function finishFile(change) {
+  if (!change) {
+    return false;
+  }
 
-function isLocalResourceUrl(
-  value
-) {
-  return /^\/api\/resources\/\d+\/file$/.test(
-    String(
-      value || ""
-    )
-  );
+  try {
+    if (change.moved) {
+      await removeIfPresent(change.backup);
+    }
+
+    if (change.stagedCreated) {
+      await removeIfPresent(change.staged);
+    }
+
+    return false;
+  } catch (error) {
+    console.error(
+      "Committed resource backup cleanup pending:",
+      change,
+      error
+    );
+
+    return true;
+  }
 }
 
-
 // =====================================================
-// CLOSE CONNECTION
+// TRANSACTION HELPERS
 // =====================================================
 
-async function closeConnection(
-  connection
-) {
+function transactionState() {
+  return {
+    connection: null,
+    file: null,
+    commitStarted: false,
+    committed: false,
+  };
+}
+
+async function closeConnection(connection) {
   if (!connection) {
     return;
   }
 
-
   try {
     await connection.close();
-
-  } catch (closeError) {
+  } catch (error) {
     console.error(
-      "Connection close error:",
-      closeError
+      "Resource connection close error:",
+      error
     );
   }
 }
 
+async function handleFailure(
+  state,
+  error,
+  res,
+  message
+) {
+  console.error(message, error);
+
+  if (state.commitStarted) {
+    // A failed commit response does not prove Oracle rolled back.
+    // Retain recovery files rather than delete potentially
+    // committed resource data.
+    console.error(
+      "Resource commit requires reconciliation:",
+      {
+        committed: state.committed,
+        file: state.file,
+      }
+    );
+
+    return res.status(500).json({
+      error:
+        "The resource operation could not be confirmed. Reload the resource list before retrying; administrator verification may be required.",
+      code: "RESOURCE_COMMIT_UNCONFIRMED",
+    });
+  }
+
+  let recoveryFailed = false;
+
+  // Restore files before releasing the resource row lock.
+  try {
+    await restoreFile(state.file);
+  } catch (recoveryError) {
+    recoveryFailed = true;
+
+    console.error(
+      "Resource file recovery failed:",
+      state.file,
+      recoveryError
+    );
+  }
+
+  if (state.connection) {
+    try {
+      await state.connection.rollback();
+    } catch (rollbackError) {
+      recoveryFailed = true;
+
+      console.error(
+        "Resource rollback failed:",
+        rollbackError
+      );
+    }
+  }
+
+  if (recoveryFailed) {
+    return res.status(500).json({
+      error:
+        "The operation failed and recovery needs administrator attention.",
+      code: "RESOURCE_RECOVERY_REQUIRED",
+    });
+  }
+
+  return res
+    .status(
+      error instanceof RequestError
+        ? error.status
+        : 500
+    )
+    .json({
+      error:
+        error instanceof RequestError
+          ? error.message
+          : message,
+    });
+}
+
+async function commit(state) {
+  state.commitStarted = true;
+
+  await state.connection.commit();
+
+  state.committed = true;
+}
 
 // =====================================================
 // GET ALL RESOURCES
-// GET /api/admin/resources
 // =====================================================
 
-router.get(
-  "/",
-  async (
-    req,
-    res
-  ) => {
-    let connection;
+router.get("/", async (req, res) => {
+  let connection;
 
+  try {
+    connection = await getConnection();
 
-    try {
-      connection =
-        await getConnection();
+    const result = await connection.execute(
+      `
+        SELECT
+          r.resource_id,
+          r.subject_code,
+          s.subject_name,
+          s.faculty_name,
+          r.title,
+          r.description,
+          r.resource_type,
+          r.resource_url,
+          r.semester,
+          r.uploaded_by,
+          r.created_at,
 
+          (
+            SELECT COUNT(*)
+            FROM resource_chunks rc
+            WHERE rc.resource_id = r.resource_id
+          ) AS chunk_count
 
-      const result =
-        await connection.execute(
-          `
-          SELECT
-            r.resource_id,
-            r.subject_code,
-            s.subject_name,
-            s.faculty_name,
-            r.title,
-            r.description,
-            r.resource_type,
-            r.resource_url,
-            r.semester,
-            r.uploaded_by,
-            r.created_at,
+        FROM resources r
 
-            (
-              SELECT COUNT(*)
-              FROM resource_chunks rc
-              WHERE rc.resource_id =
-                    r.resource_id
-            ) AS chunk_count
+        LEFT JOIN subjects s
+          ON r.subject_code = s.subject_code
 
-          FROM resources r
+        ORDER BY
+          r.created_at DESC,
+          r.resource_id DESC
+      `,
+      [],
+      DB_OPTIONS
+    );
 
-          LEFT JOIN subjects s
-            ON r.subject_code =
-               s.subject_code
+    return res.json(
+      result.rows.map((resource) => ({
+        ...resource,
+        RAG_READY:
+          Number(resource.CHUNK_COUNT) > 0 ? 1 : 0,
+      }))
+    );
+  } catch (error) {
+    console.error("Admin resources load error:", error);
 
-          ORDER BY
-            r.created_at DESC,
-            r.resource_id DESC
-          `,
-          [],
-          {
-            outFormat:
-              oracledb.OUT_FORMAT_OBJECT,
-          }
-        );
-
-
-      const resources =
-        result.rows.map(
-          (resource) => ({
-            ...resource,
-
-            RAG_READY:
-              Number(
-                resource.CHUNK_COUNT
-              ) > 0
-                ? 1
-                : 0,
-          })
-        );
-
-
-      return res.json(
-        resources
-      );
-
-    } catch (error) {
-      console.error(
-        "Admin resources load error:",
-        error
-      );
-
-
-      return res
-        .status(500)
-        .json({
-          error:
-            "Unable to load resources",
-
-          details:
-            error.message,
-        });
-
-    } finally {
-      await closeConnection(
-        connection
-      );
-    }
+    return res.status(500).json({
+      error: "Unable to load resources",
+    });
+  } finally {
+    await closeConnection(connection);
   }
-);
-
+});
 
 // =====================================================
 // ADD RESOURCE
-// POST /api/admin/resources
-//
-// Supports:
-// - application/json
-// - multipart/form-data
-//
-// PDF upload field:
-// file
 // =====================================================
 
-router.post(
-  "/",
-  optionalPdfUpload,
-
-  async (
-    req,
-    res
-  ) => {
-    let connection;
-
-    let resourceId =
-      null;
-
-    let localFileSaved =
-      false;
-
-
-    try {
-      const {
-        subjectCode,
-        title,
-        description,
-        resourceType,
-        resourceUrl,
-        semester,
-        uploadedBy,
-      } =
-        req.body || {};
-
-
-      // -------------------------------------------------
-      // REQUIRED FIELDS
-      // -------------------------------------------------
-
-      if (
-        !String(
-          subjectCode || ""
-        ).trim() ||
-        !String(
-          title || ""
-        ).trim() ||
-        !String(
-          resourceType || ""
-        ).trim()
-      ) {
-        return res
-          .status(400)
-          .json({
-            error:
-              "Subject, title and resource type are required.",
-          });
-      }
-
-
-      const cleanSubjectCode =
-        String(
-          subjectCode
-        )
-          .trim()
-          .toUpperCase();
-
-
-      const cleanTitle =
-        String(
-          title
-        ).trim();
-
-
-      const cleanDescription =
-        String(
-          description || ""
-        ).trim() ||
-        null;
-
-
-      const cleanResourceType =
-        validateResourceType(
-          resourceType
-        );
-
-
-      const cleanSemester =
-        parseSemester(
-          semester
-        );
-
-
-      const cleanUploadedBy =
-        String(
-          uploadedBy || ""
-        ).trim() ||
-        "Academic Office";
-
-
-      const hasFile =
-        Boolean(
-          req.file
-        );
-
-
-      const providedUrl =
-        String(
-          resourceUrl || ""
-        ).trim();
-
-
-      // -------------------------------------------------
-      // FILE / URL VALIDATION
-      // -------------------------------------------------
-
-      if (
-        !hasFile &&
-        !providedUrl
-      ) {
-        return res
-          .status(400)
-          .json({
-            error:
-              "Provide either a resource URL or upload a PDF file.",
-          });
-      }
-
-
-      if (
-        hasFile &&
-        !FILE_RESOURCE_TYPES.has(
-          cleanResourceType
-        )
-      ) {
-        return res
-          .status(400)
-          .json({
-            error:
-              "PDF upload is available for PDF, Notes, Question Paper and Other resource types.",
-          });
-      }
-
-
-      // -------------------------------------------------
-      // EXTRACT PDF BEFORE DATABASE WRITE
-      // -------------------------------------------------
-
-      let extractedText =
-        null;
-
-
-      if (hasFile) {
-        extractedText =
-          await extractPdfText(
-            req.file.buffer
-          );
-      }
-
-
-      // -------------------------------------------------
-      // DATABASE
-      // -------------------------------------------------
-
-      connection =
-        await getConnection();
-
-
-      // -------------------------------------------------
-      // CHECK SUBJECT
-      // -------------------------------------------------
-
-      const subjectResult =
-        await connection.execute(
-          `
-          SELECT
-            subject_code,
-            subject_name
-
-          FROM subjects
-
-          WHERE UPPER(subject_code) =
-                UPPER(:subjectCode)
-          `,
-          {
-            subjectCode:
-              cleanSubjectCode,
-          },
-          {
-            outFormat:
-              oracledb.OUT_FORMAT_OBJECT,
-          }
-        );
-
-
-      if (
-        subjectResult.rows.length ===
-        0
-      ) {
-        return res
-          .status(404)
-          .json({
-            error:
-              "Subject not found",
-          });
-      }
-
-
-      const subjectName =
-        subjectResult
-          .rows[0]
-          .SUBJECT_NAME ||
-        cleanSubjectCode;
-
-
-      // -------------------------------------------------
-      // INSERT RESOURCE
-      // -------------------------------------------------
-
-      const initialUrl =
-        hasFile
-          ? "LOCAL_UPLOAD_PENDING"
-          : providedUrl;
-
-
-      const resourceResult =
-        await connection.execute(
-          `
-          INSERT INTO resources
-          (
-            subject_code,
-            title,
-            description,
-            resource_type,
-            resource_url,
-            semester,
-            uploaded_by
-          )
-
-          VALUES
-          (
-            :subjectCode,
-            :title,
-            :description,
-            :resourceType,
-            :resourceUrl,
-            :semester,
-            :uploadedBy
-          )
-
-          RETURNING resource_id
-          INTO :resourceId
-          `,
-          {
-            subjectCode:
-              cleanSubjectCode,
-
-            title:
-              cleanTitle,
-
-            description:
-              cleanDescription,
-
-            resourceType:
-              cleanResourceType,
-
-            resourceUrl:
-              initialUrl,
-
-            semester:
-              cleanSemester,
-
-            uploadedBy:
-              cleanUploadedBy,
-
-            resourceId: {
-              dir:
-                oracledb.BIND_OUT,
-
-              type:
-                oracledb.NUMBER,
-            },
-          }
-        );
-
-
-      resourceId =
-        resourceResult
-          .outBinds
-          .resourceId[0];
-
-
-      let finalResourceUrl =
-        providedUrl;
-
-
-      let chunkCount =
-        0;
-
-
-      // -------------------------------------------------
-      // LOCAL PDF
-      // -------------------------------------------------
-
-      if (hasFile) {
-        await saveResourcePdf(
-          resourceId,
-          req.file.buffer
-        );
-
-
-        localFileSaved =
-          true;
-
-
-        finalResourceUrl =
-          buildLocalResourceUrl(
-            resourceId
-          );
-
-
-        await connection.execute(
-          `
-          UPDATE resources
-
-          SET resource_url =
-              :resourceUrl
-
-          WHERE resource_id =
-                :resourceId
-          `,
-          {
-            resourceUrl:
-              finalResourceUrl,
-
-            resourceId,
-          }
-        );
-
-
-        chunkCount =
-          await replaceResourceChunks(
-            connection,
-            resourceId,
-            extractedText
-          );
-      }
-
-
-      // -------------------------------------------------
-      // NOTIFICATION MESSAGE
-      // -------------------------------------------------
-
-      let notificationMessage =
-        `${cleanResourceType}: ${cleanTitle} has been added for ${subjectName}.`;
-
-
-      if (
-        cleanSemester
-      ) {
-        notificationMessage =
-          `${cleanResourceType}: ${cleanTitle} has been added for ${subjectName}, Semester ${cleanSemester}.`;
-      }
-
-
-      // -------------------------------------------------
-      // CREATE STUDENT NOTIFICATIONS
-      //
-      // If semester is NULL:
-      // notify all students.
-      //
-      // Otherwise:
-      // notify only that semester.
-      // -------------------------------------------------
-
-      const notificationResult =
-        await connection.execute(
-          `
-          INSERT INTO notifications
-          (
-            student_roll,
-            notification_type,
-            title,
-            message_text,
-            related_type,
-            related_id,
-            action_url,
-            is_read
-          )
-
-          SELECT
-            s.student_roll,
-            'RESOURCE',
-            :notificationTitle,
-            :messageText,
-            'RESOURCE',
-            :relatedId,
-            '/resources',
-            0
-
-          FROM students s
-
-          WHERE
-            :semester IS NULL
-            OR s.semester =
-               :semester
-          `,
-          {
-            notificationTitle:
-              "New Study Resource",
-
-            messageText:
-              notificationMessage,
-
-            relatedId:
-              resourceId,
-
-            semester:
-              cleanSemester,
-          }
-        );
-
-
-      // -------------------------------------------------
-      // COMMIT
-      // -------------------------------------------------
-
-      await connection.commit();
-
-
-      return res
-        .status(201)
-        .json({
-          message:
-            hasFile
-              ? "PDF resource uploaded and indexed successfully."
-              : "Resource added successfully.",
-
-          resourceId,
-
-          resourceUrl:
-            finalResourceUrl,
-
-          ragReady:
-            chunkCount > 0,
-
-          chunkCount,
-
-          notificationsCreated:
-            notificationResult
-              .rowsAffected ||
-            0,
-        });
-
-    } catch (error) {
-      // -------------------------------------------------
-      // ROLLBACK
-      // -------------------------------------------------
-
-      if (connection) {
-        try {
-          await connection.rollback();
-
-        } catch (
-          rollbackError
-        ) {
-          console.error(
-            "Rollback error:",
-            rollbackError
-          );
-        }
-      }
-
-
-      // -------------------------------------------------
-      // CLEAN SAVED PDF IF DB PROCESS FAILED
-      // -------------------------------------------------
-
-      if (
-        localFileSaved &&
-        resourceId
-      ) {
-        try {
-          await deleteResourcePdf(
-            resourceId
-          );
-
-        } catch (
-          fileError
-        ) {
-          console.error(
-            "Failed to clean uploaded PDF:",
-            fileError
-          );
-        }
-      }
-
-
-      console.error(
-        "Create resource error:",
-        error
-      );
-
-
-      return res
-        .status(
-          error.statusCode ||
-          500
-        )
-        .json({
-          error:
-            error.message ||
-            "Unable to add resource",
-        });
-
-    } finally {
-      await closeConnection(
-        connection
+router.post("/", optionalPdfUpload, async (req, res) => {
+  const state = transactionState();
+
+  try {
+    const input = parseInput(req);
+    const hasFile = Boolean(req.file);
+
+    if (!hasFile && !input.resourceUrl) {
+      throw new RequestError(
+        400,
+        "Provide either a resource URL or upload a PDF file."
       );
     }
-  }
-);
 
+    if (!hasFile) {
+      input.resourceUrl = externalUrl(input.resourceUrl);
+    }
+
+    const text = await extractUpload(req.file);
+
+    const connection =
+      state.connection = await getConnection();
+
+    const subject = await connection.execute(
+      `
+        SELECT subject_code, subject_name
+        FROM subjects
+        WHERE UPPER(subject_code) = UPPER(:subjectCode)
+      `,
+      {
+        subjectCode: input.subjectCode,
+      },
+      DB_OPTIONS
+    );
+
+    if (!subject.rows.length) {
+      throw new RequestError(404, "Subject not found");
+    }
+
+    const result = await connection.execute(
+      `
+        INSERT INTO resources (
+          subject_code,
+          title,
+          description,
+          resource_type,
+          resource_url,
+          semester,
+          uploaded_by
+        )
+        VALUES (
+          :subjectCode,
+          :title,
+          :description,
+          :resourceType,
+          :resourceUrl,
+          :semester,
+          :uploadedBy
+        )
+        RETURNING resource_id INTO :resourceId
+      `,
+      {
+        ...input,
+
+        resourceUrl:
+          hasFile
+            ? "LOCAL_UPLOAD_PENDING"
+            : input.resourceUrl,
+
+        resourceId: {
+          dir: oracledb.BIND_OUT,
+          type: oracledb.NUMBER,
+        },
+      },
+      WRITE_OPTIONS
+    );
+
+    const id = resourceId(
+      Array.isArray(result.outBinds.resourceId)
+        ? result.outBinds.resourceId[0]
+        : result.outBinds.resourceId
+    );
+
+    let chunkCount = 0;
+
+    const finalUrl =
+      hasFile ? localUrl(id) : input.resourceUrl;
+
+    if (hasFile) {
+      await connection.execute(
+        `
+          UPDATE resources
+          SET resource_url = :resourceUrl
+          WHERE resource_id = :resourceId
+        `,
+        {
+          resourceUrl: finalUrl,
+          resourceId: id,
+        },
+        WRITE_OPTIONS
+      );
+
+      chunkCount = await replaceResourceChunks(
+        connection,
+        id,
+        text
+      );
+    }
+
+    const subjectName =
+      subject.rows[0].SUBJECT_NAME ||
+      input.subjectCode;
+
+    const message =
+      `${input.resourceType}: ${input.title} has been added for ${subjectName}` +
+      (
+        input.semester
+          ? `, Semester ${input.semester}`
+          : ""
+      ) +
+      ".";
+
+    const notifications = await connection.execute(
+      `
+        INSERT INTO notifications (
+          student_roll,
+          notification_type,
+          title,
+          message_text,
+          related_type,
+          related_id,
+          action_url,
+          is_read
+        )
+
+        SELECT
+          s.student_roll,
+          'RESOURCE',
+          :notificationTitle,
+          :messageText,
+          'RESOURCE',
+          :relatedId,
+          '/resources',
+          0
+
+        FROM students s
+
+        WHERE :semester IS NULL
+          OR s.semester = :semester
+      `,
+      {
+        notificationTitle: "New Study Resource",
+        messageText: message,
+        relatedId: id,
+        semester: input.semester,
+      },
+      WRITE_OPTIONS
+    );
+
+    if (hasFile) {
+      state.file = fileChange(id);
+
+      await applyFileChange(
+        state.file,
+        req.file.buffer,
+        true
+      );
+    }
+
+    await commit(state);
+
+    const cleanupPending = await finishFile(state.file);
+
+    return res.status(201).json({
+      message:
+        hasFile
+          ? "PDF resource uploaded and indexed successfully."
+          : "Resource added successfully.",
+
+      resourceId: id,
+      resourceUrl: finalUrl,
+      ragReady: chunkCount > 0,
+      chunkCount,
+
+      notificationsCreated:
+        notifications.rowsAffected || 0,
+
+      ...(cleanupPending
+        ? { cleanupPending: true }
+        : {}),
+    });
+  } catch (error) {
+    return await handleFailure(
+      state,
+      error,
+      res,
+      "Unable to add resource"
+    );
+  } finally {
+    await closeConnection(state.connection);
+  }
+});
 
 // =====================================================
 // UPDATE RESOURCE
-// PUT /api/admin/resources/:id
 // =====================================================
 
-router.put(
-  "/:id",
-
-  optionalPdfUpload,
-
-  async (
-    req,
-    res
-  ) => {
-    let connection;
-
-
-    try {
-      const resourceId =
-        Number(
-          req.params.id
-        );
-
-
-      // -------------------------------------------------
-      // RESOURCE ID VALIDATION
-      // -------------------------------------------------
-
-      if (
-        !Number.isInteger(
-          resourceId
-        ) ||
-        resourceId <=
-          0
-      ) {
-        return res
-          .status(400)
-          .json({
-            error:
-              "Invalid resource ID",
-          });
-      }
-
-
-      const {
-        subjectCode,
-        title,
-        description,
-        resourceType,
-        resourceUrl,
-        semester,
-        uploadedBy,
-      } =
-        req.body || {};
-
-
-      // -------------------------------------------------
-      // REQUIRED FIELDS
-      // -------------------------------------------------
-
-      if (
-        !String(
-          subjectCode || ""
-        ).trim() ||
-        !String(
-          title || ""
-        ).trim() ||
-        !String(
-          resourceType || ""
-        ).trim()
-      ) {
-        return res
-          .status(400)
-          .json({
-            error:
-              "Subject, title and resource type are required.",
-          });
-      }
-
-
-      const cleanSubjectCode =
-        String(
-          subjectCode
-        )
-          .trim()
-          .toUpperCase();
-
-
-      const cleanResourceType =
-        validateResourceType(
-          resourceType
-        );
-
-
-      const cleanSemester =
-        parseSemester(
-          semester
-        );
-
-
-      const hasFile =
-        Boolean(
-          req.file
-        );
-
-
-      // -------------------------------------------------
-      // PDF TYPE VALIDATION
-      // -------------------------------------------------
-
-      if (
-        hasFile &&
-        !FILE_RESOURCE_TYPES.has(
-          cleanResourceType
-        )
-      ) {
-        return res
-          .status(400)
-          .json({
-            error:
-              "PDF upload is available for PDF, Notes, Question Paper and Other resource types.",
-          });
-      }
-
-
-      // -------------------------------------------------
-      // PDF EXTRACTION
-      // -------------------------------------------------
-
-      let extractedText =
-        null;
-
-
-      if (hasFile) {
-        extractedText =
-          await extractPdfText(
-            req.file.buffer
-          );
-      }
-
-
-      connection =
-        await getConnection();
-
-
-      // -------------------------------------------------
-      // EXISTING RESOURCE
-      // -------------------------------------------------
-
-      const existingResult =
-        await connection.execute(
-          `
-          SELECT
-            resource_id,
-            resource_url
-
-          FROM resources
-
-          WHERE resource_id =
-                :resourceId
-          `,
-          {
-            resourceId,
-          },
-          {
-            outFormat:
-              oracledb.OUT_FORMAT_OBJECT,
-          }
-        );
-
-
-      if (
-        existingResult.rows.length ===
-        0
-      ) {
-        return res
-          .status(404)
-          .json({
-            error:
-              "Resource not found",
-          });
-      }
-
-
-      const existingUrl =
-        existingResult
-          .rows[0]
-          .RESOURCE_URL ||
-        "";
-
-
-      // -------------------------------------------------
-      // SUBJECT EXISTS
-      // -------------------------------------------------
-
-      const subjectResult =
-        await connection.execute(
-          `
-          SELECT
-            subject_code
-
-          FROM subjects
-
-          WHERE UPPER(subject_code) =
-                UPPER(:subjectCode)
-          `,
-          {
-            subjectCode:
-              cleanSubjectCode,
-          },
-          {
-            outFormat:
-              oracledb.OUT_FORMAT_OBJECT,
-          }
-        );
-
-
-      if (
-        subjectResult.rows.length ===
-        0
-      ) {
-        return res
-          .status(404)
-          .json({
-            error:
-              "Subject not found",
-          });
-      }
-
-
-      let finalResourceUrl =
-        String(
-          resourceUrl || ""
-        ).trim();
-
-
-      let chunkCount =
-        null;
-
-
-      // -------------------------------------------------
-      // NEW PDF FILE
-      // -------------------------------------------------
-
-      if (hasFile) {
-        await saveResourcePdf(
-          resourceId,
-          req.file.buffer
-        );
-
-
-        finalResourceUrl =
-          buildLocalResourceUrl(
-            resourceId
-          );
-
-
-        chunkCount =
-          await replaceResourceChunks(
-            connection,
-            resourceId,
-            extractedText
-          );
-
-      } else {
-        // -----------------------------------------------
-        // KEEP OLD URL IF NO NEW URL GIVEN
-        // -----------------------------------------------
-
-        if (
-          !finalResourceUrl
-        ) {
-          finalResourceUrl =
-            existingUrl;
-        }
-
-
-        // -----------------------------------------------
-        // LOCAL PDF -> EXTERNAL URL
-        //
-        // Remove RAG chunks.
-        // -----------------------------------------------
-
-        if (
-          isLocalResourceUrl(
-            existingUrl
-          ) &&
-          !isLocalResourceUrl(
-            finalResourceUrl
-          )
-        ) {
-          await deleteResourceChunks(
-            connection,
-            resourceId
-          );
-        }
-      }
-
-
-      if (
-        !finalResourceUrl
-      ) {
-        return res
-          .status(400)
-          .json({
-            error:
-              "A resource URL or PDF file is required.",
-          });
-      }
-
-
-      // -------------------------------------------------
-      // UPDATE RESOURCE
-      // -------------------------------------------------
-
-      await connection.execute(
-        `
-        UPDATE resources
-
-        SET
-          subject_code =
-            :subjectCode,
-
-          title =
-            :title,
-
-          description =
-            :description,
-
-          resource_type =
-            :resourceType,
-
-          resource_url =
-            :resourceUrl,
-
-          semester =
-            :semester,
-
-          uploaded_by =
-            :uploadedBy
-
-        WHERE resource_id =
-              :resourceId
-        `,
-        {
-          subjectCode:
-            cleanSubjectCode,
-
-          title:
-            String(
-              title
-            ).trim(),
-
-          description:
-            String(
-              description || ""
-            ).trim() ||
-            null,
-
-          resourceType:
-            cleanResourceType,
-
-          resourceUrl:
-            finalResourceUrl,
-
-          semester:
-            cleanSemester,
-
-          uploadedBy:
-            String(
-              uploadedBy || ""
-            ).trim() ||
-            "Academic Office",
-
-          resourceId,
-        }
-      );
-
-
-      await connection.commit();
-
-
-      // -------------------------------------------------
-      // REMOVE OLD PHYSICAL PDF
-      //
-      // Only after successful DB commit.
-      // -------------------------------------------------
-
-      if (
-        !hasFile &&
-        isLocalResourceUrl(
-          existingUrl
-        ) &&
-        !isLocalResourceUrl(
-          finalResourceUrl
-        )
-      ) {
-        try {
-          await deleteResourcePdf(
-            resourceId
-          );
-
-        } catch (
-          fileError
-        ) {
-          console.error(
-            "Old PDF cleanup error:",
-            fileError
-          );
-        }
-      }
-
-
-      return res.json({
-        message:
-          hasFile
-            ? "Resource updated and PDF re-indexed successfully."
-            : "Resource updated successfully.",
-
-        resourceId,
-
-        resourceUrl:
-          finalResourceUrl,
-
-        ragReady:
-          hasFile
-            ? chunkCount > 0
-            : undefined,
-
-        chunkCount,
-      });
-
-    } catch (error) {
-      if (connection) {
-        try {
-          await connection.rollback();
-
-        } catch (
-          rollbackError
-        ) {
-          console.error(
-            "Rollback error:",
-            rollbackError
-          );
-        }
-      }
-
-
-      console.error(
-        "Update resource error:",
-        error
-      );
-
-
-      return res
-        .status(
-          error.statusCode ||
-          500
-        )
-        .json({
-          error:
-            error.message ||
-            "Unable to update resource",
-        });
-
-    } finally {
-      await closeConnection(
-        connection
+router.put("/:id", optionalPdfUpload, async (req, res) => {
+  const state = transactionState();
+
+  try {
+    const id = resourceId(req.params.id);
+    const input = parseInput(req);
+    const hasFile = Boolean(req.file);
+    const text = await extractUpload(req.file);
+
+    const connection =
+      state.connection = await getConnection();
+
+    const existing = await connection.execute(
+      `
+        SELECT resource_id, resource_url
+        FROM resources
+        WHERE resource_id = :resourceId
+        FOR UPDATE WAIT 5
+      `,
+      {
+        resourceId: id,
+      },
+      DB_OPTIONS
+    );
+
+    if (!existing.rows.length) {
+      throw new RequestError(404, "Resource not found");
+    }
+
+    const oldUrl =
+      existing.rows[0].RESOURCE_URL || "";
+
+    const subject = await connection.execute(
+      `
+        SELECT subject_code
+        FROM subjects
+        WHERE UPPER(subject_code) = UPPER(:subjectCode)
+      `,
+      {
+        subjectCode: input.subjectCode,
+      },
+      DB_OPTIONS
+    );
+
+    if (!subject.rows.length) {
+      throw new RequestError(404, "Subject not found");
+    }
+
+    let finalUrl =
+      hasFile
+        ? localUrl(id)
+        : input.resourceUrl || oldUrl;
+
+    if (!finalUrl) {
+      throw new RequestError(
+        400,
+        "A resource URL or PDF file is required."
       );
     }
-  }
-);
 
+    if (!hasFile) {
+      if (isLocalUrl(finalUrl)) {
+        if (
+          finalUrl !== localUrl(id) ||
+          oldUrl !== finalUrl
+        ) {
+          throw new RequestError(
+            400,
+            "Upload a PDF to create or change a local resource file."
+          );
+        }
+      } else {
+        finalUrl = externalUrl(finalUrl);
+      }
+    }
+
+    let chunkCount = null;
+
+    const removeOldFile =
+      !hasFile &&
+      isLocalUrl(oldUrl) &&
+      !isLocalUrl(finalUrl);
+
+    if (hasFile) {
+      chunkCount = await replaceResourceChunks(
+        connection,
+        id,
+        text
+      );
+    } else if (removeOldFile) {
+      await deleteResourceChunks(connection, id);
+    }
+
+    const result = await connection.execute(
+      `
+        UPDATE resources
+        SET
+          subject_code = :subjectCode,
+          title = :title,
+          description = :description,
+          resource_type = :resourceType,
+          resource_url = :resourceUrl,
+          semester = :semester,
+          uploaded_by = :uploadedBy
+        WHERE resource_id = :resourceId
+      `,
+      {
+        ...input,
+        resourceUrl: finalUrl,
+        resourceId: id,
+      },
+      WRITE_OPTIONS
+    );
+
+    if (result.rowsAffected !== 1) {
+      throw new Error(
+        "Resource update did not affect one row."
+      );
+    }
+
+    if (hasFile || removeOldFile) {
+      state.file = fileChange(id);
+
+      await applyFileChange(
+        state.file,
+        hasFile ? req.file.buffer : null
+      );
+    }
+
+    await commit(state);
+
+    const cleanupPending = await finishFile(state.file);
+
+    return res.json({
+      message:
+        hasFile
+          ? "Resource updated and PDF re-indexed successfully."
+          : "Resource updated successfully.",
+
+      resourceId: id,
+      resourceUrl: finalUrl,
+
+      ragReady:
+        hasFile ? chunkCount > 0 : undefined,
+
+      chunkCount,
+
+      ...(cleanupPending
+        ? { cleanupPending: true }
+        : {}),
+    });
+  } catch (error) {
+    return await handleFailure(
+      state,
+      error,
+      res,
+      "Unable to update resource"
+    );
+  } finally {
+    await closeConnection(state.connection);
+  }
+});
 
 // =====================================================
 // DELETE RESOURCE
-// DELETE /api/admin/resources/:id
 // =====================================================
 
-router.delete(
-  "/:id",
+router.delete("/:id", async (req, res) => {
+  const state = transactionState();
 
-  async (
-    req,
-    res
-  ) => {
-    let connection;
+  try {
+    const id = resourceId(req.params.id);
 
+    const connection =
+      state.connection = await getConnection();
 
-    try {
-      const resourceId =
-        Number(
-          req.params.id
-        );
+    const existing = await connection.execute(
+      `
+        SELECT resource_id, resource_url
+        FROM resources
+        WHERE resource_id = :resourceId
+        FOR UPDATE WAIT 5
+      `,
+      {
+        resourceId: id,
+      },
+      DB_OPTIONS
+    );
 
+    if (!existing.rows.length) {
+      throw new RequestError(404, "Resource not found");
+    }
 
-      // -------------------------------------------------
-      // VALIDATE RESOURCE ID
-      // -------------------------------------------------
-
-      if (
-        !Number.isInteger(
-          resourceId
-        ) ||
-        resourceId <=
-          0
-      ) {
-        return res
-          .status(400)
-          .json({
-            error:
-              "Invalid resource ID",
-          });
-      }
-
-
-      connection =
-        await getConnection();
-
-
-      // -------------------------------------------------
-      // FIND RESOURCE
-      // -------------------------------------------------
-
-      const existing =
-        await connection.execute(
-          `
-          SELECT
-            resource_id,
-            resource_url
-
-          FROM resources
-
-          WHERE resource_id =
-                :resourceId
-          `,
-          {
-            resourceId,
-          },
-          {
-            outFormat:
-              oracledb.OUT_FORMAT_OBJECT,
-          }
-        );
-
-
-      if (
-        existing.rows.length ===
-        0
-      ) {
-        return res
-          .status(404)
-          .json({
-            error:
-              "Resource not found",
-          });
-      }
-
-
-      const resourceUrl =
-        existing.rows[0]
-          .RESOURCE_URL ||
-        "";
-
-
-      // -------------------------------------------------
-      // DELETE DATABASE RESOURCE
-      //
-      // RESOURCE_CHUNKS is automatically deleted because
-      // the FK uses ON DELETE CASCADE.
-      // -------------------------------------------------
-
-      await connection.execute(
-        `
+    // Preserve the existing ON DELETE CASCADE behavior
+    // for resource_chunks.
+    const result = await connection.execute(
+      `
         DELETE FROM resources
+        WHERE resource_id = :resourceId
+      `,
+      {
+        resourceId: id,
+      },
+      WRITE_OPTIONS
+    );
 
-        WHERE resource_id =
-              :resourceId
-        `,
-        {
-          resourceId,
-        }
-      );
-
-
-      await connection.commit();
-
-
-      // -------------------------------------------------
-      // DELETE LOCAL PDF
-      // -------------------------------------------------
-
-      if (
-        isLocalResourceUrl(
-          resourceUrl
-        )
-      ) {
-        try {
-          await deleteResourcePdf(
-            resourceId
-          );
-
-        } catch (
-          fileError
-        ) {
-          console.error(
-            "Resource PDF cleanup error:",
-            fileError
-          );
-        }
-      }
-
-
-      return res.json({
-        message:
-          "Resource deleted successfully",
-      });
-
-    } catch (error) {
-      if (connection) {
-        try {
-          await connection.rollback();
-
-        } catch (
-          rollbackError
-        ) {
-          console.error(
-            "Rollback error:",
-            rollbackError
-          );
-        }
-      }
-
-
-      console.error(
-        "Delete resource error:",
-        error
-      );
-
-
-      return res
-        .status(500)
-        .json({
-          error:
-            "Unable to delete resource",
-
-          details:
-            error.message,
-        });
-
-    } finally {
-      await closeConnection(
-        connection
+    if (result.rowsAffected !== 1) {
+      throw new Error(
+        "Resource delete did not affect one row."
       );
     }
+
+    if (isLocalUrl(existing.rows[0].RESOURCE_URL)) {
+      state.file = fileChange(id);
+
+      await applyFileChange(state.file, null);
+    }
+
+    await commit(state);
+
+    const cleanupPending = await finishFile(state.file);
+
+    return res.json({
+      message: "Resource deleted successfully",
+
+      ...(cleanupPending
+        ? { cleanupPending: true }
+        : {}),
+    });
+  } catch (error) {
+    return await handleFailure(
+      state,
+      error,
+      res,
+      "Unable to delete resource"
+    );
+  } finally {
+    await closeConnection(state.connection);
   }
-);
+});
 
-
-module.exports =
-  router;
+module.exports = router;
