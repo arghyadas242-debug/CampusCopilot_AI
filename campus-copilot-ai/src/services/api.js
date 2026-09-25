@@ -1,790 +1,388 @@
-const API_BASE_URL =
-  "http://localhost:5000/api";
-
-
-// =====================================================
-// AUTH TOKEN HELPERS
-// =====================================================
+const API_BASE_URL = "http://localhost:5000/api";
 
 export function getToken() {
-  return (
-    localStorage.getItem(
-      "campus_token"
-    ) || ""
-  );
+  return localStorage.getItem("campus_token") || "";
 }
 
-
 export function getAuthHeader() {
-  const token =
-    getToken();
+  const token = getToken();
 
   return token
-    ? {
-        Authorization:
-          `Bearer ${token}`,
-      }
+    ? { Authorization: `Bearer ${token}` }
     : {};
 }
 
-
-// =====================================================
-// SAFE JSON RESPONSE
-// =====================================================
-
-async function readJson(
-  response
+function apiError(
+  message,
+  status = 0,
+  code = "",
+  retryAfter = null
 ) {
-  try {
-    return await response.json();
-  } catch {
-    return {};
-  }
+  const error = new Error(message);
+
+  error.status = status;
+  error.code = code;
+  error.retryAfter = retryAfter;
+
+  return error;
 }
 
+function retryAfterSeconds(response) {
+  const value = response.headers.get("Retry-After");
 
-// =====================================================
-// AUTH SERVICE
-// =====================================================
+  if (!value || !value.trim()) {
+    return null;
+  }
+
+  const seconds = Number(value);
+
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.ceil(seconds);
+  }
+
+  const date = Date.parse(value);
+
+  return Number.isFinite(date)
+    ? Math.max(0, Math.ceil((date - Date.now()) / 1000))
+    : null;
+}
+
+async function request(
+  path,
+  {
+    method = "GET",
+    body,
+    signal,
+    authenticated = true,
+    failureMessage = "The request could not be completed.",
+  } = {}
+) {
+  const token = authenticated ? getToken() : "";
+
+  if (authenticated && !token) {
+    throw apiError(
+      "Please log in to continue.",
+      401,
+      "AUTH_TOKEN_REQUIRED"
+    );
+  }
+
+  let response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      method,
+      signal,
+
+      headers:
+        body === undefined
+          ? authenticated
+            ? getAuthHeader()
+            : {}
+          : {
+              "Content-Type": "application/json",
+              ...(authenticated ? getAuthHeader() : {}),
+            },
+
+      ...(body === undefined
+        ? {}
+        : { body: JSON.stringify(body) }),
+
+      cache: "no-store",
+    });
+  } catch (error) {
+    if (signal?.aborted || error.name === "AbortError") {
+      throw error;
+    }
+
+    throw apiError(
+      "Unable to reach the server. Check your connection and try again.",
+      0,
+      "NETWORK_ERROR"
+    );
+  }
+
+  let data;
+  let validJson = true;
+
+  try {
+    data = await response.json();
+  } catch (error) {
+    if (signal?.aborted || error.name === "AbortError") {
+      throw error;
+    }
+
+    validJson = false;
+  }
+
+  if (authenticated && getToken() !== token) {
+    throw apiError(
+      "Your login session has changed. Please log in again.",
+      401,
+      "AUTH_SESSION_CHANGED"
+    );
+  }
+
+  if (!response.ok) {
+    const code =
+      typeof data?.code === "string" ? data.code : "";
+
+    const serverMessage =
+      typeof data?.error === "string"
+        ? data.error
+        : typeof data?.message === "string"
+        ? data.message
+        : "";
+
+    const message =
+      response.status >= 500
+        ? `${failureMessage} The service is temporarily unavailable. Please try again later.`
+        : serverMessage || failureMessage;
+
+    throw apiError(
+      message,
+      response.status,
+      code,
+      retryAfterSeconds(response)
+    );
+  }
+
+  if (
+    !validJson ||
+    data === null ||
+    typeof data !== "object"
+  ) {
+    throw apiError(
+      "The server returned an invalid response. Please try again.",
+      response.status,
+      "INVALID_RESPONSE"
+    );
+  }
+
+  return data;
+}
+
+function saveSession(data) {
+  if (
+    typeof data.token !== "string" ||
+    !data.token.trim() ||
+    !data.user ||
+    typeof data.user !== "object" ||
+    Array.isArray(data.user)
+  ) {
+    throw apiError(
+      "The server did not return a valid login session.",
+      200,
+      "INVALID_AUTH_RESPONSE"
+    );
+  }
+
+  localStorage.setItem("campus_token", data.token);
+  localStorage.setItem(
+    "campus_user",
+    JSON.stringify(data.user)
+  );
+
+  return data;
+}
 
 export const authService = {
+  async register(userData) {
+    const data = await request("/auth/register", {
+      method: "POST",
+      body: userData,
+      authenticated: false,
+      failureMessage: "Registration failed.",
+    });
 
-  // ---------------------------------------------------
-  // REGISTER
-  // ---------------------------------------------------
-
-  async register(
-    userData
-  ) {
-    const res =
-      await fetch(
-        `${API_BASE_URL}/auth/register`,
-        {
-          method:
-            "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-
-          body:
-            JSON.stringify(
-              userData
-            ),
-        }
-      );
-
-
-    const data =
-      await readJson(
-        res
-      );
-
-
-    if (!res.ok) {
-      throw new Error(
-        data.error ||
-          data.message ||
-          "Registration failed"
-      );
-    }
-
-
-    if (data.token) {
-      localStorage.setItem(
-        "campus_token",
-        data.token
-      );
-
-
-      localStorage.setItem(
-        "campus_user",
-        JSON.stringify(
-          data.user
-        )
-      );
-    }
-
-
-    return data;
+    return saveSession(data);
   },
 
+  async login(email, password) {
+    const data = await request("/auth/login", {
+      method: "POST",
+      body: { email, password },
+      authenticated: false,
+      failureMessage: "Login failed.",
+    });
 
-  // ---------------------------------------------------
-  // LOGIN
-  // ---------------------------------------------------
-
-  async login(
-    email,
-    password
-  ) {
-    const res =
-      await fetch(
-        `${API_BASE_URL}/auth/login`,
-        {
-          method:
-            "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-
-          body:
-            JSON.stringify({
-              email,
-              password,
-            }),
-        }
-      );
-
-
-    const data =
-      await readJson(
-        res
-      );
-
-
-    if (!res.ok) {
-      throw new Error(
-        data.error ||
-          data.message ||
-          "Login failed"
-      );
-    }
-
-
-    if (data.token) {
-      localStorage.setItem(
-        "campus_token",
-        data.token
-      );
-
-
-      localStorage.setItem(
-        "campus_user",
-        JSON.stringify(
-          data.user
-        )
-      );
-    }
-
-
-    return data;
+    return saveSession(data);
   },
-
-
-  // ---------------------------------------------------
-  // CURRENT USER
-  // ---------------------------------------------------
 
   getCurrentUser() {
     try {
-      const userStr =
-        localStorage.getItem(
-          "campus_user"
-        );
+      const raw = localStorage.getItem("campus_user");
+      const user = raw ? JSON.parse(raw) : null;
 
-
-      return userStr
-        ? JSON.parse(
-            userStr
-          )
+      return (
+        user &&
+        typeof user === "object" &&
+        !Array.isArray(user)
+      )
+        ? user
         : null;
-
     } catch {
       return null;
     }
   },
 
-
-  // ---------------------------------------------------
-  // TOKEN
-  // ---------------------------------------------------
-
   getToken() {
     return getToken();
   },
 
-
-  // ---------------------------------------------------
-  // GET CURRENT USER FROM BACKEND
-  // ---------------------------------------------------
-
   async getMe() {
-    const res =
-      await fetch(
-        `${API_BASE_URL}/auth/me`,
-        {
-          headers:
-            getAuthHeader(),
-        }
-      );
-
-
-    const data =
-      await readJson(
-        res
-      );
-
-
-    if (!res.ok) {
-      throw new Error(
-        data.error ||
-          data.message ||
-          "Unable to verify user session"
-      );
-    }
-
-
-    return data;
+    return request("/auth/me", {
+      failureMessage: "Unable to verify user session.",
+    });
   },
 
-
-  // ---------------------------------------------------
-  // LOGOUT
-  // ---------------------------------------------------
-
   logout() {
-    localStorage.removeItem(
-      "campus_token"
-    );
-
-
-    localStorage.removeItem(
-      "campus_user"
-    );
+    localStorage.removeItem("campus_token");
+    localStorage.removeItem("campus_user");
   },
 };
 
-
-// =====================================================
-// AI SERVICE
-// =====================================================
-
 export const aiService = {
-
-  // ---------------------------------------------------
-  // CHAT
-  // ---------------------------------------------------
-
   async sendChatMessage(
     message,
     history = [],
-    context = {}
+    context = {},
+    options = {}
   ) {
-    const res =
-      await fetch(
-        `${API_BASE_URL}/ai/chat`,
-        {
-          method:
-            "POST",
+    const data = await request("/ai/chat", {
+      method: "POST",
+      body: { message, history, context },
+      signal: options.signal,
+      failureMessage: "Failed to get AI response.",
+    });
 
-          headers: {
-            "Content-Type":
-              "application/json",
-
-            ...getAuthHeader(),
-          },
-
-          body:
-            JSON.stringify({
-              message,
-              history,
-              context,
-            }),
-        }
-      );
-
-
-    const data =
-      await readJson(
-        res
-      );
-
-
-    if (!res.ok) {
-      throw new Error(
-        data.error ||
-          data.message ||
-          "Failed to get AI response"
+    if (
+      typeof data.reply !== "string" ||
+      !data.reply.trim()
+    ) {
+      throw apiError(
+        "CampusCopilot returned an empty or invalid reply. Please try again.",
+        200,
+        "INVALID_AI_RESPONSE"
       );
     }
-
 
     return data;
   },
 
+  async getPerformanceAnalytics(studentRoll) {
+    return request("/ai/analytics", {
+      method: "POST",
 
-  // ---------------------------------------------------
-  // PERFORMANCE ANALYTICS
-  // ---------------------------------------------------
+      body:
+        studentRoll === undefined
+          ? {}
+          : { studentRoll },
 
-  async getPerformanceAnalytics(
-    studentRoll
-  ) {
-    const res =
-      await fetch(
-        `${API_BASE_URL}/ai/analytics`,
-        {
-          method:
-            "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json",
-
-            ...getAuthHeader(),
-          },
-
-          body:
-            JSON.stringify({
-              studentRoll,
-            }),
-        }
-      );
-
-
-    const data =
-      await readJson(
-        res
-      );
-
-
-    if (!res.ok) {
-      throw new Error(
-        data.error ||
-          data.message ||
-          "Failed to load AI performance analytics"
-      );
-    }
-
-
-    return data;
+      failureMessage:
+        "Failed to load AI performance analytics.",
+    });
   },
 
-
-  // ---------------------------------------------------
-  // NOTICE SUMMARY
-  // ---------------------------------------------------
-
-  async summarizeNotice(
-    title,
-    noticeText
-  ) {
-    const res =
-      await fetch(
-        `${API_BASE_URL}/ai/summarize-notice`,
-        {
-          method:
-            "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json",
-
-            ...getAuthHeader(),
-          },
-
-          body:
-            JSON.stringify({
-              title,
-              noticeText,
-            }),
-        }
-      );
-
-
-    const data =
-      await readJson(
-        res
-      );
-
-
-    if (!res.ok) {
-      throw new Error(
-        data.error ||
-          data.message ||
-          "Failed to summarize notice"
-      );
-    }
-
-
-    return data;
+  async summarizeNotice(title, noticeText) {
+    return request("/ai/summarize-notice", {
+      method: "POST",
+      body: { title, noticeText },
+      failureMessage: "Failed to summarize notice.",
+    });
   },
-
-
-  // ---------------------------------------------------
-  // STUDY PLAN
-  // ---------------------------------------------------
 
   async generateStudyPlan(
     subjects,
     daysUntilExam,
     dailyHours
   ) {
-    const res =
-      await fetch(
-        `${API_BASE_URL}/ai/study-plan`,
-        {
-          method:
-            "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json",
-
-            ...getAuthHeader(),
-          },
-
-          body:
-            JSON.stringify({
-              subjects,
-              daysUntilExam,
-              dailyHours,
-            }),
-        }
-      );
-
-
-    const data =
-      await readJson(
-        res
-      );
-
-
-    if (!res.ok) {
-      throw new Error(
-        data.error ||
-          data.message ||
-          "Failed to generate study plan"
-      );
-    }
-
-
-    return data;
+    return request("/ai/study-plan", {
+      method: "POST",
+      body: {
+        subjects,
+        daysUntilExam,
+        dailyHours,
+      },
+      failureMessage: "Failed to generate study plan.",
+    });
   },
 };
 
+function cleanStudentRoll(rollNumber) {
+  const roll = String(rollNumber || "").trim();
 
-// =====================================================
-// ATTENDANCE SERVICE
-// =====================================================
+  if (!roll) {
+    throw new Error("Student roll number is required.");
+  }
+
+  return encodeURIComponent(roll);
+}
+
+function safeWeekCount(weeks) {
+  const parsed = Number.parseInt(weeks, 10);
+
+  return Number.isFinite(parsed)
+    ? Math.min(52, Math.max(1, parsed))
+    : 8;
+}
 
 export const attendanceService = {
-
-  // ---------------------------------------------------
-  // GET ATTENDANCE
-  // ---------------------------------------------------
-
-  async getAttendance(
-    rollNumber
-  ) {
-    const cleanRoll =
-      String(
-        rollNumber ||
-          ""
-      ).trim();
-
-
-    if (!cleanRoll) {
-      throw new Error(
-        "Student roll number is required."
-      );
-    }
-
-
-    const res =
-      await fetch(
-        `${API_BASE_URL}/attendance/${encodeURIComponent(
-          cleanRoll
-        )}`,
-        {
-          headers:
-            getAuthHeader(),
-        }
-      );
-
-
-    const data =
-      await readJson(
-        res
-      );
-
-
-    if (!res.ok) {
-      throw new Error(
-        data.error ||
-          data.message ||
-          "Failed to fetch attendance"
-      );
-    }
-
-
-    return data;
+  async getAttendance(rollNumber) {
+    return request(
+      `/attendance/${cleanStudentRoll(rollNumber)}`,
+      {
+        failureMessage: "Failed to fetch attendance.",
+      }
+    );
   },
 
-
-  // ---------------------------------------------------
-  // ATTENDANCE TREND
-  // ---------------------------------------------------
-
-  async getAttendanceTrend(
-    rollNumber,
-    weeks = 8
-  ) {
-    const cleanRoll =
-      String(
-        rollNumber ||
-          ""
-      ).trim();
-
-
-    if (!cleanRoll) {
-      throw new Error(
-        "Student roll number is required."
-      );
-    }
-
-
-    const parsedWeeks =
-      Number.parseInt(
-        weeks,
-        10
-      );
-
-
-    const safeWeeks =
-      Number.isFinite(
-        parsedWeeks
-      )
-        ? Math.min(
-            52,
-            Math.max(
-              1,
-              parsedWeeks
-            )
-          )
-        : 8;
-
-
-    const res =
-      await fetch(
-        `${API_BASE_URL}/attendance/${encodeURIComponent(
-          cleanRoll
-        )}/trend?weeks=${safeWeeks}`,
-        {
-          headers:
-            getAuthHeader(),
-        }
-      );
-
-
-    const data =
-      await readJson(
-        res
-      );
-
-
-    if (!res.ok) {
-      throw new Error(
-        data.error ||
-          data.message ||
-          "Unable to load attendance trend."
-      );
-    }
-
-
-    return data;
+  async getAttendanceTrend(rollNumber, weeks = 8) {
+    return request(
+      `/attendance/${cleanStudentRoll(
+        rollNumber
+      )}/trend?weeks=${safeWeekCount(weeks)}`,
+      {
+        failureMessage: "Unable to load attendance trend.",
+      }
+    );
   },
 
-
-  // ---------------------------------------------------
-  // TREND HISTORY
-  // ---------------------------------------------------
-
-  async getAttendanceTrendHistory(
-    rollNumber,
-    weeks = 8
-  ) {
-    const cleanRoll =
-      String(
-        rollNumber ||
-          ""
-      ).trim();
-
-
-    if (!cleanRoll) {
-      throw new Error(
-        "Student roll number is required."
-      );
-    }
-
-
-    const parsedWeeks =
-      Number.parseInt(
-        weeks,
-        10
-      );
-
-
-    const safeWeeks =
-      Number.isFinite(
-        parsedWeeks
-      )
-        ? Math.min(
-            52,
-            Math.max(
-              1,
-              parsedWeeks
-            )
-          )
-        : 8;
-
-
-    const res =
-      await fetch(
-        `${API_BASE_URL}/attendance/${encodeURIComponent(
-          cleanRoll
-        )}/trend-history?weeks=${safeWeeks}`,
-        {
-          headers:
-            getAuthHeader(),
-        }
-      );
-
-
-    const data =
-      await readJson(
-        res
-      );
-
-
-    if (!res.ok) {
-      throw new Error(
-        data.error ||
-          data.message ||
-          "Unable to load attendance history."
-      );
-    }
-
-
-    return data;
+  async getAttendanceTrendHistory(rollNumber, weeks = 8) {
+    return request(
+      `/attendance/${cleanStudentRoll(
+        rollNumber
+      )}/trend-history?weeks=${safeWeekCount(weeks)}`,
+      {
+        failureMessage:
+          "Unable to load attendance history.",
+      }
+    );
   },
 
-
-  // ---------------------------------------------------
-  // UPDATE ATTENDANCE
-  // ---------------------------------------------------
-
-  async updateAttendance(
-    records
-  ) {
-    const res =
-      await fetch(
-        `${API_BASE_URL}/attendance/update`,
-        {
-          method:
-            "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json",
-
-            ...getAuthHeader(),
-          },
-
-          body:
-            JSON.stringify({
-              records,
-            }),
-        }
-      );
-
-
-    const data =
-      await readJson(
-        res
-      );
-
-
-    if (!res.ok) {
-      throw new Error(
-        data.error ||
-          data.message ||
-          "Failed to update attendance"
-      );
-    }
-
-
-    return data;
+  async updateAttendance(records) {
+    return request("/attendance/update", {
+      method: "POST",
+      body: { records },
+      failureMessage: "Failed to update attendance.",
+    });
   },
 };
-
-
-// =====================================================
-// COMMON STUDENT COLLECTION FETCHER
-// =====================================================
 
 async function getStudentCollection(
   resource,
   rollNumber
 ) {
-  const cleanRoll =
-    String(
-      rollNumber ||
-        ""
-    ).trim();
-
-
-  if (!cleanRoll) {
-    throw new Error(
-      "Student roll number is required."
-    );
-  }
-
-
-  const res =
-    await fetch(
-      `${API_BASE_URL}/${resource}/${encodeURIComponent(
-        cleanRoll
-      )}`,
-      {
-        headers:
-          getAuthHeader(),
-      }
-    );
-
-
-  const data =
-    await readJson(
-      res
-    );
-
-
-  if (!res.ok) {
-    throw new Error(
-      data.error ||
-        data.message ||
-        `Failed to fetch ${resource}`
-    );
-  }
-
-
-  return data;
+  return request(
+    `/${resource}/${cleanStudentRoll(rollNumber)}`,
+    {
+      failureMessage: `Failed to fetch ${resource}.`,
+    }
+  );
 }
 
-
-// =====================================================
-// ASSIGNMENT SERVICE
-// =====================================================
-
 export const assignmentService = {
-
-  async getAssignments(
-    rollNumber
-  ) {
+  async getAssignments(rollNumber) {
     return getStudentCollection(
       "assignments",
       rollNumber
@@ -792,16 +390,8 @@ export const assignmentService = {
   },
 };
 
-
-// =====================================================
-// TIMETABLE SERVICE
-// =====================================================
-
 export const timetableService = {
-
-  async getTimetable(
-    rollNumber
-  ) {
+  async getTimetable(rollNumber) {
     return getStudentCollection(
       "timetable",
       rollNumber
@@ -809,197 +399,37 @@ export const timetableService = {
   },
 };
 
-
-// =====================================================
-// NOTICE SERVICE
-// =====================================================
-
 export const noticeService = {
-
-  // ---------------------------------------------------
-  // GET NOTICES
-  // ---------------------------------------------------
-
   async getNotices() {
-    const res =
-      await fetch(
-        `${API_BASE_URL}/notices`,
-        {
-          headers:
-            getAuthHeader(),
-        }
-      );
-
-
-    const data =
-      await readJson(
-        res
-      );
-
-
-    if (!res.ok) {
-      throw new Error(
-        data.error ||
-          data.message ||
-          "Failed to fetch notices"
-      );
-    }
-
-
-    return data;
+    return request("/notices", {
+      failureMessage: "Failed to fetch notices.",
+    });
   },
 
-
-  // ---------------------------------------------------
-  // PUBLISH NOTICE
-  // ---------------------------------------------------
-
-  async publishNotice(
-    noticeData
-  ) {
-    const res =
-      await fetch(
-        `${API_BASE_URL}/notices`,
-        {
-          method:
-            "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json",
-
-            ...getAuthHeader(),
-          },
-
-          body:
-            JSON.stringify(
-              noticeData
-            ),
-        }
-      );
-
-
-    const data =
-      await readJson(
-        res
-      );
-
-
-    if (!res.ok) {
-      throw new Error(
-        data.error ||
-          data.message ||
-          "Failed to publish notice"
-      );
-    }
-
-
-    return data;
+  async publishNotice(noticeData) {
+    return request("/notices", {
+      method: "POST",
+      body: noticeData,
+      failureMessage: "Failed to publish notice.",
+    });
   },
 };
 
-
-// =====================================================
-// STUDENT SERVICE
-// =====================================================
-
 export const studentService = {
-
-  // ---------------------------------------------------
-  // GET STUDENTS
-  // ---------------------------------------------------
-
   async getStudents() {
-    const res =
-      await fetch(
-        `${API_BASE_URL}/students`,
-        {
-          headers:
-            getAuthHeader(),
-        }
-      );
-
-
-    const data =
-      await readJson(
-        res
-      );
-
-
-    if (!res.ok) {
-      throw new Error(
-        data.error ||
-          data.message ||
-          "Failed to fetch students"
-      );
-    }
-
-
-    return data;
+    return request("/students", {
+      failureMessage: "Failed to fetch students.",
+    });
   },
 
-
-  // ---------------------------------------------------
-  // UPDATE STUDENT
-  // ---------------------------------------------------
-
-  async updateStudent(
-    rollNumber,
-    studentData
-  ) {
-    const cleanRoll =
-      String(
-        rollNumber ||
-          ""
-      ).trim();
-
-
-    if (!cleanRoll) {
-      throw new Error(
-        "Student roll number is required."
-      );
-    }
-
-
-    const res =
-      await fetch(
-        `${API_BASE_URL}/students/${encodeURIComponent(
-          cleanRoll
-        )}`,
-        {
-          method:
-            "PUT",
-
-          headers: {
-            "Content-Type":
-              "application/json",
-
-            ...getAuthHeader(),
-          },
-
-          body:
-            JSON.stringify(
-              studentData
-            ),
-        }
-      );
-
-
-    const data =
-      await readJson(
-        res
-      );
-
-
-    if (!res.ok) {
-      throw new Error(
-        data.error ||
-          data.message ||
-          "Failed to update student"
-      );
-    }
-
-
-    return data;
+  async updateStudent(rollNumber, studentData) {
+    return request(
+      `/students/${cleanStudentRoll(rollNumber)}`,
+      {
+        method: "PUT",
+        body: studentData,
+        failureMessage: "Failed to update student.",
+      }
+    );
   },
 };
